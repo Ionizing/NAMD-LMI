@@ -14,7 +14,7 @@ cleansrc:
 	$(MAKE) clean -C src
 
 t: test
-test:
+test: main
 	$(MAKE) -C tests
 cleantests:
 	$(MAKE) clean -C tests
