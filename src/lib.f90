@@ -1,0 +1,5 @@
+SUBROUTINE ADD1(x)
+    IMPLICIT NONE
+    INTEGER, INTENT(inout) :: x
+    x = x + 1
+END SUBROUTINE ADD1
