@@ -4,13 +4,20 @@ MOD = ../src
 LIB = $(MOD)/libnamd.a
 BIN = test.x
 
-test: $(BIN)
-	for b in $(BIN); do ./$${b}; done
+.PHONY: $(LIB)
 
-fruit.o: fruit.f90
+TEST_OBJS = test_lib.o
+FRUIT = fruit.o
 
-%.x: %.f90 $(LIB) fruit.o
-	$(MPIF90) -I$(MOD) $< -o $@
+test: test.f90 $(TEST_OBJS) $(LIB) $(FRUIT)
+	$(MPIF90) -I$(MOD) $^ -o $@ $(F90FLAGS)
+	./$@
+
+%.o: %.f90 $(FRUIT)
+	$(MPIF90) -c $< -I$(MOD) $(F90FLAGS)
+
+$(LIB):
+	$(MAKE) -C ../src
 
 clean:
-	rm -f *.x *.o *.mod
+	rm -f test *.o *.mod

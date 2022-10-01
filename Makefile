@@ -19,5 +19,12 @@ test: main
 cleantests:
 	$(MAKE) clean -C tests
 
-clean: cleansrc cleantests
+d: docs
+docs: doc/Doxygenfile
+	$(MAKE) -C doc
+cleandocs:
+	$(MAKE) clean -C doc
+
+c: clean
+clean: cleansrc cleantests cleandocs
 	@rm -f *.x

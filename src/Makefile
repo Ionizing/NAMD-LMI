@@ -1,13 +1,15 @@
 include ../make.inc
 
-OBJS = lib.o
+OBJS = string.o
 LIB = libnamd.a
 
 namd_lumi.x: namd_lumi.f90 $(LIB)
 	$(MPIF90) -o $@ $< $(F90FLAGS)
 
-libnamd.a: $(OBJS)
-	ar -rc $@ $<
+$(LIB): $(OBJS) lib.o
+	ar -rc $@ $^
+
+lib.o: $(OBJS)
 
 clean:
 	rm -f *.x *.o *.mod *.a
