@@ -1,4 +1,4 @@
-#define AT "at " // __FILE__ // ":" // int2str(__LINE__)
+#include "../src/common.h"
 
 MODULE TEST_LIB
     USE fruit

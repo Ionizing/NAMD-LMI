@@ -51,4 +51,17 @@ MODULE common
     REAL(q),    PARAMETER :: AUTOA5         = AUTOA2 * AUTOA3   !< AUTOA^5
 
     REAL(q),    PARAMETER :: AUTODEBYE      = 2.541746          !< Dipole moment in atomic units to Debye
+
+    INTEGER,    PARAMETER :: FNAMELEN       = 256               !< Maximum length of file name
+
+    !! Standard input, output units
+    INTEGER,    PARAMETER :: STDIN  = 5
+    INTEGER,    PARAMETER :: STDOUT = 6
+    INTEGER,    PARAMETER :: STDERR = 0
+
+    !! Error codes
+    INTEGER,    PARAMETER :: ERROR_WAVE_OPEN_FAILED  = 11
+    INTEGER,    PARAMETER :: ERROR_WAVE_INVALID_PREC = 12
+    INTEGER,    PARAMETER :: ERROR_WAVE_INVALID_FILE = 13
+    INTEGER,    PARAMETER :: ERROR_WAVE_ALREADY_OPEN = 14
 END MODULE common

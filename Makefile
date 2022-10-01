@@ -1,5 +1,3 @@
-#include make.inc
-
 .PHONY: install
 
 all: main
