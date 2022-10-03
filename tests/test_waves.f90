@@ -146,9 +146,9 @@ MODULE test_waves
                 DO ib = 1, wav%nbands
                     phi = (0, 0)
                     CALL waves_read_wavefunction_qs(wav, is, ik, ib, phi(1:nplw))
-                    norm = REAL(SQRT(SUM(CONJG(phi(1:nplw)) * phi(1:nplw))))
-                    PRINT 200, is, ik, ib, norm
-                    200 FORMAT("is = ", I3, " ik = ", I3, " ib = ", I3, " norm = ", F10.8)
+                    !norm = REAL(SQRT(SUM(CONJG(phi(1:nplw)) * phi(1:nplw))))
+                    !PRINT 200, is, ik, ib, norm
+                    !200 FORMAT("is = ", I3, " ik = ", I3, " ib = ", I3, " norm = ", F10.8)
                 ENDDO
             ENDDO
         ENDDO
