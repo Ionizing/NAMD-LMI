@@ -1,12 +1,17 @@
 PROGRAM TEST_MAIN
     USE fruit
-    USE test_lib, ONLY: test_int2str
+    USE test_string, ONLY: test_string_fn
+    USE test_waves,  ONLY: test_waves_fn
 
     IMPLICIT NONE
 
     CALL init_fruit
 
-    CALL test_int2str
+    !! test_string
+    CALL test_string_fn
+
+    !! test_waves
+    CALL test_waves_fn
 
     CALL fruit_summary
     CALL fruit_finalize

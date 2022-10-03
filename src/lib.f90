@@ -1,5 +1,5 @@
 MODULE namd_lumi
     USE string, ONLY: int2str
     USE common
-    USE wavecar, ONLY: waves
+    USE wavecar
 END MODULE namd_lumi
