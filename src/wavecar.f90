@@ -59,7 +59,7 @@ MODULE wavecar
         REAL(q) :: rnkpoints
         REAL(q) :: rnbands
         REAL(q) :: rnplw
-        COMPLEX(q), ALLOCATABLE :: ceigs(:)
+        REAL(q) :: dummy
 
         IF(PRESENT(iu0)) iu = iu0
         wav%iu = iu
@@ -108,7 +108,7 @@ MODULE wavecar
             STOP ERROR_WAVE_OPEN_FAILED
         END IF
 
-        READ(iu, rec=2) rnkpoints, rnbands, wav%encut, ((wav%acell(i,j), i=1,3), j=1,3)
+        READ(iu, rec=2) rnkpoints, rnbands, wav%encut, ((wav%acell(i,j), i=1,3), j=1,3), wav%efermi
         wav%nkpoints = NINT(rnkpoints)
         wav%nbands   = NINT(rnbands)
 
@@ -122,16 +122,14 @@ MODULE wavecar
         ALLOCATE(wav%nplws(wav%nkpoints))
         ALLOCATE(wav%eigs(wav%nbands, wav%nkpoints, wav%nspin))
         ALLOCATE(wav%fweights(wav%nbands, wav%nkpoints, wav%nspin))
-        ALLOCATE(ceigs(wav%nbands))
 
         irec = 2
         DO i=1, wav%nspin
             DO j=1, wav%nkpoints
                 irec = irec + 1
 
-                READ(iu, rec=irec) rnplw, (wav%kvecs(k, j), k=1,3), (ceigs(n), wav%fweights(n, j, i), n=1, wav%nbands)
+                READ(iu, rec=irec) rnplw, (wav%kvecs(k, j), k=1,3), (wav%eigs(n, j, i), dummy, wav%fweights(n, j, i), n=1, wav%nbands)
                 wav%nplws(j) = NINT(rnplw)
-                wav%eigs(:, j, i) = REAL(ceigs(:))
 
                 irec = irec + wav%nbands
             ENDDO
@@ -160,7 +158,8 @@ MODULE wavecar
                                            wavetype, wav%gvecs(:, 1:ngvec, i))
         ENDDO
 
-        DEALLOCATE(ceigs)
+        wav%wavetype = wavetype
+
     END SUBROUTINE waves_init
 
 

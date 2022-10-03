@@ -65,12 +65,16 @@ MODULE test_waves
         IMPLICIT NONE
 
         TYPE(waves) :: wav
+        REAL(q)     :: efermi
 
         CALL waves_init(wav, "WAVECAR_std", "std")
         CALL assert_equals(wav%nspin, 2)
         CALL assert_equals(wav%nplws(1), 4011)
         CALL assert_equals(wav%nplws(2), 3940)
         CALL assert_equals(wav%encut, 400.0_q)
+        CALL assert_equals(wav%efermi, -1.979_q, 1e-3_q)
+        efermi = wav%efermi
+        CALL assert_equals(wav%eigs(20, 2, 2)-efermi, 9.248_q, 1e-3_q)
         CALL waves_destroy(wav)
 
         CALL waves_init(wav, "WAVECAR_gamx", "gamx")
