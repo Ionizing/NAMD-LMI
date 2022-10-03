@@ -3,3 +3,5 @@
 *.mod
 *.a
 *.x
+*.dSYM
+.DS_Store
