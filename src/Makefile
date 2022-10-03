@@ -4,10 +4,10 @@ OBJS = string.o common.o wavecar.o
 LIB = libnamd.a
 
 namd_lumi.x: namd_lumi.f90 $(LIB)
-	$(MPIF90) -o $@ $< $(F90FLAGS)
+	$(MPIF90) -o $@ $^ $(F90FLAGS)
 
 $(LIB): $(OBJS) lib.o
-	ar -rc $@ $^
+	ar -rcv $@ $^
 
 lib.o: $(OBJS)
 
