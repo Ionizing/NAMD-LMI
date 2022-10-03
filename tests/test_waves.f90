@@ -13,6 +13,7 @@ MODULE test_waves
         CALL test_waves_m33det
         CALL test_waves_acell2bcell
         CALL test_waves_init
+        CALL test_waves_read_phi
     END SUBROUTINE test_waves_fn
 
 
@@ -54,10 +55,10 @@ MODULE test_waves
         INTEGER :: g(77)
 
         CALL waves_gen_fft_freq_(ng, g)
-        CALL assert_equals(g(1), 0)
-        CALL assert_equals(g(ng), -1)
-        CALL assert_equals(g(39), 38)
-        CALL assert_equals(g(40), -38)
+        CALL assert_equals(g(1), 0, AT)
+        CALL assert_equals(g(ng), -1, AT)
+        CALL assert_equals(g(39), 38, AT)
+        CALL assert_equals(g(40), -38, AT)
     END SUBROUTINE test_waves_gen_fft_freq
 
 
@@ -68,33 +69,104 @@ MODULE test_waves
         REAL(q)     :: efermi
 
         CALL waves_init(wav, "WAVECAR_std", "std")
-        CALL assert_equals(wav%nspin, 2)
-        CALL assert_equals(wav%nplws(1), 4011)
-        CALL assert_equals(wav%nplws(2), 3940)
-        CALL assert_equals(wav%encut, 400.0_q)
-        CALL assert_equals(wav%efermi, -1.979_q, 1e-3_q)
+        CALL assert_equals(wav%nspin, 2, AT)
+        CALL assert_equals(wav%nplws(1), 4011, AT)
+        CALL assert_equals(wav%nplws(2), 3940, AT)
+        CALL assert_equals(wav%encut, 400.0_q, AT)
+        CALL assert_equals(wav%efermi, -1.979_q, 1e-3_q, AT)
         efermi = wav%efermi
-        CALL assert_equals(wav%eigs(20, 2, 2)-efermi, 9.248_q, 1e-3_q)
+        CALL assert_equals(wav%eigs(20, 2, 2)-efermi, 9.248_q, 1e-3_q, AT)
         CALL waves_destroy(wav)
 
         CALL waves_init(wav, "WAVECAR_gamx", "gamx")
-        CALL assert_equals(wav%nspin, 2)
-        CALL assert_equals(wav%nplws(1), 2006)
-        CALL assert_equals(wav%encut, 400.0_q)
+        CALL assert_equals(wav%nspin, 2, AT)
+        CALL assert_equals(wav%nplws(1), 2006, AT)
+        CALL assert_equals(wav%encut, 400.0_q, AT)
         CALL waves_destroy(wav)
 
         CALL waves_init(wav, "WAVECAR_gamz", "gamz")
-        CALL assert_equals(wav%nspin, 1)
-        CALL assert_equals(wav%nplws(1), 4658)
-        CALL assert_equals(wav%encut, 400.0_q)
+        CALL assert_equals(wav%nspin, 1, AT)
+        CALL assert_equals(wav%nplws(1), 4658, AT)
+        CALL assert_equals(wav%encut, 400.0_q, AT)
         CALL waves_destroy(wav)
 
         CALL waves_init(wav, "WAVECAR_ncl", "ncl")
-        CALL assert_equals(wav%nspin, 1)
-        CALL assert_equals(wav%nplws(1), 8022)
-        CALL assert_equals(wav%encut, 400.0_q)
+        CALL assert_equals(wav%nspin, 1, AT)
+        CALL assert_equals(wav%nplws(1), 8022, AT)
+        CALL assert_equals(wav%encut, 400.0_q, AT)
         CALL waves_destroy(wav)
 
     END SUBROUTINE test_waves_init
+
+
+    SUBROUTINE test_waves_read_phi
+        IMPLICIT NONE
+
+        TYPE(waves) :: wav
+        COMPLEX(qs), ALLOCATABLE :: phi(:)
+        
+        INTEGER :: is, ik, ib, nplw
+        REAL(q) :: norm
+
+        CALL waves_init(wav, "WAVECAR_std", "std")
+        ALLOCATE(phi(MAXVAL(wav%nplws)))
+        
+        DO is = 1, wav%nspin
+            DO ik = 1, wav%nkpoints
+                nplw = wav%nplws(ik)
+                DO ib = 1, wav%nbands
+                    phi = (0, 0)
+                    CALL waves_read_wavefunction_qs(wav, is, ik, ib, phi(1:nplw))
+                ENDDO
+            ENDDO
+        ENDDO
+
+        phi = (0, 0)
+        nplw = wav%nplws(1)
+        CALL waves_read_wavefunction_qs(wav, 1, 1, 1, phi(1:nplw))
+        norm = REAL(SQRT(SUM(CONJG(phi(1:nplw)) * phi(1:nplw))))
+        CALL assert_equals(norm, 1.1479_q, 1e-4_q, AT)
+
+        phi = (0, 0)
+        nplw = wav%nplws(2)
+        CALL waves_read_wavefunction_qs(wav, 2, 2, 20, phi(1:nplw))
+        norm = REAL(SQRT(SUM(CONJG(phi(1:nplw)) * phi(1:nplw))))
+        CALL assert_equals(norm, 1.0043_q, 1e-4_q, AT)
+
+        DEALLOCATE(phi)
+        CALL waves_destroy(wav)
+
+        
+        CALL waves_init(wav, "WAVECAR_ncl", "ncl")
+        ALLOCATE(phi(MAXVAL(wav%nplws)))
+        
+        DO is = 1, wav%nspin
+            DO ik = 1, wav%nkpoints
+                nplw = wav%nplws(ik)
+                DO ib = 1, wav%nbands
+                    phi = (0, 0)
+                    CALL waves_read_wavefunction_qs(wav, is, ik, ib, phi(1:nplw))
+                    norm = REAL(SQRT(SUM(CONJG(phi(1:nplw)) * phi(1:nplw))))
+                    PRINT 200, is, ik, ib, norm
+                    200 FORMAT("is = ", I3, " ik = ", I3, " ib = ", I3, " norm = ", F10.8)
+                ENDDO
+            ENDDO
+        ENDDO
+
+        phi = (0, 0)
+        nplw = wav%nplws(1)
+        CALL waves_read_wavefunction_qs(wav, 1, 1, 1, phi(1:nplw))
+        norm = REAL(SQRT(SUM(CONJG(phi(1:nplw)) * phi(1:nplw))))
+        CALL assert_equals(norm, 1.1502_q, 1e-4_q, AT)
+
+        phi = (0, 0)
+        nplw = wav%nplws(1)
+        CALL waves_read_wavefunction_qs(wav, 1, 1, 28, phi(1:nplw))
+        norm = REAL(SQRT(SUM(CONJG(phi(1:nplw)) * phi(1:nplw))))
+        CALL assert_equals(norm, 1.0000_q, 1e-4_q, AT)
+
+        DEALLOCATE(phi)
+        CALL waves_destroy(wav)
+    END SUBROUTINE test_waves_read_phi
 
 END MODULE test_waves

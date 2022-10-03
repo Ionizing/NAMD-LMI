@@ -1,6 +1,7 @@
 #include "common.h"
 
 MODULE wavecar
+    USE string
     USE common
 
     IMPLICIT NONE
@@ -36,7 +37,6 @@ MODULE wavecar
     CONTAINS
 
     SUBROUTINE waves_init(wav, fname, wavetype, iu0)
-        USE string, ONLY: int2str
         IMPLICIT NONE
 
         TYPE(waves), INTENT(out)        :: wav
@@ -177,12 +177,96 @@ MODULE wavecar
     END SUBROUTINE waves_destroy
 
 
+    SUBROUTINE waves_read_wavefunction_qs(wav, ispin, ikpoint, iband, phi, norm)
+        IMPLICIT NONE
+
+        TYPE(waves), INTENT(in)     :: wav
+        INTEGER, INTENT(in)         :: ispin
+        INTEGER, INTENT(in)         :: ikpoint
+        INTEGER, INTENT(in)         :: iband
+        COMPLEX(qs), INTENT(out)    :: phi(wav%nplws(ikpoint))
+        LOGICAL, OPTIONAL           :: norm
+
+        !! local variables
+        LOGICAL :: od
+        LOGICAL :: lnorm = .FALSE.
+        INTEGER :: irec
+        INTEGER :: i
+
+        !! logic starts
+        IF (wav%prec /= qs) THEN
+            WRITE(STDERR, *) "Inconsistent precision of WAVECAR=" // TRIM(int2str(wav%prec)) // " and provided phi=" // &
+                             TRIM(int2str(qs)) // " " // AT
+            STOP ERROR_WAVE_WRONG_PREC
+        END IF
+
+        IF (PRESENT(norm)) lnorm = norm
+
+        INQUIRE(wav%iu, OPENED=od)
+        IF (.NOT. od) THEN
+            WRITE(STDERR, *) "WAVECAR not open " // AT
+            STOP ERROR_WAVE_NOT_OPEN
+        END IF
+
+        irec = 2 + (ispin - 1) * (wav%nkpoints * (wav%nbands + 1)) + &
+                   (ikpoint - 1) * (wav%nbands + 1) + &
+                   (iband + 1)
+
+        READ(wav%iu, REC=irec) (phi(i), i=1, wav%nplws(ikpoint))
+
+        IF (lnorm) THEN
+            !phi = phi / CNORM2(phi)
+        END IF
+    END SUBROUTINE waves_read_wavefunction_qs
+
+
+    SUBROUTINE waves_read_wavefunction_q(wav, ispin, ikpoint, iband, phi, norm)
+        IMPLICIT NONE
+
+        TYPE(waves), INTENT(in)     :: wav
+        INTEGER, INTENT(in)         :: ispin
+        INTEGER, INTENT(in)         :: ikpoint
+        INTEGER, INTENT(in)         :: iband
+        COMPLEX(q), INTENT(out)     :: phi(wav%nplws(ikpoint))
+        LOGICAL, OPTIONAL           :: norm
+
+        !! local variables
+        LOGICAL :: od
+        LOGICAL :: lnorm = .FALSE.
+        INTEGER :: irec
+        INTEGER :: i
+
+        !! logic starts
+        IF (wav%prec /= qs) THEN
+            WRITE(STDERR, *) "Inconsistent precision of WAVECAR=" // TRIM(int2str(wav%prec)) // " and provided phi=" // &
+                             TRIM(int2str(q)) // " " // AT
+            STOP ERROR_WAVE_WRONG_PREC
+        END IF
+
+        IF (PRESENT(norm)) lnorm = norm
+
+        INQUIRE(wav%iu, OPENED=od)
+        IF (.NOT. od) THEN
+            WRITE(STDERR, *) "WAVECAR not open " // AT
+            STOP ERROR_WAVE_NOT_OPEN
+        END IF
+
+        irec = 2 + (ispin - 1) * (wav%nkpoints * (wav%nbands + 1)) + &
+                   (ikpoint - 1) * (wav%nbands + 1) + &
+                   (iband + 1)
+
+        READ(wav%iu, REC=irec) (phi(i), i=1, wav%nplws(ikpoint))
+
+        IF (lnorm) THEN
+            !phi = phi / CNORM2(phi)
+        END IF
+    END SUBROUTINE waves_read_wavefunction_q
+
+
     !! Auxiliray functions
 
     !! Calculate the inverse matrix
     SUBROUTINE waves_acell2bcell_(A, B)
-        USE string, ONLY: real2str, int2str
-
         IMPLICIT NONE
 
         REAL(q), INTENT(in)     :: A(3, 3)
@@ -228,8 +312,6 @@ MODULE wavecar
 
     !! Generate gvectors for each kpoint
     SUBROUTINE waves_gen_gvecs_single_k_(bcell, kvec, ngrid, encut, ngvec, wavetype, gvec)
-        USE string, ONLY: int2str
-
         IMPLICIT NONE
 
         REAL(q), INTENT(in)             :: bcell(3, 3)
