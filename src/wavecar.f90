@@ -34,11 +34,16 @@ MODULE wavecar
         REAL(q), ALLOCATABLE :: fweights(:, :, :)
     END TYPE waves
 
+
+    INTERFACE waves_read_wavefunction
+        PROCEDURE waves_read_wavefunction_q
+        PROCEDURE waves_read_wavefunction_qs
+    END INTERFACE
+
+
     CONTAINS
 
     SUBROUTINE waves_init(wav, fname, wavetype, iu0, gvecs)
-        IMPLICIT NONE
-
         TYPE(waves), INTENT(out)        :: wav
         CHARACTER(LEN=*), INTENT(in)    :: fname
         CHARACTER(LEN=*), INTENT(in)    :: wavetype
@@ -170,7 +175,6 @@ MODULE wavecar
 
 
     SUBROUTINE waves_destroy(wav)
-        IMPLICIT NONE
         TYPE(waves), INTENT(inout) :: wav
 
         IF (ALLOCATED(wav%kvecs))    DEALLOCATE(wav%kvecs)
@@ -184,8 +188,6 @@ MODULE wavecar
 
 
     SUBROUTINE waves_read_wavefunction_qs(wav, ispin, ikpoint, iband, phi, norm)
-        IMPLICIT NONE
-
         TYPE(waves), INTENT(in)     :: wav
         INTEGER, INTENT(in)         :: ispin
         INTEGER, INTENT(in)         :: ikpoint
@@ -227,8 +229,6 @@ MODULE wavecar
 
 
     SUBROUTINE waves_read_wavefunction_q(wav, ispin, ikpoint, iband, phi, norm)
-        IMPLICIT NONE
-
         TYPE(waves), INTENT(in)     :: wav
         INTEGER, INTENT(in)         :: ispin
         INTEGER, INTENT(in)         :: ikpoint
@@ -269,12 +269,52 @@ MODULE wavecar
     END SUBROUTINE waves_read_wavefunction_q
 
 
+    SUBROUTINE waves_get_gvecs_cart(wav, ikpoint, gvecs_cart)
+        TYPE(waves), INTENT(in) :: wav
+        INTEGER, INTENT(in)     :: ikpoint
+        REAL(q), INTENT(out)    :: gvecs_cart(:, :)
+
+        !! local variables
+        INTEGER :: ngvec
+        REAL(q) :: kvec(3)
+        INTEGER, ALLOCATABLE    :: gvecs_freq(:, :)
+
+        !! logic starts
+        IF (ikpoint > wav%nkpoints .OR. ikpoint <= 0) THEN
+            WRITE(STDERR, *) "Kpoint index overflow: ikpoint=" // TINT2STR(ikpoint) // ", nkpoint=" // TINT2STR(wav%nkpoints) // " " // AT
+            STOP ERROR_WAVE_WRONG_KPOINT
+        END IF
+
+        kvec = wav%kvecs(:, ikpoint)
+        ngvec = wav%nplws(ikpoint)
+        IF (wav%wavetype == "ncl") ngvec = ngvec / 2
+
+        IF (ngvec /= SIZE(gvecs_cart, 2) .OR. 3 /= SIZE(gvecs_cart, 1)) THEN
+            WRITE(STDERR, *) "Wrong shape of gvecs_cart passed in: (" // TINT2STR(SIZE(gvecs_cart, 1)) // "," // &
+                             TINT2STR(SIZE(gvecs_cart, 2)) // "), expected: (3," // TINT2STR(ngvec) // ") " // AT
+            STOP ERROR_WAVE_WRONG_SHAPE
+        END IF
+
+
+        ALLOCATE(gvecs_freq(3, ngvec))
+
+        IF (.NOT. ALLOCATED(wav%gvecs)) THEN
+            CALL waves_gen_gvecs_single_k_(wav%bcell, wav%kvecs, wav%ngrid, wav%encut, ngvec, &
+                                           wav%wavetype, gvecs_freq)
+        ELSE
+            gvecs_freq = wav%gvecs(:, 1:ngvec, ikpoint)
+        END IF
+        
+        gvecs_cart = TPI * MATMUL(wav%bcell, gvecs_freq+SPREAD(kvec, 2, ngvec))
+
+        DEALLOCATE(gvecs_freq)
+    END SUBROUTINE waves_get_gvecs_cart
+
+
     !! Auxiliray functions
 
     !! Calculate the inverse matrix
     SUBROUTINE waves_acell2bcell_(A, B)
-        IMPLICIT NONE
-
         REAL(q), INTENT(in)     :: A(3, 3)
         REAL(q), INTENT(out)    :: B(3, 3)
 
@@ -304,7 +344,6 @@ MODULE wavecar
     END SUBROUTINE waves_acell2bcell_
 
     REAL(q) FUNCTION waves_m33det_(acell)
-        IMPLICIT NONE
         REAL(q), INTENT(in)     :: acell(3, 3)
 
         waves_m33det_ =   acell(1,1)*acell(2,2)*acell(3,3)  &
@@ -317,8 +356,6 @@ MODULE wavecar
 
 
     SUBROUTINE waves_gen_gvecs_all_k_(wav)
-        IMPLICIT NONE
-
         TYPE(waves), INTENT(inout) :: wav
 
         !! local variables
@@ -346,8 +383,6 @@ MODULE wavecar
 
     !! Generate gvectors for each kpoint
     SUBROUTINE waves_gen_gvecs_single_k_(bcell, kvec, ngrid, encut, ngvec, wavetype, gvec)
-        IMPLICIT NONE
-
         REAL(q), INTENT(in)             :: bcell(3, 3)
         REAL(q), INTENT(in)             :: kvec(3)
         INTEGER, INTENT(in)             :: ngrid(3)
@@ -398,7 +433,7 @@ MODULE wavecar
                     IF (.NOT. flag) CYCLE
 
                     gpk     = (/ fx+kvec(1), fy+kvec(2), fz+kvec(3) /)
-                    genergy = SUM( (MATMUL(TRANSPOSE(bcell), gpk))**2 ) * TPI**2 * HSQDTM
+                    genergy = SUM( (MATMUL(bcell, gpk))**2 ) * TPI**2 * HSQDTM
 
                     IF (genergy < encut) THEN
                         cnt = cnt + 1

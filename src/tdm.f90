@@ -6,14 +6,14 @@ MODULE tdm
 
     IMPLICIT NONE
 
-    INTERFACE get_tdm
-        PROCEDURE get_tdm_pseudo_qs
-        PROCEDURE get_tdm_pseudo_q
-    END INTERFACE get_tdm
+    INTERFACE tdm_get_tdm
+        PROCEDURE tdm_get_tdm_pseudo_qs
+        PROCEDURE tdm_get_tdm_pseudo_q
+    END INTERFACE tdm_get_tdm
 
     CONTAINS
 
-    FUNCTION get_tdm_pseudo_qs(phi_i, phi_j, k, wavetype) RESULT(ret)
+    FUNCTION tdm_get_tdm_pseudo_qs(phi_i, phi_j, k, wavetype) RESULT(ret)
         COMPLEX(qs),    INTENT(in)  :: phi_i(:), phi_j(:)
         REAL(q),        INTENT(in)  :: k(:, :)
         CHARACTER(*),   INTENT(in)  :: wavetype
@@ -52,7 +52,7 @@ MODULE tdm
         phi_i_q(:) = phi_i(:)
         phi_j_q(:) = phi_j(:)
 
-        ret = get_tdm_pseudo_q(phi_i_q, phi_j_q, k, wavetype)
+        ret = tdm_get_tdm_pseudo_q(phi_i_q, phi_j_q, k, wavetype)
 
         DEALLOCATE(phi_i_q)
         DEALLOCATE(phi_i_q)
@@ -61,7 +61,7 @@ MODULE tdm
     END FUNCTION
 
 
-    FUNCTION get_tdm_pseudo_q(phi_i, phi_j, k, wavetype) RESULT(ret)
+    FUNCTION tdm_get_tdm_pseudo_q(phi_i, phi_j, k, wavetype) RESULT(ret)
         COMPLEX(q),     INTENT(in)  :: phi_i(:), phi_j(:)
         REAL(q),        INTENT(in)  :: k(:, :)
         CHARACTER(*),   INTENT(in)  :: wavetype

@@ -7,7 +7,7 @@ BIN = test.x
 
 .PHONY: $(LIB)
 
-TEST_OBJS = test_string.o test_waves.o
+TEST_OBJS = test_string.o test_waves.o test_tdm.o
 FRUIT = fruit.o
 
 test: test.f90 $(TEST_OBJS) $(LIB) $(FRUIT)

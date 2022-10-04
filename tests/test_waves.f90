@@ -14,12 +14,12 @@ MODULE test_waves
         CALL test_waves_acell2bcell
         CALL test_waves_init
         CALL test_waves_read_phi
+        CALL test_waves_gen_gvecs
+        CALL test_waves_get_gvecs_cart
     END SUBROUTINE test_waves_fn
 
 
     SUBROUTINE test_waves_m33det
-        IMPLICIT NONE
-
         REAL(q) :: a(3, 3)
         REAL(q) :: ret
 
@@ -34,8 +34,6 @@ MODULE test_waves
 
 
     SUBROUTINE test_waves_acell2bcell
-        IMPLICIT NONE
-
         REAL(q) :: a(3, 3)
         REAL(q) :: b(3, 3)
         REAL(q) :: expect(3, 3)
@@ -49,8 +47,6 @@ MODULE test_waves
 
 
     SUBROUTINE test_waves_gen_fft_freq
-        IMPLICIT NONE
-
         INTEGER :: ng = 77
         INTEGER :: g(77)
 
@@ -63,8 +59,6 @@ MODULE test_waves
 
 
     SUBROUTINE test_waves_init
-        IMPLICIT NONE
-
         TYPE(waves) :: wav
         REAL(q)     :: efermi
 
@@ -95,13 +89,35 @@ MODULE test_waves
         CALL assert_equals(wav%nplws(1), 8022, AT)
         CALL assert_equals(wav%encut, 400.0_q, AT)
         CALL waves_destroy(wav)
-
     END SUBROUTINE test_waves_init
 
 
-    SUBROUTINE test_waves_read_phi
-        IMPLICIT NONE
+    SUBROUTINE test_waves_gen_gvecs
+        TYPE(waves) :: wav
+        
+        INTEGER :: ngvec
+        INTEGER :: ikpoint
 
+        ikpoint = 1
+        CALL waves_init(wav, "WAVECAR_gamx", "gamx", gvecs=.TRUE.)
+
+        ngvec = wav%nplws(ikpoint)
+        CALL assert_equals(wav%gvecs(:, ngvec, ikpoint), (/ 5, -1, -1 /), 3, AT)
+
+        CALL waves_destroy(wav)
+
+
+        ikpoint = 2
+        CALL waves_init(wav, "WAVECAR_std", "std", gvecs=.TRUE.)
+
+        ngvec = wav%nplws(ikpoint)
+        CALL assert_equals(wav%gvecs(:, ngvec, ikpoint), (/ -1, -1, -1 /), 3, AT)
+        
+        CALL waves_destroy(wav)
+    END SUBROUTINE test_waves_gen_gvecs
+
+
+    SUBROUTINE test_waves_read_phi
         TYPE(waves) :: wav
         COMPLEX(qs), ALLOCATABLE :: phi(:)
         
@@ -168,5 +184,36 @@ MODULE test_waves
         DEALLOCATE(phi)
         CALL waves_destroy(wav)
     END SUBROUTINE test_waves_read_phi
+
+
+    SUBROUTINE test_waves_get_gvecs_cart
+        TYPE(waves) :: wav
+        
+        INTEGER :: ngvec
+        INTEGER :: ikpoint
+        REAL(q), ALLOCATABLE :: gvecs_cart(:, :)
+
+        ikpoint = 1
+        CALL waves_init(wav, "WAVECAR_gamx", "gamx", gvecs=.TRUE.)
+        ngvec = wav%nplws(ikpoint)
+
+        ALLOCATE(gvecs_cart(3, ngvec))
+        CALL waves_get_gvecs_cart(wav, ikpoint, gvecs_cart)
+        CALL assert_equals(gvecs_cart(:, ngvec), (/REAL(q) :: 9.87047, -1.89957, -0.27316/), 3, 1.0e-5_q, AT)
+        DEALLOCATE(gvecs_cart)
+        CALL waves_destroy(wav)
+
+
+        ikpoint = 2
+        CALL waves_init(wav, "WAVECAR_std", "std", gvecs=.TRUE.)
+        ngvec = wav%nplws(ikpoint)
+
+        ALLOCATE(gvecs_cart(3, ngvec))
+        CALL waves_get_gvecs_cart(wav, ikpoint, gvecs_cart)
+        CALL assert_equals(gvecs_cart(:, ngvec), (/REAL(q) :: -2.19343, -1.89957, -0.27316/), 3, 1.0e-5_q, AT)
+        DEALLOCATE(gvecs_cart)
+        CALL waves_destroy(wav)
+    END SUBROUTINE test_waves_get_gvecs_cart
+
 
 END MODULE test_waves
