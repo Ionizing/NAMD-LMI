@@ -36,22 +36,23 @@ MODULE wavecar
 
     CONTAINS
 
-    SUBROUTINE waves_init(wav, fname, wavetype, iu0)
+    SUBROUTINE waves_init(wav, fname, wavetype, iu0, gvecs)
         IMPLICIT NONE
 
         TYPE(waves), INTENT(out)        :: wav
         CHARACTER(LEN=*), INTENT(in)    :: fname
         CHARACTER(LEN=*), INTENT(in)    :: wavetype
         INTEGER, OPTIONAL, INTENT(in)   :: iu0
+        LOGICAL, OPTIONAL, INTENT(in)   :: gvecs
 
         !! local variables
         LOGICAL :: od
-        INTEGER :: iu  = 12
+        LOGICAL :: lgvecs   = .FALSE.
+        INTEGER :: iu       = 12
         INTEGER :: ierr
         INTEGER :: irec
         INTEGER :: iprectag
         INTEGER :: maxnplw
-        INTEGER :: ngvec
         INTEGER :: i, j, k, n
         REAL(q) :: rreclen
         REAL(q) :: rnspin
@@ -61,8 +62,10 @@ MODULE wavecar
         REAL(q) :: rnplw
         REAL(q) :: dummy
 
-        IF(PRESENT(iu0)) iu = iu0
+        IF (PRESENT(iu0)) iu = iu0
         wav%iu = iu
+
+        IF (PRESENT(gvecs)) lgvecs = gvecs
 
         SELECT CASE (wavetype)
             CASE("std")
@@ -75,18 +78,21 @@ MODULE wavecar
                 CONTINUE
             CASE DEFAULT
                 WRITE(STDERR, *) 'Invalid wavetype="' // wavetype // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
+                STOP ERROR_WAVE_WAVETYPE
         END SELECT
+
+        wav%wavetype = wavetype
 
         INQUIRE(iu, OPENED=od)
         IF(od) THEN
-            WRITE(STDERR, *) 'The WAVECAR is already open with IU= ' // TRIM(int2str(iu)) // ' ' // AT
+            WRITE(STDERR, *) 'The WAVECAR is already open with IU= ' // TINT2STR(iu) // ' ' // AT
             STOP ERROR_WAVE_ALREADY_OPEN
         END IF
 
         OPEN(UNIT=iu, FILE=fname, ACCESS='direct', FORM='unformatted', STATUS='unknown', &
              RECL=48, IOSTAT=ierr, ACTION='read')
         IF(ierr /= 0) THEN
-            WRITE(STDERR, *) 'Cannot open WAVECAR="' // TRIM(fname) // '" with IU=' // TRIM(int2str(iu)) // ' ' // AT
+            WRITE(STDERR, *) 'Cannot open WAVECAR="' // TRIM(fname) // '" with IU=' // TINT2STR(iu) // ' ' // AT
             STOP ERROR_WAVE_OPEN_FAILED
         END IF
 
@@ -100,7 +106,7 @@ MODULE wavecar
                 WRITE(STDOUT, *) 'WARN: WAVECAR not single precision'
                 wav%prec = q
             CASE DEFAULT
-                WRITE(STDERR, *) 'Invalid precision tag in WAVECAR: ' // TRIM(int2str(iprectag)) // AT
+                WRITE(STDERR, *) 'Invalid precision tag in WAVECAR: ' // TINT2STR(iprectag) // AT
                 STOP ERROR_WAVE_INVALID_PREC
         END SELECT
 
@@ -108,7 +114,7 @@ MODULE wavecar
         wav%nspin   = NINT(rnspin)
 
         IF (wav%reclen <= 0 .OR. wav%nspin <= 0) THEN
-            WRITE(STDERR, *) 'Invliad WAVECAR: RECLEN=' // TRIM(int2str(wav%reclen)) // ' NSPIN=' // TRIM(int2str(wav%nspin)) // ' ' // AT
+            WRITE(STDERR, *) 'Invliad WAVECAR: RECLEN=' // TINT2STR(wav%reclen) // ' NSPIN=' // TINT2STR(wav%nspin) // ' ' // AT
             STOP ERROR_WAVE_INVALID_FILE
         END IF
 
@@ -117,7 +123,7 @@ MODULE wavecar
         OPEN(UNIT=iu, FILE=fname, ACCESS='direct', FORM='unformatted', STATUS='unknown', &
             RECL=wav%reclen, IOSTAT=ierr, ACTION='read')
         IF(ierr /= 0) THEN
-            WRITE(STDERR, *) 'Cannot open WAVECAR="' // TRIM(fname) // '" with IU=' // TRIM(int2str(iu)) // ' ' // AT
+            WRITE(STDERR, *) 'Cannot open WAVECAR="' // TRIM(fname) // '" with IU=' // TINT2STR(iu) // ' ' // AT
             STOP ERROR_WAVE_OPEN_FAILED
         END IF
 
@@ -151,7 +157,7 @@ MODULE wavecar
         IF (wavetype == "ncl") THEN
             maxnplw = MAXVAL(wav%nplws) / 2
             IF (maxnplw * 2 /= MAXVAL(wav%nplws)) THEN
-                WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype) // ' , nplw=' // TRIM(int2str(maxnplw)) &
+                WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype) // ' , nplw=' // TINT2STR(maxnplw) &
                                  // ' cannot be devided by 2. ' // AT
                 STOP ERROR_WAVE_WAVETYPE
             END IF
@@ -159,20 +165,7 @@ MODULE wavecar
             maxnplw = MAXVAL(wav%nplws)
         END IF
 
-        ALLOCATE(wav%gvecs(3, maxnplw, wav%nkpoints))
-
-        DO i = 1, wav%nkpoints
-            IF (wavetype == "ncl") THEN
-                ngvec = wav%nplws(i) / 2
-            ELSE
-                ngvec = wav%nplws(i)
-            END IF
-            CALL waves_gen_gvecs_single_k_(wav%bcell, wav%kvecs(:, i), wav%ngrid, wav%encut, ngvec, &
-                                           wavetype, wav%gvecs(:, 1:ngvec, i))
-        ENDDO
-
-        wav%wavetype = wavetype
-
+        IF (lgvecs) CALL waves_gen_gvecs_all_k_(wav)
     END SUBROUTINE waves_init
 
 
@@ -208,8 +201,8 @@ MODULE wavecar
 
         !! logic starts
         IF (wav%prec /= qs) THEN
-            WRITE(STDERR, *) "Inconsistent precision of WAVECAR=" // TRIM(int2str(wav%prec)) // " and provided phi=" // &
-                             TRIM(int2str(qs)) // " " // AT
+            WRITE(STDERR, *) "Inconsistent precision of WAVECAR=" // TINT2STR(wav%prec) // " and provided phi=" // &
+                             TINT2STR(qs) // " " // AT
             STOP ERROR_WAVE_WRONG_PREC
         END IF
 
@@ -251,8 +244,8 @@ MODULE wavecar
 
         !! logic starts
         IF (wav%prec /= qs) THEN
-            WRITE(STDERR, *) "Inconsistent precision of WAVECAR=" // TRIM(int2str(wav%prec)) // " and provided phi=" // &
-                             TRIM(int2str(q)) // " " // AT
+            WRITE(STDERR, *) "Inconsistent precision of WAVECAR=" // TINT2STR(wav%prec) // " and provided phi=" // &
+                             TINT2STR(q) // " " // AT
             STOP ERROR_WAVE_WRONG_PREC
         END IF
 
@@ -291,7 +284,7 @@ MODULE wavecar
         det = waves_m33det_(A)
 
         IF(det <= EPS) THEN
-            WRITE(STDERR, *) "Invalid WAVECAR: Volume of Acell = " // TRIM(real2str(det))
+            WRITE(STDERR, *) "Invalid WAVECAR: Volume of Acell = " // TREAL2STR(det)
             WRITE(STDERR, *) "Acell = ", TRANSPOSE(A)
             WRITE(STDERR, *) AT
             STOP ERROR_WAVE_INVALID_FILE
@@ -323,8 +316,31 @@ MODULE wavecar
     END FUNCTION waves_m33det_
 
 
-    SUBROUTINE waves_gen_gvecs_all_k_
-        !! TODO
+    SUBROUTINE waves_gen_gvecs_all_k_(wav)
+        IMPLICIT NONE
+
+        TYPE(waves), INTENT(inout) :: wav
+
+        !! local variables
+        INTEGER :: ngvec
+        INTEGER :: maxnplw
+        INTEGER :: i
+
+        !! logic starts
+        IF (ALLOCATED(wav%gvecs)) RETURN
+
+        maxnplw = MAXVAL(wav%nplws)
+        ALLOCATE(wav%gvecs(3, maxnplw, wav%nkpoints))
+
+        DO i = 1, wav%nkpoints
+            IF (wav%wavetype == "ncl") THEN
+                ngvec = wav%nplws(i) / 2
+            ELSE
+                ngvec = wav%nplws(i)
+            END IF
+            CALL waves_gen_gvecs_single_k_(wav%bcell, wav%kvecs(:, i), wav%ngrid, wav%encut, ngvec, &
+                                           wav%wavetype, wav%gvecs(:, 1:ngvec, i))
+        ENDDO
     END SUBROUTINE
         
 
@@ -388,7 +404,7 @@ MODULE wavecar
                         cnt = cnt + 1
                         IF (cnt > ngvec) THEN
                             WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype) // ', ngvec=' &
-                                // TRIM(int2str(cnt)) // ', ngvec_expect=' // TRIM(int2str(ngvec)) // ' ' // AT
+                                // TINT2STR(cnt) // ', ngvec_expect=' // TINT2STR(ngvec) // ' ' // AT
                             STOP ERROR_WAVE_WAVETYPE
                         END IF
 

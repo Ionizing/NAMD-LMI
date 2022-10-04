@@ -21,4 +21,4 @@ $(LIB):
 	$(MAKE) -C ../src
 
 clean:
-	rm -f test *.o *.mod
+	rm -f test *.o *.mod *.x
