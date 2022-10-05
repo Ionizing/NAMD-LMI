@@ -2,6 +2,7 @@
 
 MODULE tdm
     USE common
+    USE wavecar
     USE string
 
     IMPLICIT NONE
@@ -9,6 +10,7 @@ MODULE tdm
     INTERFACE tdm_get_tdm_pseudo
         PROCEDURE tdm_get_tdm_pseudo_qs
         PROCEDURE tdm_get_tdm_pseudo_q
+        PROCEDURE tdm_get_tdm_wav
     END INTERFACE tdm_get_tdm_pseudo
 
     CONTAINS
@@ -121,5 +123,74 @@ MODULE tdm
         RETURN
     END FUNCTION
     
+
+    FUNCTION tdm_get_tdm_wav(wav, ispin, ikpoint, iniband, finband) RESULT(tdm_ret)
+        TYPE(waves), INTENT(in) :: wav
+        INTEGER, INTENT(in)     :: ispin
+        INTEGER, INTENT(in)     :: ikpoint
+        INTEGER, INTENT(in)     :: iniband, finband
+        COMPLEX(q)              :: tdm_ret(3)
+
+        !! local variables
+        COMPLEX(q),  ALLOCATABLE :: phi_i_q (:), phi_j_q (:)
+        COMPLEX(qs), ALLOCATABLE :: phi_i_qs(:), phi_j_qs(:)
+        REAL(q), ALLOCATABLE     :: k(:, :)
+        INTEGER :: nplw
+        INTEGER :: ngvec
+        REAL(q) :: de
+
+        !! logic starts
+        IF (ispin <= 0 .OR. ispin > wav%nspin) THEN
+            WRITE(STDOUT, *) "Invalid spin index ispin=" // TINT2STR(ispin) // ", expected: 1<=ispin<=" // TINT2STR(wav%nspin) // " " // AT
+            STOP ERROR_WAVE_WRONG_INDEX
+        END IF
+
+        IF (ikpoint <= 0 .OR. ikpoint > wav%nspin) THEN
+            WRITE(STDOUT, *) "Invalid kpoint index ikpoint=" // TINT2STR(ikpoint) // ", expected: 1<=ikpoint<=" // TINT2STR(wav%nkpoints) // " " // AT
+            STOP ERROR_WAVE_WRONG_INDEX
+        END IF
+
+        IF (iniband <= 0 .OR. iniband > wav%nbands .OR. &
+            finband <= 0 .OR. finband > wav%nbands .OR. &
+            iniband >= finband) THEN
+            WRITE(STDOUT, *) "Invalid band index iniband=" // TINT2STR(iniband) // ", finband=" // TINT2STR(finband) // &
+                             ", expected 1<=(ini,fin)<=" // TINT2STR(wav%nbands) // " and iniband < finband " // AT
+            STOP ERROR_WAVE_WRONG_INDEX
+        END IF
+        
+
+        nplw = wav%nplws(ikpoint)
+        ngvec = nplw
+        IF (wav%wavetype == "ncl") ngvec = ngvec / 2
+        ALLOCATE(k(3, ngvec))
+        CALL waves_get_gvecs_cart(wav, ikpoint, k)
+
+        de = ABS(wav%eigs(finband, ikpoint, ispin) - wav%eigs(iniband, ikpoint, ispin))
+
+        IF (wav%prec == qs) THEN
+            ALLOCATE(phi_i_qs(nplw))
+            ALLOCATE(phi_j_qs(nplw))
+
+            CALL waves_read_wavefunction(wav, ispin, ikpoint, iniband, phi_i_qs)
+            CALL waves_read_wavefunction(wav, ispin, ikpoint, finband, phi_j_qs)
+            tdm_ret = tdm_get_tdm_pseudo_qs(phi_i_qs, phi_j_qs, k, de, wav%wavetype)
+
+            DEALLOCATE(phi_j_qs)
+            DEALLOCATE(phi_i_qs)
+        ELSE
+            ALLOCATE(phi_i_q(nplw))
+            ALLOCATE(phi_j_q(nplw))
+
+            CALL waves_read_wavefunction(wav, ispin, ikpoint, iniband, phi_i_q)
+            CALL waves_read_wavefunction(wav, ispin, ikpoint, finband, phi_j_q)
+            tdm_ret = tdm_get_tdm_pseudo_q(phi_i_q, phi_j_q, k, de, wav%wavetype)
+
+            DEALLOCATE(phi_j_q)
+            DEALLOCATE(phi_i_q)
+        END IF
+
+        DEALLOCATE(k)
+    END FUNCTION
+
 
 END MODULE tdm

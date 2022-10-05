@@ -93,6 +93,12 @@ MODULE test_tdm
         DEALLOCATE(phi_i)
         CALL waves_destroy(wav)
 
+
+        CALL waves_init(wav, "WAVECAR_ncl", "ncl")
+        tdm_ret = ABS(tdm_get_tdm_pseudo(wav, ispin, ikpoint, iband, jband))
+        CALL assert_equals(tdm_ret, (/REAL(q) :: 0.0000, 0.0001, 0.0006/), 3, 1.0e-4_q, AT)
+        CALL waves_destroy(wav)
+
     END SUBROUTINE test_tdm_pseudo
 
 END MODULE test_tdm
