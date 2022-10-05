@@ -5,3 +5,4 @@
 *.x
 *.dSYM
 .DS_Store
+doc/html
