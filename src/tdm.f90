@@ -6,16 +6,17 @@ MODULE tdm
 
     IMPLICIT NONE
 
-    INTERFACE tdm_get_tdm
+    INTERFACE tdm_get_tdm_pseudo
         PROCEDURE tdm_get_tdm_pseudo_qs
         PROCEDURE tdm_get_tdm_pseudo_q
-    END INTERFACE tdm_get_tdm
+    END INTERFACE tdm_get_tdm_pseudo
 
     CONTAINS
 
-    FUNCTION tdm_get_tdm_pseudo_qs(phi_i, phi_j, k, wavetype) RESULT(ret)
+    FUNCTION tdm_get_tdm_pseudo_qs(phi_i, phi_j, k, de, wavetype) RESULT(ret)
         COMPLEX(qs),    INTENT(in)  :: phi_i(:), phi_j(:)
         REAL(q),        INTENT(in)  :: k(:, :)
+        REAL(q),        INTENT(in)  :: de
         CHARACTER(*),   INTENT(in)  :: wavetype
         COMPLEX(q)                  :: ret(3)
 
@@ -47,23 +48,24 @@ MODULE tdm
         END SELECT
 
         ALLOCATE(phi_i_q(len_i))
-        ALLOCATE(phi_i_q(len_j))
+        ALLOCATE(phi_j_q(len_j))
 
         phi_i_q(:) = phi_i(:)
         phi_j_q(:) = phi_j(:)
 
-        ret = tdm_get_tdm_pseudo_q(phi_i_q, phi_j_q, k, wavetype)
+        ret = tdm_get_tdm_pseudo_q(phi_i_q, phi_j_q, k, de, wavetype)
 
         DEALLOCATE(phi_i_q)
-        DEALLOCATE(phi_i_q)
+        DEALLOCATE(phi_j_q)
 
         RETURN
     END FUNCTION
 
 
-    FUNCTION tdm_get_tdm_pseudo_q(phi_i, phi_j, k, wavetype) RESULT(ret)
+    FUNCTION tdm_get_tdm_pseudo_q(phi_i, phi_j, k, de, wavetype) RESULT(ret)
         COMPLEX(q),     INTENT(in)  :: phi_i(:), phi_j(:)
         REAL(q),        INTENT(in)  :: k(:, :)
+        REAL(q),        INTENT(in)  :: de
         CHARACTER(*),   INTENT(in)  :: wavetype
         COMPLEX(q)                  :: ret(3)
 
@@ -111,6 +113,8 @@ MODULE tdm
         ELSE
             ret = MATMUL(k, overlap)
         END IF
+
+        ret = ret * (0, 1) * AUTOA * AUTODEBYE * (2*RYTOEV) / de
 
         DEALLOCATE(overlap)
 
