@@ -299,7 +299,7 @@ MODULE wavecar
         ALLOCATE(gvecs_freq(3, ngvec))
 
         IF (.NOT. ALLOCATED(wav%gvecs)) THEN
-            CALL waves_gen_gvecs_single_k_(wav%bcell, wav%kvecs, wav%ngrid, wav%encut, ngvec, &
+            CALL waves_gen_gvecs_single_k_(wav%bcell, wav%kvecs(:, ikpoint), wav%ngrid, wav%encut, ngvec, &
                                            wav%wavetype, gvecs_freq)
         ELSE
             gvecs_freq = wav%gvecs(:, 1:ngvec, ikpoint)

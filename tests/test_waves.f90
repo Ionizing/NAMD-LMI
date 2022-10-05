@@ -204,8 +204,28 @@ MODULE test_waves
         CALL waves_destroy(wav)
 
 
+        CALL waves_init(wav, "WAVECAR_gamx", "gamx", gvecs=.FALSE.)
+        ngvec = wav%nplws(ikpoint)
+
+        ALLOCATE(gvecs_cart(3, ngvec))
+        CALL waves_get_gvecs_cart(wav, ikpoint, gvecs_cart)
+        CALL assert_equals(gvecs_cart(:, ngvec), (/REAL(q) :: 9.87047, -1.89957, -0.27316/), 3, 1.0e-5_q, AT)
+        DEALLOCATE(gvecs_cart)
+        CALL waves_destroy(wav)
+
+
         ikpoint = 2
         CALL waves_init(wav, "WAVECAR_std", "std", gvecs=.TRUE.)
+        ngvec = wav%nplws(ikpoint)
+
+        ALLOCATE(gvecs_cart(3, ngvec))
+        CALL waves_get_gvecs_cart(wav, ikpoint, gvecs_cart)
+        CALL assert_equals(gvecs_cart(:, ngvec), (/REAL(q) :: -2.19343, -1.89957, -0.27316/), 3, 1.0e-5_q, AT)
+        DEALLOCATE(gvecs_cart)
+        CALL waves_destroy(wav)
+
+
+        CALL waves_init(wav, "WAVECAR_std", "std", gvecs=.FALSE.)
         ngvec = wav%nplws(ikpoint)
 
         ALLOCATE(gvecs_cart(3, ngvec))
