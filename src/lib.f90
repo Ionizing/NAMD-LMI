@@ -1,5 +1,5 @@
-MODULE namd_lumi
-    USE string
-    USE common
-    USE wavecar
-END MODULE namd_lumi
+MODULE namd_lumi_mod
+    USE string_mod
+    USE common_mod
+    USE wavecar_mod
+END MODULE namd_lumi_mod

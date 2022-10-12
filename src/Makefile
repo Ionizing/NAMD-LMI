@@ -13,10 +13,10 @@ lib.o: $(OBJS)
 
 wavecar.o: wavecar.f90 common.h common.o
 
-tdm.o: common.o
+tdm.o: common.o wavecar.o
 
 clean:
 	rm -f *.x *.o *.mod *.a
 
 %.o: %.f90
-	$(MPIF90) $(F90FLAGS) -c $<
+	$(MPIF90) $(F90FLAGS) -c $< -fPIC

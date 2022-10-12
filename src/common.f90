@@ -1,6 +1,6 @@
 !> Define the precisions and constants.
 !! @author Linjie Chen, Qijing Zheng.
-MODULE common
+MODULE common_mod
     !! precisions
     INTEGER, PARAMETER :: q  = SELECTED_REAL_KIND(10)           !< Double precision indicator
     INTEGER, PARAMETER :: qs = SELECTED_REAL_KIND(5)            !< Single precision indicator
@@ -72,4 +72,4 @@ MODULE common
     INTEGER,    PARAMETER :: ERROR_WAVE_WRONG_INDEX  = 20
 
     INTEGER,    PARAMETER :: ERROR_TDM_LEN_NOT_EQUAL = 40
-END MODULE common
+END MODULE common_mod

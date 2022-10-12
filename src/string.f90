@@ -1,4 +1,4 @@
-MODULE string
+MODULE string_mod
     CONTAINS
 
     CHARACTER(len=32) FUNCTION int2str(x)
@@ -20,4 +20,16 @@ MODULE string
         END IF
         real2str = trim(adjustl(real2str))
     END FUNCTION real2str
-END MODULE string
+
+    FUNCTION generate_static_calculation_path(rundir, idx, ndigit) RESULT(ret)
+        CHARACTER(*), INTENT(in)    :: rundir
+        INTEGER, INTENT(in)         :: idx
+        INTEGER, INTENT(in)         :: ndigit
+        CHARACTER(256)              :: ret
+
+        CHARACTER(32) :: fmt_str
+
+        fmt_str = "(A,A,I0." // TRIM(int2str(ndigit)) // ")"      ! "(A,I0.<ndigit>)"
+        WRITE(ret, fmt_str) TRIM(rundir), '/', idx
+    END FUNCTION generate_static_calculation_path
+END MODULE string_mod

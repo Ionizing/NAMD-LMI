@@ -1,11 +1,11 @@
 PROGRAM namd_lumi_x
-    USE namd_lumi
+    USE namd_lumi_mod
 
     IMPLICIT NONE
 
     !! local variables
     REAL(q)         :: tbeg, tend  ! for timing
-    TYPE(waves)     :: wav
+    TYPE(wavecar)   :: wav
     CHARACTER(256)  :: fname
     CHARACTER(256)  :: wavetype
     CHARACTER(10)   :: lgvecs
@@ -19,7 +19,7 @@ PROGRAM namd_lumi_x
     200 FORMAT("Reading ", A, " with ", A)
 
     CALL CPU_TIME(tbeg)
-    CALL waves_init(wav, fname, wavetype, gvecs=(lgvecs == 'true'))
+    CALL wavecar_init(wav, fname, wavetype, gvecs=(lgvecs == 'true'))
     CALL CPU_TIME(tend)
 
     PRINT 201, tend - tbeg

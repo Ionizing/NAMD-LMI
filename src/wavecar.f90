@@ -1,12 +1,12 @@
 #include "common.h"
 
-MODULE wavecar
-    USE string
-    USE common
+MODULE wavecar_mod
+    USE string_mod
+    USE common_mod
 
     IMPLICIT NONE
 
-    TYPE waves
+    TYPE wavecar
         INTEGER :: iu
 
         INTEGER :: filelen
@@ -32,19 +32,19 @@ MODULE wavecar
         REAL(q), ALLOCATABLE :: kvecs(:, :)
         REAL(q), ALLOCATABLE :: eigs(:, :, :)
         REAL(q), ALLOCATABLE :: fweights(:, :, :)
-    END TYPE waves
+    END TYPE wavecar
 
 
-    INTERFACE waves_read_wavefunction
-        PROCEDURE waves_read_wavefunction_q
-        PROCEDURE waves_read_wavefunction_qs
+    INTERFACE wavecar_read_wavefunction
+        PROCEDURE wavecar_read_wavefunction_q
+        PROCEDURE wavecar_read_wavefunction_qs
     END INTERFACE
 
 
     CONTAINS
 
-    SUBROUTINE waves_init(wav, fname, wavetype, iu0, gvecs)
-        TYPE(waves), INTENT(out)        :: wav
+    SUBROUTINE wavecar_init(wav, fname, wavetype, iu0, gvecs)
+        TYPE(wavecar), INTENT(out)        :: wav
         CHARACTER(LEN=*), INTENT(in)    :: fname
         CHARACTER(LEN=*), INTENT(in)    :: wavetype
         INTEGER, OPTIONAL, INTENT(in)   :: iu0
@@ -136,11 +136,11 @@ MODULE wavecar
         wav%nkpoints = NINT(rnkpoints)
         wav%nbands   = NINT(rnbands)
 
-        CALL waves_acell2bcell_(wav%acell, wav%bcell)
+        CALL wavecar_acell2bcell_(wav%acell, wav%bcell)
         wav%ngrid = CEILING(&
                 SQRT(wav%encut / RYTOEV) / (TPI / (NORM2(wav%acell, DIM=1) / AUTOA)) &
             ) * 2 + 1
-        wav%volume = waves_m33det_(wav%acell)
+        wav%volume = wavecar_m33det_(wav%acell)
 
         ALLOCATE(wav%kvecs(3, wav%nkpoints))
         ALLOCATE(wav%nplws(wav%nkpoints))
@@ -170,12 +170,12 @@ MODULE wavecar
             maxnplw = MAXVAL(wav%nplws)
         END IF
 
-        IF (lgvecs) CALL waves_gen_gvecs_all_k_(wav)
-    END SUBROUTINE waves_init
+        IF (lgvecs) CALL wavecar_gen_gvecs_all_k_(wav)
+    END SUBROUTINE wavecar_init
 
 
-    SUBROUTINE waves_destroy(wav)
-        TYPE(waves), INTENT(inout) :: wav
+    SUBROUTINE wavecar_destroy(wav)
+        TYPE(wavecar), INTENT(inout) :: wav
 
         IF (ALLOCATED(wav%kvecs))    DEALLOCATE(wav%kvecs)
         IF (ALLOCATED(wav%nplws))    DEALLOCATE(wav%nplws)
@@ -184,11 +184,11 @@ MODULE wavecar
         IF (ALLOCATED(wav%gvecs))    DEALLOCATE(wav%gvecs)
 
         CLOSE(wav%iu)
-    END SUBROUTINE waves_destroy
+    END SUBROUTINE wavecar_destroy
 
 
-    SUBROUTINE waves_read_wavefunction_qs(wav, ispin, ikpoint, iband, phi, norm)
-        TYPE(waves), INTENT(in)     :: wav
+    SUBROUTINE wavecar_read_wavefunction_qs(wav, ispin, ikpoint, iband, phi, norm)
+        TYPE(wavecar), INTENT(in)     :: wav
         INTEGER, INTENT(in)         :: ispin
         INTEGER, INTENT(in)         :: ikpoint
         INTEGER, INTENT(in)         :: iband
@@ -225,11 +225,11 @@ MODULE wavecar
         IF (lnorm) THEN
             !phi = phi / CNORM2(phi)
         END IF
-    END SUBROUTINE waves_read_wavefunction_qs
+    END SUBROUTINE wavecar_read_wavefunction_qs
 
 
-    SUBROUTINE waves_read_wavefunction_q(wav, ispin, ikpoint, iband, phi, norm)
-        TYPE(waves), INTENT(in)     :: wav
+    SUBROUTINE wavecar_read_wavefunction_q(wav, ispin, ikpoint, iband, phi, norm)
+        TYPE(wavecar), INTENT(in)     :: wav
         INTEGER, INTENT(in)         :: ispin
         INTEGER, INTENT(in)         :: ikpoint
         INTEGER, INTENT(in)         :: iband
@@ -266,11 +266,11 @@ MODULE wavecar
         IF (lnorm) THEN
             !phi = phi / CNORM2(phi)
         END IF
-    END SUBROUTINE waves_read_wavefunction_q
+    END SUBROUTINE wavecar_read_wavefunction_q
 
 
-    SUBROUTINE waves_get_gvecs_cart(wav, ikpoint, gvecs_cart)
-        TYPE(waves), INTENT(in) :: wav
+    SUBROUTINE wavecar_get_gvecs_cart(wav, ikpoint, gvecs_cart)
+        TYPE(wavecar), INTENT(in) :: wav
         INTEGER, INTENT(in)     :: ikpoint
         REAL(q), INTENT(out)    :: gvecs_cart(:, :)
 
@@ -299,7 +299,7 @@ MODULE wavecar
         ALLOCATE(gvecs_freq(3, ngvec))
 
         IF (.NOT. ALLOCATED(wav%gvecs)) THEN
-            CALL waves_gen_gvecs_single_k_(wav%bcell, wav%kvecs(:, ikpoint), wav%ngrid, wav%encut, ngvec, &
+            CALL wavecar_gen_gvecs_single_k_(wav%bcell, wav%kvecs(:, ikpoint), wav%ngrid, wav%encut, ngvec, &
                                            wav%wavetype, gvecs_freq)
         ELSE
             gvecs_freq = wav%gvecs(:, 1:ngvec, ikpoint)
@@ -308,20 +308,20 @@ MODULE wavecar
         gvecs_cart = TPI * MATMUL(wav%bcell, gvecs_freq+SPREAD(kvec, 2, ngvec))
 
         DEALLOCATE(gvecs_freq)
-    END SUBROUTINE waves_get_gvecs_cart
+    END SUBROUTINE wavecar_get_gvecs_cart
 
 
     !! Auxiliray functions
 
     !! Calculate the inverse matrix
-    SUBROUTINE waves_acell2bcell_(A, B)
+    SUBROUTINE wavecar_acell2bcell_(A, B)
         REAL(q), INTENT(in)     :: A(3, 3)
         REAL(q), INTENT(out)    :: B(3, 3)
 
         !! local variables
         REAL(q)            :: det
 
-        det = waves_m33det_(A)
+        det = wavecar_m33det_(A)
 
         IF(det <= EPS) THEN
             WRITE(STDERR, *) "Invalid WAVECAR: Volume of Acell = " // TREAL2STR(det)
@@ -341,22 +341,22 @@ MODULE wavecar
         B(3,3) = +(A(1,1)*A(2,2)-A(1,2)*A(2,1))
 
         B = B / det
-    END SUBROUTINE waves_acell2bcell_
+    END SUBROUTINE wavecar_acell2bcell_
 
-    REAL(q) FUNCTION waves_m33det_(acell)
+    REAL(q) FUNCTION wavecar_m33det_(acell)
         REAL(q), INTENT(in)     :: acell(3, 3)
 
-        waves_m33det_ =   acell(1,1)*acell(2,2)*acell(3,3)  &
+        wavecar_m33det_ =   acell(1,1)*acell(2,2)*acell(3,3)  &
                         - acell(1,1)*acell(2,3)*acell(3,2)  &
                         - acell(1,2)*acell(2,1)*acell(3,3)  &
                         + acell(1,2)*acell(2,3)*acell(3,1)  &
                         + acell(1,3)*acell(2,1)*acell(3,2)  &
                         - acell(1,3)*acell(2,2)*acell(3,1)
-    END FUNCTION waves_m33det_
+    END FUNCTION wavecar_m33det_
 
 
-    SUBROUTINE waves_gen_gvecs_all_k_(wav)
-        TYPE(waves), INTENT(inout) :: wav
+    SUBROUTINE wavecar_gen_gvecs_all_k_(wav)
+        TYPE(wavecar), INTENT(inout) :: wav
 
         !! local variables
         INTEGER :: ngvec
@@ -375,14 +375,14 @@ MODULE wavecar
             ELSE
                 ngvec = wav%nplws(i)
             END IF
-            CALL waves_gen_gvecs_single_k_(wav%bcell, wav%kvecs(:, i), wav%ngrid, wav%encut, ngvec, &
+            CALL wavecar_gen_gvecs_single_k_(wav%bcell, wav%kvecs(:, i), wav%ngrid, wav%encut, ngvec, &
                                            wav%wavetype, wav%gvecs(:, 1:ngvec, i))
         ENDDO
     END SUBROUTINE
         
 
     !! Generate gvectors for each kpoint
-    SUBROUTINE waves_gen_gvecs_single_k_(bcell, kvec, ngrid, encut, ngvec, wavetype, gvec)
+    SUBROUTINE wavecar_gen_gvecs_single_k_(bcell, kvec, ngrid, encut, ngvec, wavetype, gvec)
         REAL(q), INTENT(in)             :: bcell(3, 3)
         REAL(q), INTENT(in)             :: kvec(3)
         INTEGER, INTENT(in)             :: ngrid(3)
@@ -405,9 +405,9 @@ MODULE wavecar
         ALLOCATE(fys(ngrid(2)))
         ALLOCATE(fzs(ngrid(3)))
 
-        CALL waves_gen_fft_freq_(ngrid(1), fxs)
-        CALL waves_gen_fft_freq_(ngrid(2), fys)
-        CALL waves_gen_fft_freq_(ngrid(3), fzs)
+        CALL wavecar_gen_fft_freq_(ngrid(1), fxs)
+        CALL wavecar_gen_fft_freq_(ngrid(2), fys)
+        CALL wavecar_gen_fft_freq_(ngrid(3), fzs)
 
         cnt = 0
         DO ifz = 1, ngrid(3)
@@ -453,10 +453,10 @@ MODULE wavecar
         DEALLOCATE(fys)
         DEALLOCATE(fzs)
 
-    END SUBROUTINE waves_gen_gvecs_single_k_
+    END SUBROUTINE wavecar_gen_gvecs_single_k_
 
 
-    SUBROUTINE waves_gen_fft_freq_(ng, g)
+    SUBROUTINE wavecar_gen_fft_freq_(ng, g)
         INTEGER, INTENT(in)  :: ng
         INTEGER, INTENT(out) :: g(:)
 
@@ -465,7 +465,7 @@ MODULE wavecar
 
         g(     1:ng/2+1) = (/(i, i=        0, ng/2)/)
         g(ng/2+2:)       = (/(i, i=ng/2+1-ng,   -1)/)
-    END SUBROUTINE waves_gen_fft_freq_
+    END SUBROUTINE wavecar_gen_fft_freq_
 
 
-END MODULE wavecar
+END MODULE wavecar_mod

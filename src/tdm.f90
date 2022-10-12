@@ -1,9 +1,9 @@
 #include "common.h"
 
-MODULE tdm
-    USE common
-    USE wavecar
-    USE string
+MODULE tdm_mod
+    USE common_mod
+    USE wavecar_mod
+    USE string_mod
 
     IMPLICIT NONE
 
@@ -125,7 +125,7 @@ MODULE tdm
     
 
     FUNCTION tdm_get_tdm_wav(wav, ispin, ikpoint, iniband, finband) RESULT(tdm_ret)
-        TYPE(waves), INTENT(in) :: wav
+        TYPE(wavecar), INTENT(in) :: wav
         INTEGER, INTENT(in)     :: ispin
         INTEGER, INTENT(in)     :: ikpoint
         INTEGER, INTENT(in)     :: iniband, finband
@@ -163,7 +163,7 @@ MODULE tdm
         ngvec = nplw
         IF (wav%wavetype == "ncl") ngvec = ngvec / 2
         ALLOCATE(k(3, ngvec))
-        CALL waves_get_gvecs_cart(wav, ikpoint, k)
+        CALL wavecar_get_gvecs_cart(wav, ikpoint, k)
 
         de = ABS(wav%eigs(finband, ikpoint, ispin) - wav%eigs(iniband, ikpoint, ispin))
 
@@ -171,8 +171,8 @@ MODULE tdm
             ALLOCATE(phi_i_qs(nplw))
             ALLOCATE(phi_j_qs(nplw))
 
-            CALL waves_read_wavefunction(wav, ispin, ikpoint, iniband, phi_i_qs)
-            CALL waves_read_wavefunction(wav, ispin, ikpoint, finband, phi_j_qs)
+            CALL wavecar_read_wavefunction(wav, ispin, ikpoint, iniband, phi_i_qs)
+            CALL wavecar_read_wavefunction(wav, ispin, ikpoint, finband, phi_j_qs)
             tdm_ret = tdm_get_tdm_pseudo_qs(phi_i_qs, phi_j_qs, k, de, wav%wavetype)
 
             DEALLOCATE(phi_j_qs)
@@ -181,8 +181,8 @@ MODULE tdm
             ALLOCATE(phi_i_q(nplw))
             ALLOCATE(phi_j_q(nplw))
 
-            CALL waves_read_wavefunction(wav, ispin, ikpoint, iniband, phi_i_q)
-            CALL waves_read_wavefunction(wav, ispin, ikpoint, finband, phi_j_q)
+            CALL wavecar_read_wavefunction(wav, ispin, ikpoint, iniband, phi_i_q)
+            CALL wavecar_read_wavefunction(wav, ispin, ikpoint, finband, phi_j_q)
             tdm_ret = tdm_get_tdm_pseudo_q(phi_i_q, phi_j_q, k, de, wav%wavetype)
 
             DEALLOCATE(phi_j_q)
@@ -193,4 +193,4 @@ MODULE tdm
     END FUNCTION
 
 
-END MODULE tdm
+END MODULE tdm_mod
