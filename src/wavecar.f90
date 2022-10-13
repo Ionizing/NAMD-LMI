@@ -43,16 +43,16 @@ MODULE wavecar_mod
 
     CONTAINS
 
-    SUBROUTINE wavecar_init(wav, fname, wavetype, iu0, gvecs)
-        TYPE(wavecar), INTENT(out)        :: wav
+    SUBROUTINE wavecar_init(wav, fname, wavetype, iu0, lgvecs)
+        TYPE(wavecar), INTENT(out)      :: wav
         CHARACTER(LEN=*), INTENT(in)    :: fname
         CHARACTER(LEN=*), INTENT(in)    :: wavetype
         INTEGER, OPTIONAL, INTENT(in)   :: iu0
-        LOGICAL, OPTIONAL, INTENT(in)   :: gvecs
+        LOGICAL, OPTIONAL, INTENT(in)   :: lgvecs
 
         !! local variables
         LOGICAL :: od
-        LOGICAL :: lgvecs   = .FALSE.
+        LOGICAL :: lgvecs_  = .FALSE.
         INTEGER :: iu       = 12
         INTEGER :: ierr
         INTEGER :: irec
@@ -70,7 +70,7 @@ MODULE wavecar_mod
         IF (PRESENT(iu0)) iu = iu0
         wav%iu = iu
 
-        IF (PRESENT(gvecs)) lgvecs = gvecs
+        IF (PRESENT(lgvecs)) lgvecs_ = lgvecs
 
         SELECT CASE (wavetype)
             CASE("std")
@@ -170,7 +170,7 @@ MODULE wavecar_mod
             maxnplw = MAXVAL(wav%nplws)
         END IF
 
-        IF (lgvecs) CALL wavecar_gen_gvecs_all_k_(wav)
+        IF (lgvecs_) CALL wavecar_gen_gvecs_all_k_(wav)
     END SUBROUTINE wavecar_init
 
 
@@ -464,7 +464,7 @@ MODULE wavecar_mod
         INTEGER :: i
 
         g(     1:ng/2+1) = (/(i, i=        0, ng/2)/)
-        g(ng/2+2:)       = (/(i, i=ng/2+1-ng,   -1)/)
+        g(ng/2+2:      ) = (/(i, i=ng/2+1-ng,   -1)/)
     END SUBROUTINE wavecar_gen_fft_freq_
 
 

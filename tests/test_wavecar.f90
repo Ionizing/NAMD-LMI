@@ -60,7 +60,7 @@ MODULE test_wavecar
 
     SUBROUTINE test_wavecar_init
         TYPE(wavecar) :: wav
-        REAL(q)     :: efermi
+        REAL(q)       :: efermi
 
         CALL wavecar_init(wav, "WAVECAR_std", "std")
         CALL assert_equals(wav%nspin, 2, AT)
@@ -99,7 +99,7 @@ MODULE test_wavecar
         INTEGER :: ikpoint
 
         ikpoint = 1
-        CALL wavecar_init(wav, "WAVECAR_gamx", "gamx", gvecs=.TRUE.)
+        CALL wavecar_init(wav, "WAVECAR_gamx", "gamx", lgvecs=.TRUE.)
 
         ngvec = wav%nplws(ikpoint)
         CALL assert_equals(wav%gvecs(:, ngvec, ikpoint), (/ 5, -1, -1 /), 3, AT)
@@ -108,7 +108,7 @@ MODULE test_wavecar
 
 
         ikpoint = 2
-        CALL wavecar_init(wav, "WAVECAR_std", "std", gvecs=.TRUE.)
+        CALL wavecar_init(wav, "WAVECAR_std", "std", lgvecs=.TRUE.)
 
         ngvec = wav%nplws(ikpoint)
         CALL assert_equals(wav%gvecs(:, ngvec, ikpoint), (/ -1, -1, -1 /), 3, AT)
@@ -194,7 +194,7 @@ MODULE test_wavecar
         REAL(q), ALLOCATABLE :: gvecs_cart(:, :)
 
         ikpoint = 1
-        CALL wavecar_init(wav, "WAVECAR_gamx", "gamx", gvecs=.TRUE.)
+        CALL wavecar_init(wav, "WAVECAR_gamx", "gamx", lgvecs=.TRUE.)
         ngvec = wav%nplws(ikpoint)
 
         ALLOCATE(gvecs_cart(3, ngvec))
@@ -204,7 +204,7 @@ MODULE test_wavecar
         CALL wavecar_destroy(wav)
 
 
-        CALL wavecar_init(wav, "WAVECAR_gamx", "gamx", gvecs=.FALSE.)
+        CALL wavecar_init(wav, "WAVECAR_gamx", "gamx", lgvecs=.FALSE.)
         ngvec = wav%nplws(ikpoint)
 
         ALLOCATE(gvecs_cart(3, ngvec))
@@ -215,7 +215,7 @@ MODULE test_wavecar
 
 
         ikpoint = 2
-        CALL wavecar_init(wav, "WAVECAR_std", "std", gvecs=.TRUE.)
+        CALL wavecar_init(wav, "WAVECAR_std", "std", lgvecs=.TRUE.)
         ngvec = wav%nplws(ikpoint)
 
         ALLOCATE(gvecs_cart(3, ngvec))
@@ -225,7 +225,7 @@ MODULE test_wavecar
         CALL wavecar_destroy(wav)
 
 
-        CALL wavecar_init(wav, "WAVECAR_std", "std", gvecs=.FALSE.)
+        CALL wavecar_init(wav, "WAVECAR_std", "std", lgvecs=.FALSE.)
         ngvec = wav%nplws(ikpoint)
 
         ALLOCATE(gvecs_cart(3, ngvec))

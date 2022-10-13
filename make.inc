@@ -10,6 +10,6 @@ BLASLIBS        ?= -fexternal-blas -L$(OPENBLAS)/lib -lopenblas
 F90FLAGS        += -DOPENBLAS $(BLASLIBS)
 
 # HDF5
-HDF5BASE ?= #/public/apps/HDF5/1.13.2_gcc-4.8.5
-INCLUDE  += -I$(HDF5)/include
-F90FLAGS += -L$(HDF5)/lib -lhdf5_fortran -lhdf5
+HDF5     ?= #/public/apps/HDF5/1.13.2_gcc-4.8.5
+HDF5INC  += -I$(HDF5)/include
+F90FLAGS += $(HDF5INC) -L$(HDF5)/lib -lhdf5_fortran -lhdf5

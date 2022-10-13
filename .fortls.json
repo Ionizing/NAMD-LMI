@@ -2,6 +2,6 @@
     "source_dirs": [
             "./**",
             "/public/home/chenlj/Downloads/hdf5-hdf5-1_13_2/fortran/src",
-            "/public/home/chenlj/Downloads/openmpi-v4.1.x-202210060242-4c40b0d/ompi/mpi/fortran/use-mpi-f08/mod"
+            "/public/apps/intel/oneapi/mpi/latest/lib"
         ]
 }

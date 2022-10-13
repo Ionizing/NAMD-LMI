@@ -19,7 +19,7 @@ PROGRAM namd_lumi_x
     200 FORMAT("Reading ", A, " with ", A)
 
     CALL CPU_TIME(tbeg)
-    CALL wavecar_init(wav, fname, wavetype, gvecs=(lgvecs == 'true'))
+    CALL wavecar_init(wav, fname, wavetype, lgvecs=(lgvecs=="true"))
     CALL CPU_TIME(tend)
 
     PRINT 201, tend - tbeg

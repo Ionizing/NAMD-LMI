@@ -126,10 +126,10 @@ MODULE tdm_mod
 
     FUNCTION tdm_get_tdm_wav(wav, ispin, ikpoint, iniband, finband) RESULT(tdm_ret)
         TYPE(wavecar), INTENT(in) :: wav
-        INTEGER, INTENT(in)     :: ispin
-        INTEGER, INTENT(in)     :: ikpoint
-        INTEGER, INTENT(in)     :: iniband, finband
-        COMPLEX(q)              :: tdm_ret(3)
+        INTEGER, INTENT(in)       :: ispin
+        INTEGER, INTENT(in)       :: ikpoint
+        INTEGER, INTENT(in)       :: iniband, finband
+        COMPLEX(q)                :: tdm_ret(3)
 
         !! local variables
         COMPLEX(q),  ALLOCATABLE :: phi_i_q (:), phi_j_q (:)
