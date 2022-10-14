@@ -4,24 +4,17 @@ PROGRAM namd_lumi_x
     IMPLICIT NONE
 
     !! local variables
-    REAL(q)         :: tbeg, tend  ! for timing
-    TYPE(wavecar)   :: wav
-    CHARACTER(256)  :: fname
-    CHARACTER(256)  :: wavetype
-    CHARACTER(10)   :: lgvecs
+    INTEGER         :: tbeg, tend, rate  ! for timing
+    TYPE(nac)       :: nac_tot
+    CHARACTER(128)  :: rundir = "../run"
+    INTEGER, PARAMETER  :: ikpoint = 1
 
-    !! logic starts
-    CALL GET_COMMAND_ARGUMENT(1, fname)
-    CALL GET_COMMAND_ARGUMENT(2, wavetype)
-    CALL GET_COMMAND_ARGUMENT(3, lgvecs)
+    CALL SYSTEM_CLOCK(tbeg, rate)
+    CALL nac_calculate(rundir, ikpoint, "std", 10, 1.0_q, 4, nac_tot)
+    CALL nac_save_to_h5(nac_tot, "nac_total.h5")
+    CALL nac_destroy(nac_tot)
+    CALL SYSTEM_CLOCK(tend, rate)
 
-    PRINT 200, TRIM(fname), TRIM(wavetype)
-    200 FORMAT("Reading ", A, " with ", A)
-
-    CALL CPU_TIME(tbeg)
-    CALL wavecar_init(wav, fname, wavetype, lgvecs=(lgvecs=="true"))
-    CALL CPU_TIME(tend)
-
-    PRINT 201, tend - tbeg
+    PRINT 201, DBLE(tend - tbeg) / rate
     201 FORMAT("Time used: ", F8.3, "s")
 END PROGRAM namd_lumi_x

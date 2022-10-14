@@ -37,12 +37,13 @@ MODULE nac_mod
         CHARACTER(256) :: fname_i, fname_j
         TYPE(wavecar)  :: wav_i, wav_j
         INTEGER        :: i, j
+        INTEGER        :: timing_start, timing_end, timing_rate
         LOGICAL        :: lready
 
         !! logic starts
 
-        !< Do some checking
-        fname_i = generate_static_calculation_path(rundir, 1, ndigit)
+        !! Do some checking
+        fname_i = TRIM(generate_static_calculation_path(rundir, 1, ndigit)) // "/WAVECAR"
         CALL wavecar_init(wav_i, fname_i, wavetype)
         nspin = wav_i%nspin
         nkpoints = wav_i%nkpoints
@@ -53,22 +54,35 @@ MODULE nac_mod
                              TINT2STR(nkpoints) // ' from WAVECAR "' // TRIM(fname_i) // '" ' // AT
             lready = .FALSE.
         END IF
-        IF (.NOT. lready) STOP ERROR_NAC_WAVE_NREADY
+        IF (.NOT. lready) THEN
+            STOP ERROR_NAC_WAVE_NREADY
+        END IF
+
         CALL wavecar_destroy(wav_i)
 
 
-        IF (.NOT. ALLOCATED(nac_dat%olaps)) ALLOCATE(nac_dat%olaps(nbands, nbands, nspin, nsw-1))
-        IF (.NOT. ALLOCATED(nac_dat%eigs))  ALLOCATE(nac_dat%eigs(nbands, nspin, nsw-1))
+        ALLOCATE(nac_dat%olaps(nbands, nbands, nspin, nsw-1))
+        ALLOCATE(nac_dat%eigs(nbands, nspin, nsw-1))
 
         DO i = 1, nsw-1
-            j = i + 1
-            fname_i = generate_static_calculation_path(rundir, i, ndigit)
-            fname_j = generate_static_calculation_path(rundir, j, ndigit)
+            CALL SYSTEM_CLOCK(timing_start, timing_rate)
 
-            CALL wavecar_init(wav_i, fname_i, wavetype)
-            CALL wavecar_init(wav_j, fname_j, wavetype)
+            j = i + 1
+            fname_i = TRIM(generate_static_calculation_path(rundir, i, ndigit)) // "/WAVECAR"
+            fname_j = TRIM(generate_static_calculation_path(rundir, j, ndigit)) // "/WAVECAR"
+
+            WRITE(STDOUT, '(A)') "[INFO] Reading " // TRIM(fname_i) // " and " // TRIM(fname_j) // " for NAC calculation."
+
+            CALL wavecar_init(wav_i, fname_i, wavetype, iu0=12)
+            CALL wavecar_init(wav_j, fname_j, wavetype, iu0=13)
 
             CALL nac_ij_(wav_i, wav_j, ikpoint, nac_dat%olaps(:, :, :, i), nac_dat%eigs(:, :, i))
+
+            CALL wavecar_destroy(wav_i)
+            CALL wavecar_destroy(wav_j)
+
+            CALL SYSTEM_CLOCK(timing_end, timing_rate)
+            WRITE(STDOUT, '(A,F10.4,A)') "    Time used: ", DBLE(timing_end - timing_start) / timing_rate, " secs."
         ENDDO
 
         nac_dat%ikpoint = ikpoint
@@ -77,6 +91,14 @@ MODULE nac_mod
         nac_dat%nsw     = nsw
         nac_dat%dt      = dt
     END SUBROUTINE
+
+
+    SUBROUTINE nac_destroy(nac_dat)
+        TYPE(nac) :: nac_dat
+
+        IF (ALLOCATED(nac_dat%olaps)) DEALLOCATE(nac_dat%olaps)
+        IF (ALLOCATED(nac_dat%eigs))  DEALLOCATE(nac_dat%eigs)
+    END SUBROUTINE nac_destroy
 
 
     SUBROUTINE nac_save_to_h5(nac_dat, h5fname)
@@ -243,13 +265,13 @@ MODULE nac_mod
 
         DO ispin = 1, nspin
             DO iband = 1, nbands
-                CALL wavecar_read_wavefunction(wav_i, ispin, ikpoint, iband, psi_i(:, iband))
-                CALL wavecar_read_wavefunction(wav_j, ispin, ikpoint, iband, psi_j(:, iband))
+                CALL wavecar_read_wavefunction(wav_i, ispin, ikpoint, iband, psi_i(:, iband), norm=.TRUE.)
+                CALL wavecar_read_wavefunction(wav_j, ispin, ikpoint, iband, psi_j(:, iband), norm=.TRUE.)
             ENDDO
 
             !! psi_i,j = [nplws, nbands]
             !! pji = psi_j' * psi_i, p_ij = psi_i' * psi_j
-            c_ij(:, :, ispin) =   MATMUL(psi_i, CONJG(TRANSPOSE(psi_j))) &  !! p_ji = <psi_i(t)|psi_j(t+dt)>
+            c_ij(:, :, ispin) =   MATMUL(CONJG(TRANSPOSE(psi_i)), psi_j) &  !! p_ji = <psi_i(t)|psi_j(t+dt)>
                                 - MATMUL(CONJG(TRANSPOSE(psi_j)), psi_i)    !! p_ij = <psi_j(t)|psi_i(t+dt)>
         ENDDO
 

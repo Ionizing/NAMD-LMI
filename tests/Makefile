@@ -15,7 +15,7 @@ test: test.f90 $(TEST_OBJS) $(LIB) $(FRUIT)
 	./$@.x
 
 %.o: %.f90 $(FRUIT) $(INC)
-	$(MPIF90) -c $< -I$(MOD) $(F90FLAGS) -fPIC
+	$(MPIF90) -c $< -I$(MOD) $(F90FLAGS)
 
 $(LIB):
 	$(MAKE) -C ../src

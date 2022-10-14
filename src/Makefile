@@ -21,4 +21,4 @@ clean:
 	rm -f *.x *.o *.mod *.a
 
 %.o: %.f90
-	$(MPIF90) $(F90FLAGS) -c $< -fPIC
+	$(MPIF90) $(F90FLAGS) -c $<

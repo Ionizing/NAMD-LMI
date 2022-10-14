@@ -162,7 +162,7 @@ MODULE wavecar_mod
         IF (wavetype == "ncl") THEN
             maxnplw = MAXVAL(wav%nplws) / 2
             IF (maxnplw * 2 /= MAXVAL(wav%nplws)) THEN
-                WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype) // ' , nplw=' // TINT2STR(maxnplw) &
+                WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype) // ' , nplw=' // TINT2STR(MAXVAL(wav%nplws)) &
                                  // ' cannot be devided by 2. ' // AT
                 STOP ERROR_WAVE_WAVETYPE
             END IF
@@ -200,6 +200,7 @@ MODULE wavecar_mod
         LOGICAL :: lnorm = .FALSE.
         INTEGER :: irec
         INTEGER :: i
+        REAL(qs) :: normqs = 0.0_qs
 
         !! logic starts
         IF (wav%prec /= qs) THEN
@@ -223,7 +224,8 @@ MODULE wavecar_mod
         READ(wav%iu, REC=irec) (phi(i), i=1, wav%nplws(ikpoint))
 
         IF (lnorm) THEN
-            !phi = phi / CNORM2(phi)
+            normqs = SQRT(REAL(SUM(CONJG(phi) * phi)))
+            phi = phi / normqs
         END IF
     END SUBROUTINE wavecar_read_wavefunction_qs
 
@@ -241,6 +243,7 @@ MODULE wavecar_mod
         LOGICAL :: lnorm = .FALSE.
         INTEGER :: irec
         INTEGER :: i
+        REAL(q) :: normq = 0.0_q
 
         !! logic starts
         IF (wav%prec /= qs) THEN
@@ -264,7 +267,8 @@ MODULE wavecar_mod
         READ(wav%iu, REC=irec) (phi(i), i=1, wav%nplws(ikpoint))
 
         IF (lnorm) THEN
-            !phi = phi / CNORM2(phi)
+            normq = SQRT(REAL(SUM(CONJG(phi) * phi)))
+            phi = phi / normq
         END IF
     END SUBROUTINE wavecar_read_wavefunction_q
 
