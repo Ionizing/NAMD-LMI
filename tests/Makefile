@@ -7,7 +7,7 @@ BIN = test.x
 
 .PHONY: $(LIB)
 
-TEST_OBJS = test_string.o test_wavecar.o test_tdm.o
+TEST_OBJS = $(patsubst %.f90,%.o,$(wildcard test_*.f90))
 FRUIT = fruit.o
 
 test: test.f90 $(TEST_OBJS) $(LIB) $(FRUIT)
@@ -21,4 +21,4 @@ $(LIB):
 	$(MAKE) -C ../src
 
 clean:
-	rm -f test *.o *.mod *.x
+	rm -f test *.o *.mod *.x *.h5

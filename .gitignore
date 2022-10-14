@@ -4,5 +4,6 @@
 *.a
 *.x
 *.dSYM
+*.h5
 .DS_Store
 doc/html
