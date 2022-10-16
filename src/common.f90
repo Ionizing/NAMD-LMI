@@ -74,4 +74,39 @@ MODULE common_mod
     INTEGER,    PARAMETER :: ERROR_TDM_LEN_NOT_EQUAL = 40
 
     INTEGER,    PARAMETER :: ERROR_NAC_WAVE_NREADY   = 50
+
+
+    CONTAINS
+
+    !> Partition the indices
+    !! Please make sure the nrank <= length, or the sendcounts[i] contains 0, which may cause fatal error with MPI
+    SUBROUTINE mpi_partition(nrank, length, sendcounts, displs)
+        INTEGER, INTENT(in)  :: nrank
+        INTEGER, INTENT(in)  :: length
+        INTEGER, INTENT(out) :: sendcounts(nrank)
+        INTEGER, INTENT(out) :: displs(nrank)
+
+        !! local variables
+        INTEGER :: quotient, residue
+        INTEGER :: i
+
+        !! logic starts
+        quotient = length / nrank
+        residue  = MOD(length, nrank)
+
+        sendcounts = 0
+        displs     = 0
+        DO i = 1, nrank
+            sendcounts(i) = quotient
+            IF (residue > 0) THEN       !! Deal with indivisible length
+                sendcounts(i) = sendcounts(i) + 1
+                residue = residue - 1
+            END IF
+
+            IF (i >= 2) THEN
+                displs(i) = displs(i-1) + sendcounts(i-1)
+            END IF
+        ENDDO
+    END SUBROUTINE mpi_partition
+    
 END MODULE common_mod

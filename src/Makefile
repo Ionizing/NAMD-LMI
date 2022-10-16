@@ -1,6 +1,6 @@
 include ../make.inc
 
-OBJS = string.o common.o wavecar.o tdm.o nac.o
+OBJS = string.o common.o wavecar.o tdm.o nac.o hamiltonian.o
 LIB = libnamd.a
 
 namd_lumi.x: namd_lumi.f90 $(LIB)
@@ -16,6 +16,8 @@ wavecar.o: wavecar.f90 common.h common.o
 tdm.o: common.o wavecar.o
 
 nac.o: common.o wavecar.o
+
+hamiltonian.o: nac.o wavecar.o common.o
 
 clean:
 	rm -f *.x *.o *.mod *.a

@@ -1,5 +1,6 @@
 PROGRAM TEST_MAIN
     USE fruit
+    USE test_common,    ONLY: test_common_fn
     USE test_string,    ONLY: test_string_fn
     USE test_wavecar,   ONLY: test_wavecar_fn
     USE test_tdm,       ONLY: test_tdm_fn
@@ -8,6 +9,9 @@ PROGRAM TEST_MAIN
     IMPLICIT NONE
 
     CALL init_fruit
+
+    !! test_common
+    CALL test_common_fn
 
     !! test_string
     CALL test_string_fn
