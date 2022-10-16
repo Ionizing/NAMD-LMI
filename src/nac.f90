@@ -93,6 +93,134 @@ MODULE nac_mod
     END SUBROUTINE
 
 
+    SUBROUTINE nac_calculate_mpi(rundir, ikpoint, wavetype, nsw, dt, ndigit, nac_dat)
+        USE mpi
+
+        CHARACTER(*), INTENT(in)    :: rundir
+        INTEGER, INTENT(IN)         :: ikpoint
+        CHARACTER(*), INTENT(in)    :: wavetype
+        INTEGER, INTENT(in)         :: nsw
+        REAL(q), INTENT(in)         :: dt
+        INTEGER, INTENT(in)         :: ndigit
+        TYPE(nac), INTENT(out)      :: nac_dat      !< only valid on root node
+        
+        !! local variables
+        INTEGER         :: ierr
+        INTEGER         :: nspin, nkpoints, nbands
+        CHARACTER(256)  :: fname_i, fname_j
+        TYPE(wavecar)   :: wav_i, wav_j
+        INTEGER         :: i, j, i0, j0
+        INTEGER         :: timing_start, timing_end, timing_rate
+        LOGICAL         :: lready
+        COMPLEX(q), ALLOCATABLE :: olaps(:, :, :, :)
+        REAL(q), ALLOCATABLE    :: eigs(:, :, :)
+
+        !! MPI related local variables
+        INTEGER         :: irank, nrank
+        INTEGER         :: length
+        INTEGER         :: local_start, local_end
+        INTEGER, ALLOCATABLE :: sendcounts(:)
+        INTEGER, ALLOCATABLE :: displs(:)
+
+
+        !! logic starts
+
+        !! get MPI irank and nrank
+        CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
+        CALL MPI_COMM_SIZE(MPI_COMM_WORLD, nrank, ierr)
+
+        !! do some checking on root node, get nspin, nkpoints and nbands
+        IF (MPI_ROOT_NODE == irank) THEN
+            fname_i = TRIM(generate_static_calculation_path(rundir, 1, ndigit)) // "/WAVECAR"
+            CALL wavecar_init(wav_i, fname_i, wavetype)
+            nspin    = wav_i%nspin
+            nkpoints = wav_i%nkpoints
+            nbands   = wav_i%nbands
+            lready   = .TRUE.
+
+            IF (ikpoint > nkpoints) THEN
+                WRITE(STDERR, *) "Selected ikpoint " // TINT2STR(ikpoint) // " larger than present nkpoints " // &
+                                 TINT2STR(nkpoints) // ' from WAVECAR "' // TRIM(fname_i) // '" ' // AT
+                lready = .FALSE.
+            END IF
+            IF (.NOT. lready) THEN
+                CALL MPI_ABORT(MPI_COMM_WORLD, ERROR_NAC_WAVE_NREADY, ierr)
+            END IF
+            CALL wavecar_destroy(wav_i)
+
+            ALLOCATE(nac_dat%olaps(nbands, nbands, nspin, nsw-1))
+            ALLOCATE(nac_dat%eigs(nbands, nspin, nsw-1))
+
+            nac_dat%ikpoint = ikpoint
+            nac_dat%nspin   = nspin
+            nac_dat%nbands  = nbands
+            nac_dat%nsw     = nsw
+            nac_dat%dt      = dt
+        END IF
+
+        !! broadcast nspin, nkpoints and nbands to all nodes
+        CALL MPI_BCAST(nspin,    1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nkpoints, 1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nbands,   1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+
+        !! partition
+        ALLOCATE(sendcounts(nrank))
+        ALLOCATE(displs(nrank))
+
+        length = nsw - 1
+        CALL mpi_partition(nrank, length, sendcounts, displs)
+        local_start = displs(irank+1) + 1                     !< fortran counts from 1
+        local_end   = local_start + sendcounts(irank+1) - 1   !< closed interval
+
+        ALLOCATE(olaps(nbands, nbands, nspin, sendcounts(irank+1)))
+        ALLOCATE(eigs(nbands, nspin, sendcounts(irank+1)))
+        
+        !! calculate NAC
+        DO i = local_start, local_end
+            CALL SYSTEM_CLOCK(timing_start, timing_rate)
+
+            j = i + 1
+            fname_i = TRIM(generate_static_calculation_path(rundir, i, ndigit)) // "/WAVECAR"
+            fname_j = TRIM(generate_static_calculation_path(rundir, j, ndigit)) // "/WAVECAR"
+
+            WRITE(STDOUT, "(A,I4,A)") "[NODE ", irank, "] Reading " // TRIM(fname_i) // " and " // TRIM(fname_j) // " for NAC calculation"
+
+            CALL wavecar_init(wav_i, fname_i, wavetype, iu0=irank+1000)
+            CALL wavecar_init(wav_j, fname_j, wavetype, iu0=irank+2000)
+
+            i0 = i - local_start + 1    ! starts from 1
+            j0 = i0 + 1
+            CALL nac_ij_(wav_i, wav_j, ikpoint, olaps(:, :, :, i0), eigs(:, :, i0))
+
+            CALL wavecar_destroy(wav_i)
+            CALL wavecar_destroy(wav_j)
+
+            CALL SYSTEM_CLOCK(timing_end)
+            WRITE(STDOUT, "(A,I4,A,F10.4,A)") "[NODE ", irank, "] Time used: ", DBLE(timing_end - timing_start)/timing_rate, &
+                " secs for NAC between step " // TINT2STR(i) // " and " // TINT2STR(j) // "."
+        ENDDO
+
+        CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+
+        !! collect to root node
+        sendcounts = sendcounts * (nbands * nspin)     !< number of elements of each step, for eigs
+        displs     = displs     * (nbands * nspin)
+        CALL MPI_GATHERV(eigs, SIZE(eigs), MPI_DOUBLE_PRECISION, nac_dat%eigs, sendcounts, displs, MPI_DOUBLE_PRECISION, &
+                         MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+
+        sendcounts = sendcounts * nbands
+        displs     = displs     * nbands
+        CALL MPI_GATHERV(olaps, SIZE(olaps), MPI_DOUBLE_COMPLEX, nac_dat%olaps, sendcounts, displs, MPI_DOUBLE_COMPLEX, &
+                         MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+
+        DEALLOCATE(eigs)
+        DEALLOCATE(olaps)
+        DEALLOCATE(displs)
+        DEALLOCATE(sendcounts)
+    END SUBROUTINE nac_calculate_mpi
+
+
     SUBROUTINE nac_destroy(nac_dat)
         TYPE(nac) :: nac_dat
 

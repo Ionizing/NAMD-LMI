@@ -76,6 +76,9 @@ MODULE common_mod
     INTEGER,    PARAMETER :: ERROR_NAC_WAVE_NREADY   = 50
 
 
+    !! MPI related stuff
+    INTEGER,    PARAMETER :: MPI_ROOT_NODE           = 0
+
     CONTAINS
 
     !> Partition the indices
