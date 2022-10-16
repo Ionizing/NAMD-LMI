@@ -105,9 +105,11 @@ MODULE common_mod
                 sendcounts(i) = sendcounts(i) + 1
                 residue = residue - 1
             END IF
+        ENDDO
 
+        DO i = 2, nrank
             IF (i >= 2) THEN
-                displs(i) = displs(i-1) + sendcounts(i-1)
+                displs(i) = displs(i-1) + sendcounts(i-1)   !! cumulative sum
             END IF
         ENDDO
     END SUBROUTINE mpi_partition
