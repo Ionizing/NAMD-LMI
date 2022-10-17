@@ -82,7 +82,7 @@ MODULE nac_mod
             CALL wavecar_destroy(wav_j)
 
             CALL SYSTEM_CLOCK(timing_end, timing_rate)
-            WRITE(STDOUT, '(A,F10.4,A)') "    Time used: ", DBLE(timing_end - timing_start) / timing_rate, " secs."
+            WRITE(STDOUT, '(A,F10.3,A)') "      Time used: ", DBLE(timing_end - timing_start) / timing_rate, " secs."
         ENDDO
 
         nac_dat%ikpoint = ikpoint
@@ -173,6 +173,9 @@ MODULE nac_mod
         local_start = displs(irank+1) + 1                     !< fortran counts from 1
         local_end   = local_start + sendcounts(irank+1) - 1   !< closed interval
 
+        WRITE(STDOUT, '(A,I4,A)') "[NODE ", irank, "] This node will calculate the NAC from " // TINT2STR(local_start) // " to " &
+            // TINT2STR(local_end)
+
         ALLOCATE(olaps(nbands, nbands, nspin, sendcounts(irank+1)))
         ALLOCATE(eigs(nbands, nspin, sendcounts(irank+1)))
         
@@ -197,8 +200,8 @@ MODULE nac_mod
             CALL wavecar_destroy(wav_j)
 
             CALL SYSTEM_CLOCK(timing_end)
-            WRITE(STDOUT, "(A,I4,A,F10.4,A)") "[NODE ", irank, "] Time used: ", DBLE(timing_end - timing_start)/timing_rate, &
-                " secs for NAC between step " // TINT2STR(i) // " and " // TINT2STR(j) // "."
+            WRITE(STDOUT, "(A,I4,A,F10.3,A)") "[NODE ", irank, "]   Time used: ", DBLE(timing_end - timing_start)/timing_rate, &
+                " secs for NAC between step " // TINT2STR(i) // " and " // TINT2STR(j) // ". " // TINT2STR(local_end - i) // " steps left."
         ENDDO
 
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
@@ -229,16 +232,21 @@ MODULE nac_mod
     END SUBROUTINE nac_destroy
 
 
-    SUBROUTINE nac_save_to_h5(nac_dat, h5fname)
+    SUBROUTINE nac_save_to_h5(nac_dat, h5fname, llog)
         USE hdf5
 
         TYPE(nac), INTENT(in)    :: nac_dat
         CHARACTER(*), INTENT(in) :: h5fname
+        LOGICAL, OPTIONAL        :: llog
 
         !! local variables
         INTEGER :: ierr
         INTEGER(HSIZE_T) :: olaps_dims(4), eigs_dims(3), dummy_dims(1) = [1]
         INTEGER(HID_T)   :: file_id, dspace_id, dset_id
+
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '(A)', advance='no') "[INFO] Writing calculated NAC to " // TRIM(h5fname) // " ..."
+        END IF
 
         !! logic starts
         CALL h5open_f(ierr)
@@ -296,6 +304,10 @@ MODULE nac_mod
 
         CALL h5fclose_f(file_id, ierr)
         CALL h5close_f(ierr)
+
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '(A)') " Done"
+        END IF
     END SUBROUTINE nac_save_to_h5
 
 
@@ -393,8 +405,8 @@ MODULE nac_mod
 
         DO ispin = 1, nspin
             DO iband = 1, nbands
-                CALL wavecar_read_wavefunction(wav_i, ispin, ikpoint, iband, psi_i(:, iband), norm=.TRUE.)
-                CALL wavecar_read_wavefunction(wav_j, ispin, ikpoint, iband, psi_j(:, iband), norm=.TRUE.)
+                CALL wavecar_read_wavefunction(wav_i, ispin, ikpoint, iband, psi_i(:, iband), lnorm=.TRUE.)
+                CALL wavecar_read_wavefunction(wav_j, ispin, ikpoint, iband, psi_j(:, iband), lnorm=.TRUE.)
             ENDDO
 
             !! psi_i,j = [nplws, nbands]

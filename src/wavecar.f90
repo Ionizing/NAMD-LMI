@@ -52,7 +52,7 @@ MODULE wavecar_mod
 
         !! local variables
         LOGICAL :: od
-        LOGICAL :: lgvecs_  = .FALSE.
+        !LOGICAL :: lgvecs_  = .FALSE.
         INTEGER :: iu       = 12
         INTEGER :: ierr
         INTEGER :: irec
@@ -70,7 +70,7 @@ MODULE wavecar_mod
         IF (PRESENT(iu0)) iu = iu0
         wav%iu = iu
 
-        IF (PRESENT(lgvecs)) lgvecs_ = lgvecs
+        !IF (PRESENT(lgvecs)) lgvecs_ = lgvecs
 
         SELECT CASE (wavetype)
             CASE("std")
@@ -170,7 +170,9 @@ MODULE wavecar_mod
             maxnplw = MAXVAL(wav%nplws)
         END IF
 
-        IF (lgvecs_) CALL wavecar_gen_gvecs_all_k_(wav)
+        IF (PRESENT(lgvecs)) THEN
+            IF (lgvecs) CALL wavecar_gen_gvecs_all_k_(wav)
+        END IF
     END SUBROUTINE wavecar_init
 
 
@@ -187,17 +189,16 @@ MODULE wavecar_mod
     END SUBROUTINE wavecar_destroy
 
 
-    SUBROUTINE wavecar_read_wavefunction_qs(wav, ispin, ikpoint, iband, phi, norm)
+    SUBROUTINE wavecar_read_wavefunction_qs(wav, ispin, ikpoint, iband, phi, lnorm)
         TYPE(wavecar), INTENT(in)     :: wav
         INTEGER, INTENT(in)         :: ispin
         INTEGER, INTENT(in)         :: ikpoint
         INTEGER, INTENT(in)         :: iband
         COMPLEX(qs), INTENT(out)    :: phi(wav%nplws(ikpoint))
-        LOGICAL, OPTIONAL           :: norm
+        LOGICAL, OPTIONAL           :: lnorm
 
         !! local variables
         LOGICAL :: od
-        LOGICAL :: lnorm = .FALSE.
         INTEGER :: irec
         INTEGER :: i
         REAL(qs) :: normqs = 0.0_qs
@@ -209,8 +210,6 @@ MODULE wavecar_mod
             STOP ERROR_WAVE_WRONG_PREC
         END IF
 
-        IF (PRESENT(norm)) lnorm = norm
-
         INQUIRE(wav%iu, OPENED=od)
         IF (.NOT. od) THEN
             WRITE(STDERR, *) "WAVECAR not open " // AT
@@ -223,24 +222,25 @@ MODULE wavecar_mod
 
         READ(wav%iu, REC=irec) (phi(i), i=1, wav%nplws(ikpoint))
 
-        IF (lnorm) THEN
-            normqs = SQRT(REAL(SUM(CONJG(phi) * phi)))
-            phi = phi / normqs
+        IF (PRESENT(lnorm)) THEN
+            IF (lnorm) THEN
+                normqs = SQRT(REAL(SUM(CONJG(phi) * phi)))
+                phi = phi / normqs
+            END IF
         END IF
     END SUBROUTINE wavecar_read_wavefunction_qs
 
 
-    SUBROUTINE wavecar_read_wavefunction_q(wav, ispin, ikpoint, iband, phi, norm)
+    SUBROUTINE wavecar_read_wavefunction_q(wav, ispin, ikpoint, iband, phi, lnorm)
         TYPE(wavecar), INTENT(in)     :: wav
         INTEGER, INTENT(in)         :: ispin
         INTEGER, INTENT(in)         :: ikpoint
         INTEGER, INTENT(in)         :: iband
         COMPLEX(q), INTENT(out)     :: phi(wav%nplws(ikpoint))
-        LOGICAL, OPTIONAL           :: norm
+        LOGICAL, OPTIONAL           :: lnorm
 
         !! local variables
         LOGICAL :: od
-        LOGICAL :: lnorm = .FALSE.
         INTEGER :: irec
         INTEGER :: i
         REAL(q) :: normq = 0.0_q
@@ -252,8 +252,6 @@ MODULE wavecar_mod
             STOP ERROR_WAVE_WRONG_PREC
         END IF
 
-        IF (PRESENT(norm)) lnorm = norm
-
         INQUIRE(wav%iu, OPENED=od)
         IF (.NOT. od) THEN
             WRITE(STDERR, *) "WAVECAR not open " // AT
@@ -266,9 +264,11 @@ MODULE wavecar_mod
 
         READ(wav%iu, REC=irec) (phi(i), i=1, wav%nplws(ikpoint))
 
-        IF (lnorm) THEN
-            normq = SQRT(REAL(SUM(CONJG(phi) * phi)))
-            phi = phi / normq
+        IF (PRESENT(lnorm)) THEN
+            IF (lnorm) THEN
+                normq = SQRT(REAL(SUM(CONJG(phi) * phi)))
+                phi = phi / normq
+            END IF
         END IF
     END SUBROUTINE wavecar_read_wavefunction_q
 

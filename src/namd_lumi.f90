@@ -18,14 +18,14 @@ PROGRAM namd_lumi_x
     CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
 
 #ifdef OPENBLAS
-    CALL OPENBLAS_SET_NUM_THREADS(2)
+    CALL OPENBLAS_SET_NUM_THREADS(4)
 #endif
 
     CALL SYSTEM_CLOCK(tbeg, rate)
-    CALL nac_calculate_mpi(rundir, ikpoint, "ncl", 100, 1.0_q, 4, nac_tot)
+    CALL nac_calculate_mpi(rundir, ikpoint, "std", 100, 1.0_q, 4, nac_tot)
 
     IF (irank == MPI_ROOT_NODE) THEN
-        CALL nac_save_to_h5(nac_tot, "nac_total_mpi.h5")
+        CALL nac_save_to_h5(nac_tot, "nac_total.h5", llog=.TRUE.)
         CALL nac_destroy(nac_tot)
         CALL SYSTEM_CLOCK(tend, rate)
 
