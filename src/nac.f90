@@ -11,6 +11,8 @@ MODULE nac_mod
         INTEGER :: ikpoint  !> K-point index, start from 1
         INTEGER :: nspin    !> Number of total spin, 2 for ISPIN=2, 1 for ISPIN=1 or non-collinear
         INTEGER :: nbands   !> Number of bands
+        INTEGER :: brng(2)  !> The index range of stored NAC
+        INTEGER :: nbrng    !> Number of stored bands
         INTEGER :: nsw      !> Number of steps in the AIMD trajectory
         REAL(q) :: dt       !> Time step, in fs
 
@@ -23,17 +25,18 @@ MODULE nac_mod
     CONTAINS
 
 
-    SUBROUTINE nac_calculate(rundir, ikpoint, wavetype, nsw, dt, ndigit, nac_dat)
+    SUBROUTINE nac_calculate(rundir, ikpoint, wavetype, brng, nsw, dt, ndigit, nac_dat)
         CHARACTER(*), INTENT(in) :: rundir
         INTEGER, INTENT(in)      :: ikpoint
         CHARACTER(*), INTENT(in) :: wavetype
+        INTEGER, INTENT(in)      :: brng(2)
         INTEGER, INTENT(in)      :: nsw
         REAL(q), INTENT(in)      :: dt
         INTEGER, INTENT(in)      :: ndigit
         TYPE(nac), INTENT(out)   :: nac_dat
 
         !! local variables
-        INTEGER        :: nspin, nkpoints, nbands
+        INTEGER        :: nspin, nkpoints, nbands, nbrng
         CHARACTER(256) :: fname_i, fname_j
         TYPE(wavecar)  :: wav_i, wav_j
         INTEGER        :: i, j
@@ -41,6 +44,7 @@ MODULE nac_mod
         LOGICAL        :: lready
 
         !! logic starts
+        nbrng = brng(2) - brng(1) + 1
 
         !! Do some checking
         fname_i = TRIM(generate_static_calculation_path(rundir, 1, ndigit)) // "/WAVECAR"
@@ -61,8 +65,8 @@ MODULE nac_mod
         CALL wavecar_destroy(wav_i)
 
 
-        ALLOCATE(nac_dat%olaps(nbands, nbands, nspin, nsw-1))
-        ALLOCATE(nac_dat%eigs(nbands, nspin, nsw-1))
+        ALLOCATE(nac_dat%olaps(nbrng, nbrng, nspin, nsw-1))
+        ALLOCATE(nac_dat%eigs(nbrng, nspin, nsw-1))
 
         DO i = 1, nsw-1
             CALL SYSTEM_CLOCK(timing_start, timing_rate)
@@ -76,7 +80,7 @@ MODULE nac_mod
             CALL wavecar_init(wav_i, fname_i, wavetype, iu0=12)
             CALL wavecar_init(wav_j, fname_j, wavetype, iu0=13)
 
-            CALL nac_ij_(wav_i, wav_j, ikpoint, nac_dat%olaps(:, :, :, i), nac_dat%eigs(:, :, i))
+            CALL nac_ij_(wav_i, wav_j, ikpoint, brng, nac_dat%olaps(:, :, :, i), nac_dat%eigs(:, :, i))
 
             CALL wavecar_destroy(wav_i)
             CALL wavecar_destroy(wav_j)
@@ -88,17 +92,20 @@ MODULE nac_mod
         nac_dat%ikpoint = ikpoint
         nac_dat%nspin   = nspin
         nac_dat%nbands  = nbands
+        nac_dat%brng    = brng
+        nac_dat%nbrng   = nbrng
         nac_dat%nsw     = nsw
         nac_dat%dt      = dt
     END SUBROUTINE
 
 
-    SUBROUTINE nac_calculate_mpi(rundir, ikpoint, wavetype, nsw, dt, ndigit, nac_dat)
+    SUBROUTINE nac_calculate_mpi(rundir, ikpoint, wavetype, brng, nsw, dt, ndigit, nac_dat)
         USE mpi
 
         CHARACTER(*), INTENT(in)    :: rundir
         INTEGER, INTENT(IN)         :: ikpoint
         CHARACTER(*), INTENT(in)    :: wavetype
+        INTEGER, INTENT(in)         :: brng(2)
         INTEGER, INTENT(in)         :: nsw
         REAL(q), INTENT(in)         :: dt
         INTEGER, INTENT(in)         :: ndigit
@@ -106,7 +113,7 @@ MODULE nac_mod
         
         !! local variables
         INTEGER         :: ierr
-        INTEGER         :: nspin, nkpoints, nbands
+        INTEGER         :: nspin, nkpoints, nbands, nbrng
         CHARACTER(256)  :: fname_i, fname_j
         TYPE(wavecar)   :: wav_i, wav_j
         INTEGER         :: i, j, i0, j0
@@ -124,6 +131,7 @@ MODULE nac_mod
 
 
         !! logic starts
+        nbrng = brng(2) - brng(1) + 1
 
         !! get MPI irank and nrank
         CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
@@ -148,12 +156,14 @@ MODULE nac_mod
             END IF
             CALL wavecar_destroy(wav_i)
 
-            ALLOCATE(nac_dat%olaps(nbands, nbands, nspin, nsw-1))
-            ALLOCATE(nac_dat%eigs(nbands, nspin, nsw-1))
+            ALLOCATE(nac_dat%olaps(nbrng, nbrng, nspin, nsw-1))
+            ALLOCATE(nac_dat%eigs(nbrng, nbrng, nsw-1))
 
             nac_dat%ikpoint = ikpoint
             nac_dat%nspin   = nspin
             nac_dat%nbands  = nbands
+            nac_dat%brng    = brng
+            nac_dat%nbrng   = nbrng
             nac_dat%nsw     = nsw
             nac_dat%dt      = dt
         END IF
@@ -162,6 +172,8 @@ MODULE nac_mod
         CALL MPI_BCAST(nspin,    1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(nkpoints, 1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(nbands,   1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(brng,     2, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nbrng,    1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
         !! partition
@@ -176,8 +188,8 @@ MODULE nac_mod
         WRITE(STDOUT, '(A,I4,A)') "[NODE ", irank, "] This node will calculate the NAC from " // TINT2STR(local_start) // " to " &
             // TINT2STR(local_end)
 
-        ALLOCATE(olaps(nbands, nbands, nspin, sendcounts(irank+1)))
-        ALLOCATE(eigs(nbands, nspin, sendcounts(irank+1)))
+        ALLOCATE(olaps(nbrng, nbrng, nspin, sendcounts(irank+1)))
+        ALLOCATE(eigs(nbrng, nspin, sendcounts(irank+1)))
         
         !! calculate NAC
         DO i = local_start, local_end
@@ -194,7 +206,7 @@ MODULE nac_mod
 
             i0 = i - local_start + 1    ! starts from 1
             j0 = i0 + 1
-            CALL nac_ij_(wav_i, wav_j, ikpoint, olaps(:, :, :, i0), eigs(:, :, i0))
+            CALL nac_ij_(wav_i, wav_j, ikpoint, brng, olaps(:, :, :, i0), eigs(:, :, i0))
 
             CALL wavecar_destroy(wav_i)
             CALL wavecar_destroy(wav_j)
@@ -207,13 +219,13 @@ MODULE nac_mod
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
         !! collect to root node
-        sendcounts = sendcounts * (nbands * nspin)     !< number of elements of each step, for eigs
-        displs     = displs     * (nbands * nspin)
+        sendcounts = sendcounts * (nbrng * nspin)     !< number of elements of each step, for eigs
+        displs     = displs     * (nbrng * nspin)
         CALL MPI_GATHERV(eigs, SIZE(eigs), MPI_DOUBLE_PRECISION, nac_dat%eigs, sendcounts, displs, MPI_DOUBLE_PRECISION, &
                          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
-        sendcounts = sendcounts * nbands
-        displs     = displs     * nbands
+        sendcounts = sendcounts * nbrng
+        displs     = displs     * nbrng
         CALL MPI_GATHERV(olaps, SIZE(olaps), MPI_DOUBLE_COMPLEX, nac_dat%olaps, sendcounts, displs, MPI_DOUBLE_COMPLEX, &
                          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
@@ -382,34 +394,35 @@ MODULE nac_mod
     END SUBROUTINE nac_load_from_h5
 
 
-    SUBROUTINE nac_ij_(wav_i, wav_j, ikpoint, c_ij, e_ij)
+    SUBROUTINE nac_ij_(wav_i, wav_j, ikpoint, brng, c_ij, e_ij)
         TYPE (wavecar), INTENT(in)  :: wav_i, wav_j
         INTEGER, INTENT(in)         :: ikpoint
+        INTEGER, INTENT(in)         :: brng(2)
         COMPLEX(q), INTENT(out)     :: c_ij(:, :, :)
         REAL(q), INTENT(out)        :: e_ij(:, :)
 
         !! local variables
         COMPLEX(qs), ALLOCATABLE :: psi_i(:, :), psi_j(:, :)
         INTEGER :: nspin
-        INTEGER :: nbands
+        INTEGER :: nbrng
         INTEGER :: ispin, iband
         INTEGER :: nplws
 
         !! logic starts
         nspin    = wav_i%nspin
-        nbands   = wav_i%nbands
+        nbrng    = brng(2) - brng(1) + 1
         nplws    = wav_i%nplws(ikpoint)
 
-        ALLOCATE(psi_i(nplws, nbands))
-        ALLOCATE(psi_j(nplws, nbands))
+        ALLOCATE(psi_i(nplws, nbrng))
+        ALLOCATE(psi_j(nplws, nbrng))
 
         DO ispin = 1, nspin
-            DO iband = 1, nbands
-                CALL wavecar_read_wavefunction(wav_i, ispin, ikpoint, iband, psi_i(:, iband), lnorm=.TRUE.)
-                CALL wavecar_read_wavefunction(wav_j, ispin, ikpoint, iband, psi_j(:, iband), lnorm=.TRUE.)
+            DO iband = brng(1), brng(2)
+                CALL wavecar_read_wavefunction(wav_i, ispin, ikpoint, iband, psi_i(:, iband-brng(1)+1), lnorm=.TRUE.)
+                CALL wavecar_read_wavefunction(wav_j, ispin, ikpoint, iband, psi_j(:, iband-brng(1)+1), lnorm=.TRUE.)
             ENDDO
 
-            !! psi_i,j = [nplws, nbands]
+            !! psi_i,j = [nplws, nbrng]
             !! pji = psi_j' * psi_i, p_ij = psi_i' * psi_j
             c_ij(:, :, ispin) =   MATMUL(CONJG(TRANSPOSE(psi_i)), psi_j) &  !! p_ji = <psi_i(t)|psi_j(t+dt)>
                                 - MATMUL(CONJG(TRANSPOSE(psi_j)), psi_i)    !! p_ij = <psi_j(t)|psi_i(t+dt)>
