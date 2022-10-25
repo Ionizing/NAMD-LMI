@@ -24,9 +24,11 @@ MODULE test_nac
         nac_dat%nbands  = 5
         nac_dat%nsw     = 5
         nac_dat%dt      = 1.14514
+        nac_dat%brange  = [2, 4]
+        nac_dat%nbrange = 3
 
-        ALLOCATE(nac_dat%olaps(nac_dat%nbands, nac_dat%nbands, nac_dat%nspin, nac_dat%nsw))
-        ALLOCATE(nac_dat%eigs(nac_dat%nbands, nac_dat%nspin, nac_dat%nsw))
+        ALLOCATE(nac_dat%olaps(nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw))
+        ALLOCATE(nac_dat%eigs(nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw))
 
         nac_dat%olaps = (0.0, 0.0)
         nac_dat%olaps(1, 1, 1, 1) = (114.0, 514.0)
@@ -49,6 +51,8 @@ MODULE test_nac
         CALL assert_equals(nac_dat%ikpoint, 114, AT)
         CALL assert_equals(nac_dat%nbands, 5, AT)
         CALL assert_equals(nac_dat%nsw, 5, AT)
+        CALL assert_equals(nac_dat%nbrange, 3, AT)
+        CALL assert_equals(nac_dat%brange, [2, 4], 2, AT)
         CALL assert_equals(nac_dat%dt, 1.14514_q, 1.0e-5_q, AT)
         CALL assert_equals(nac_dat%olaps(1, 1, 1, 1), (114.0_q, 514.0), AT)
         CALL assert_equals(nac_dat%eigs(1, 1, 1), 114.514_q, 1.0e-5_q, AT)

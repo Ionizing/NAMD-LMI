@@ -1,15 +1,21 @@
 MODULE string_mod
+    IMPLICIT NONE
     CONTAINS
 
-    CHARACTER(len=32) FUNCTION int2str(x)
-        IMPLICIT NONE
-        INTEGER, INTENT(in) :: x
-        write(int2str, *) x
-        int2str = trim(adjustl(int2str))
+    CHARACTER(len=32) FUNCTION int2str(x, fmt)
+        INTEGER, INTENT(in)                :: x
+        CHARACTER(*), INTENT(in), OPTIONAL :: fmt
+
+        IF (PRESENT(fmt)) THEN
+            write(int2str, fmt) x
+            int2str = trim(adjustl(int2str))
+        ELSE
+            write(int2str, *) x
+            int2str = trim(adjustl(int2str))
+        END IF
     END FUNCTION int2str
 
     CHARACTER(len=32) FUNCTION real2str(x, fmt)
-        IMPLICIT NONE
         DOUBLE PRECISION, INTENT(in)       :: x
         CHARACTER(*), INTENT(in), OPTIONAL :: fmt
 

@@ -11,13 +11,13 @@ $(LIB): $(OBJS) lib.o
 
 lib.o: $(OBJS)
 
-wavecar.o: wavecar.f90 common.h common.o
+wavecar.o: string.o wavecar.f90 common.h common.o
 
-tdm.o: common.o wavecar.o
+tdm.o: string.o common.o wavecar.o
 
-nac.o: common.o wavecar.o
+nac.o: string.o common.o wavecar.o
 
-hamiltonian.o: nac.o wavecar.o common.o
+hamiltonian.o: string.o nac.o wavecar.o common.o
 
 clean:
 	rm -f *.x *.o *.mod *.a

@@ -9,7 +9,7 @@ PROGRAM namd_lumi_x
     CHARACTER(128)      :: rundir = "../run"
 
     !! local variables
-    TYPE(nac)       :: nac_tot
+    TYPE(nac)       :: nac_tot, nac_tot_load
     INTEGER         :: tbeg, tend, rate  ! for timing
     INTEGER         :: ierr
     INTEGER         :: irank
@@ -22,7 +22,7 @@ PROGRAM namd_lumi_x
 #endif
 
     CALL SYSTEM_CLOCK(tbeg, rate)
-    CALL nac_calculate_mpi(rundir, ikpoint, "std", 100, 1.0_q, 4, nac_tot)
+    CALL nac_calculate_mpi(rundir, ikpoint, "ncl", [200, 400], 100, 1.0_q, 4, nac_tot)
 
     IF (irank == MPI_ROOT_NODE) THEN
         CALL nac_save_to_h5(nac_tot, "nac_total.h5", llog=.TRUE.)
@@ -31,6 +31,8 @@ PROGRAM namd_lumi_x
 
         PRINT 201, DBLE(tend - tbeg) / rate
         201 FORMAT("Time used: ", F8.3, "s")
+
+        CALL nac_load_from_h5("nac_total.h5", nac_tot_load, llog=.TRUE.)
     END IF
 
     CALL MPI_FINALIZE(ierr)
