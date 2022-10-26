@@ -1,5 +1,6 @@
 !> Currently, this file is for test only
 PROGRAM namd_lumi_x
+    USE cla
     USE mpi
     USE namd_lumi_mod
 
@@ -22,6 +23,8 @@ PROGRAM namd_lumi_x
 #endif
 
     CALL SYSTEM_CLOCK(tbeg, rate)
+
+
     CALL nac_calculate_mpi(rundir, ikpoint, "ncl", [200, 400], 100, 1.0_q, 4, nac_tot)
 
     IF (irank == MPI_ROOT_NODE) THEN

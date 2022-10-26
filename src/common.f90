@@ -75,6 +75,8 @@ MODULE common_mod
 
     INTEGER,    PARAMETER :: ERROR_NAC_WAVE_NREADY   = 50
 
+    INTEGER,    PARAMETER :: ERROR_INPUT_OPEN_FAILED = 60
+
 
     !! MPI related stuff
     INTEGER,    PARAMETER :: MPI_ROOT_NODE           = 0

@@ -6,7 +6,7 @@ install: namd_lumi.x
 namd_lumi.x: main
 	cp src/$@ .
 
-main:
+main: libexternal
 	$(MAKE) -C src
 cleansrc:
 	$(MAKE) clean -C src
@@ -23,6 +23,12 @@ docs: doc/Doxygenfile
 cleandocs:
 	$(MAKE) clean -C doc
 
+e: libexternal
+libexternal:
+	$(MAKE) -C external
+cleanexternal:
+	$(MAKE) clean -C external
+
 c: clean
-clean: cleansrc cleantests cleandocs
+clean: cleansrc cleantests cleandocs cleanexternal
 	@rm -f *.x
