@@ -27,8 +27,8 @@ MODULE test_nac
         nac_dat%brange  = [2, 4]
         nac_dat%nbrange = 3
 
-        ALLOCATE(nac_dat%olaps(nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw))
-        ALLOCATE(nac_dat%eigs(nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw))
+        ALLOCATE(nac_dat%olaps(nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
+        ALLOCATE(nac_dat%eigs(nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
 
         nac_dat%olaps = (0.0, 0.0)
         nac_dat%olaps(1, 1, 1, 1) = (114.0, 514.0)

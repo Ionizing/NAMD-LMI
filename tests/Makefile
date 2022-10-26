@@ -14,7 +14,7 @@ test: test.f90 $(TEST_OBJS) $(LIB) $(FRUIT)
 	$(MPIF90) -I$(MOD) $^ -o $@.x $(F90FLAGS)
 	./$@.x
 
-%.o: %.f90 $(FRUIT) $(INC)
+%.o: %.f90 $(FRUIT) $(INC) $(LIB)
 	$(MPIF90) -c $< -I$(MOD) $(F90FLAGS)
 
 $(LIB):
