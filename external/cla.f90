@@ -96,8 +96,8 @@ module cla
       ! The purpose is to easily adapt a program that runs using command line inputs into
       ! a program that can run with string input it eats from a pipe.
       implicit none
-      CHARACTER(len=CLALEN) :: outs
-      INTEGER               :: i, k, n
+      !CHARACTER(len=CLALEN) :: outs
+      INTEGER               :: i    !, k, n
            
       if (cla_cla_len == 0) then
          cla_command_argument_count = command_argument_count()
@@ -480,7 +480,7 @@ module cla
       character(len=*)      :: cmd_name
       character(len=STRLEN) :: arg
       character(len=STRLEN)  :: value, key
-      integer(kind=int_kind) :: ncla, k, kk, iequal, kcla, kkv
+      integer(kind=int_kind) :: ncla, k, kk, kcla, kkv !, iequal
       logical :: info
 
       if (info) print *,"Validating the command line arguments:"
@@ -658,6 +658,9 @@ module cla
       !     value.
       !     Note that no error is reported if the key was NOT
       !     registered, but it is present on the command line.
+
+      kkind = cla_flag
+
       if (index(key,"-") /= 1)then
          ! assume positional argument, confirm by matching name
          ordinal = -1
