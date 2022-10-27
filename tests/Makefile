@@ -15,7 +15,7 @@ test: test.f90 $(TEST_OBJS) $(LIB) $(LIBEXTERNAL)
 	$(MPIF90) $(MOD) $^ -o $@.x $(F90FLAGS)
 	./$@.x
 
-%.o: %.f90 $(LIBEXTERNAL) $(INC) $(LIB)
+%.o: %.f90 $(LIBEXTERNAL) $(INC) ../src/namd_lumi_mod.mod
 	$(MPIF90) -c $< $(MOD) $(F90FLAGS)
 
 $(LIB):

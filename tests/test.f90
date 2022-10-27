@@ -5,6 +5,7 @@ PROGRAM TEST_MAIN
     USE test_wavecar,   ONLY: test_wavecar_fn
     USE test_tdm,       ONLY: test_tdm_fn
     USE test_nac,       ONLY: test_nac_fn
+    USE test_input,     ONLY: test_input_fn
 
     IMPLICIT NONE
 
@@ -24,6 +25,9 @@ PROGRAM TEST_MAIN
 
     !! test_nac
     CALL test_nac_fn
+
+    !! test_input
+    CALL test_input_fn
 
     CALL fruit_summary
     CALL fruit_finalize
