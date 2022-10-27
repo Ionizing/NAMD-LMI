@@ -18,7 +18,7 @@ MODULE nac_mod
 
         !! (<ψᵢ(t)|ψⱼ(t+dt)> - <ψⱼ(t)|ψᵢ(t+dt)>) / 2, [nbands, nbands, nspin, nsw-1], dimensionless
         COMPLEX(q), ALLOCATABLE :: olaps(:, :, :, :)
-        !! (E_i + E_j) / 2, [nbands, nsteps, nspin], in eV
+        !! (E_i + E_j) / 2, [nbands, nspin, nsteps], in eV
         REAL(q),    ALLOCATABLE :: eigs(:, :, :)
     END TYPE nac
 
@@ -44,7 +44,6 @@ MODULE nac_mod
         LOGICAL        :: lready
 
         !! logic starts
-        nbrange = brange(2) - brange(1) + 1
 
         !! Do some checking
         fname_i = TRIM(generate_static_calculation_path(rundir, 1, ndigit)) // "/WAVECAR"
@@ -60,6 +59,12 @@ MODULE nac_mod
         END IF
         IF (.NOT. lready) THEN
             STOP ERROR_NAC_WAVE_NREADY
+        END IF
+
+        nbrange = brange(2) - brange(1) + 1
+        IF (ANY(brange <= 0) .OR. ANY(brange > nbands) .OR. nbrange <= 0) THEN
+            WRITE(STDERR, '("[ERROR] Invalid brange selected: ", 2(1X,I5), 1X, A)') brange, AT
+            STOP ERROR_NAC_BRANGEERROR
         END IF
 
         CALL wavecar_destroy(wav_i)

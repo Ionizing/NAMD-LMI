@@ -3,6 +3,7 @@ include ../make.inc
 MOD = -I../src -I../external
 INC = ../src/common.h
 LIB = ../src/libnamd.a
+LIBMOD = ../src/namd_lumi_mod.mod
 LIBEXTERNAL = ../external/libexternal.a
 BIN = test.x
 
@@ -15,10 +16,10 @@ test: test.f90 $(TEST_OBJS) $(LIB) $(LIBEXTERNAL)
 	$(MPIF90) $(MOD) $^ -o $@.x $(F90FLAGS)
 	./$@.x
 
-%.o: %.f90 $(LIBEXTERNAL) $(INC) ../src/namd_lumi_mod.mod
+%.o: %.f90 $(LIBEXTERNAL) $(INC) $(LIBMOD)
 	$(MPIF90) -c $< $(MOD) $(F90FLAGS)
 
-$(LIB):
+$(LIB) $(LIBMOD):
 	$(MAKE) -C ../src
 
 $(LIBEXTERNAL):
