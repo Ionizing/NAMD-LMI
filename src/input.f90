@@ -97,7 +97,7 @@ MODULE input_mod
         inp%nsample  = nsample
 
         IF (nsw <= 10) THEN
-            WRITE(STDERR, '("[ERROR] NSW too small: ", I6)') nsw
+            WRITE(STDERR, '("[ERROR] NSW too small: ", I6, " ", A)') nsw, AT
             STOP ERROR_INPUT_EXAMPLEERR
         END IF
 
@@ -156,9 +156,61 @@ MODULE input_mod
                           inispins, &
                           inisteps
 
+        INTEGER :: nb(2)
+        INTEGER :: nbrange
+        INTEGER :: nbasis
 
         READ(iu, NML=namdparams)
-        
+
+        !! Do some checking (limited, not complete)
+        IF (brange(1) <= 0 .OR. brange(1) >= brange(2)) THEN
+            WRITE(STDERR, '("[ERROR] Invalid brange: ", 2I5, " ", A)') brange, AT
+            STOP ERROR_INPUT_RANGEWRONG
+        END IF
+        nbrange = brange(2) - brange(1) + 1
+
+        IF (ANY(basis_up == 0)) THEN
+            nb(1) = 0
+        ELSE
+            nb(1) = basis_up(2) - basis_up(1) + 1
+        END IF
+
+        IF (ANY(basis_dn == 0)) THEN
+            nb(2) = 0
+        ELSE
+            nb(2) = basis_dn(2) - basis_dn(1) + 1
+        END IF
+
+        IF (nb(1) /= 0) THEN
+            IF (nb(1) < 0 .OR. nb(1) > nbrange .OR. &
+                ANY(basis_up < brange(1)) .OR. ANY(basis_up > brange(2))) THEN
+                WRITE(STDERR, '("[ERROR] Invalid basis range: basis_up = (", 2I5, ")")') basis_up
+                WRITE(STDERR, '(8X, "Valid range should be: (", 2I5, ")", 2X, A)') brange, AT
+                STOP ERROR_INPUT_RANGEWRONG
+            END IF
+        END IF
+
+        IF (nb(2) /= 0) THEN
+            IF (nb(2) < 0 .OR. nb(2) > nbrange .OR. &
+                ANY(basis_dn < brange(1)) .OR. ANY(basis_dn > brange(2))) THEN
+                WRITE(STDERR, '("[ERROR] Invalid basis range: basis_dn = (", 2I5, ")")') basis_dn
+                WRITE(STDERR, '(8X, "Valid range should be: (", 2I5, ")", 2X, A)') brange, AT
+                STOP ERROR_INPUT_RANGEWRONG
+            END IF
+        END IF
+
+        nbasis = SUM(nb)
+        IF (nbasis <= 1) THEN
+            WRITE(STDERR, '("[ERROR] At least two bands are required to construct Hamiltonian, selected: ", I5, 2X, A)') nbasis, AT
+            STOP ERROR_INPUT_RANGEWRONG
+        END IF
+
+        IF (dt <= 0) THEN
+            WRITE(STDERR, '("[ERROR] Invalid brange: ", F8.3, " ", A)') dt, AT
+            STOP ERROR_INPUT_DTWRONG
+        END IF
+
+        !! Continue to construct input data
         inp%rundir    = rundir
         inp%wavetype  = wavetype
         inp%ikpoint   = ikpoint

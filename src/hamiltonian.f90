@@ -83,12 +83,22 @@ MODULE hamiltonian_mod
             nb(2) = basis_dn(2) - basis_dn(1) + 1
         END IF
 
-        IF (ANY(basis_up < nac_dat%brange(1)) .OR. ANY(basis_up > nac_dat%brange(2)) .OR. &
-            ANY(basis_dn < nac_dat%brange(1)) .OR. ANY(basis_dn > nac_dat%brange(2)) .OR. &
-            ANY(nb < 0) .OR. ANY(nb > nac_dat%nbrange)) THEN
-            WRITE(STDERR, '("[ERROR] Invalid basis range: basis_up = (", 2I5, "), basis_dn = (", 2I5, ")")') basis_up, basis_dn
-            WRITE(STDERR, '(8X, "Valid range should be: (", 2I5, ")", 2X, A)') nac_dat%brange, AT
-            STOP ERROR_HAMIL_RANGEWRONG
+        IF (nb(1) /= 0) THEN
+            IF (nb(1) < 0 .OR. nb(1) > nac_dat%nbrange .OR. &
+                ANY(basis_up < nac_dat%brange(1)) .OR. ANY(basis_up > nac_dat%brange(2))) THEN
+                WRITE(STDERR, '("[ERROR] Invalid basis range: basis_up = (", 2I5, ")")') basis_up
+                WRITE(STDERR, '(8X, "Valid range should be: (", 2I5, ")", 2X, A)') nac_dat%brange, AT
+                STOP ERROR_INPUT_RANGEWRONG
+            END IF
+        END IF
+
+        IF (nb(2) /= 0) THEN
+            IF (nb(2) < 0 .OR. nb(2) > nac_dat%nbrange .OR. &
+                ANY(basis_dn < nac_dat%brange(1)) .OR. ANY(basis_dn > nac_dat%brange(2))) THEN
+                WRITE(STDERR, '("[ERROR] Invalid basis range: basis_dn = (", 2I5, ")")') basis_dn
+                WRITE(STDERR, '(8X, "Valid range should be: (", 2I5, ")", 2X, A)') nac_dat%brange, AT
+                STOP ERROR_INPUT_RANGEWRONG
+            END IF
         END IF
 
         nbasis = SUM(nb)

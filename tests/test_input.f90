@@ -21,8 +21,8 @@ MODULE test_input
         inp%wavetype    = "ncl"
         inp%ikpoint     = 2
         inp%brange      = [100, 200]
-        inp%basis_up    = [5, 6]
-        inp%basis_dn    = [7, 8]
+        inp%basis_up    = [125, 175]
+        inp%basis_dn    = [  0,   0]
         inp%nsw         = 3000
         inp%ndigit      = 5
         inp%namdtime    = 900
