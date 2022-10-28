@@ -2,7 +2,7 @@
 
 MODULE test_common
     USE fruit
-    USE common_mod,     ONLY: mpi_partition
+    USE common_mod,     ONLY: mpi_partition, randint_range
     USE string_mod,     ONLY: int2str
     IMPLICIT NONE
 
@@ -11,6 +11,7 @@ MODULE test_common
     SUBROUTINE test_common_fn
         CALL set_case_name("test_common")
         CALL test_common_mpi_partition
+        CALL test_randint_range
     END SUBROUTINE test_common_fn
 
 
@@ -53,4 +54,23 @@ MODULE test_common
         DEALLOCATE(displs)
         DEALLOCATE(sendcounts)
     END SUBROUTINE test_common_mpi_partition
+
+
+    SUBROUTINE test_randint_range
+        INTEGER :: low
+        INTEGER :: high
+        INTEGER :: i, ret
+        LOGICAL :: flags(0:5)
+
+        low   = 0
+        high  = 5
+        flags = .FALSE.
+
+        DO i = 1, 200
+            ret = randint_range(low, high)
+            flags(ret) = .TRUE.
+        ENDDO
+
+        CALL assert_true(ALL(flags), AT)
+    END SUBROUTINE test_randint_range
 END MODULE test_common

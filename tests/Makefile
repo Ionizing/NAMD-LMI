@@ -7,14 +7,13 @@ LIBMOD = ../src/namd_lumi_mod.mod
 LIBEXTERNAL = ../external/libexternal.a
 BIN = test.x
 
-.PHONY: $(LIB)
-
 TEST_OBJS = $(patsubst %.f90,%.o,$(wildcard test_*.f90))
 
-test: test.f90 $(TEST_OBJS) $(LIB) $(LIBEXTERNAL)
-	echo $(TEST_OBJS)
-	$(MPIF90) $(MOD) $^ -o $@.x $(F90FLAGS)
-	./$@.x
+test: test.x
+	./$<
+	
+test.x: test.f90 $(TEST_OBJS) $(LIB) $(LIBEXTERNAL)
+	$(MPIF90) $(MOD) $^ -o $@ $(F90FLAGS)
 
 %.o: %.f90 $(LIBEXTERNAL) $(INC) $(LIBMOD)
 	$(MPIF90) -c $< $(MOD) $(F90FLAGS)

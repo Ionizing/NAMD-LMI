@@ -77,6 +77,7 @@ MODULE common_mod
     INTEGER,    PARAMETER :: ERROR_NAC_BRANGEERROR   = 51
 
     INTEGER,    PARAMETER :: ERROR_INPUT_OPEN_FAILED = 60
+    INTEGER,    PARAMETER :: ERROR_INPUT_EXAMPLEERR  = 60
 
     INTEGER,    PARAMETER :: ERROR_HAMIL_TINDEXWRONG = 70
     INTEGER,    PARAMETER :: ERROR_HAMIL_DTWRONG     = 71
@@ -123,4 +124,15 @@ MODULE common_mod
         ENDDO
     END SUBROUTINE mpi_partition
     
+
+    !> Generate uniformly distributed random integer in closed interval [low, high]
+    FUNCTION randint_range(low, high) RESULT(ret)
+        INTEGER, INTENT(in) :: low, high
+        INTEGER :: ret
+
+        REAL(q) :: r
+
+        CALL RANDOM_NUMBER(r)
+        ret = FLOOR((high-low+1) * r) + low
+    END FUNCTION randint_range
 END MODULE common_mod
