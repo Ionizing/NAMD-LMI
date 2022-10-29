@@ -26,6 +26,7 @@ MODULE test_nac
         nac_dat%dt      = 1.14514
         nac_dat%brange  = [2, 4]
         nac_dat%nbrange = 3
+        nac_dat%lreal   = .FALSE.
 
         ALLOCATE(nac_dat%olaps(nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
         ALLOCATE(nac_dat%eigs(nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
@@ -56,6 +57,7 @@ MODULE test_nac
         CALL assert_equals(nac_dat%dt, 1.14514_q, 1.0e-5_q, AT)
         CALL assert_equals(nac_dat%olaps(1, 1, 1, 1), (114.0_q, 514.0), AT)
         CALL assert_equals(nac_dat%eigs(1, 1, 1), 114.514_q, 1.0e-5_q, AT)
+        CALL assert_false(nac_dat%lreal, AT)
     END SUBROUTINE
 
 END MODULE test_nac

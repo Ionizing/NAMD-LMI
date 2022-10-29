@@ -15,6 +15,7 @@ MODULE nac_mod
         INTEGER :: nbrange      !> Number of stored bands
         INTEGER :: nsw          !> Number of steps in the AIMD trajectory
         REAL(q) :: dt           !> Time step, in fs
+        LOGICAL :: lreal        !> Whether make NAC totally real (imaginary part set zero)
 
         !! (<ψᵢ(t)|ψⱼ(t+dt)> - <ψⱼ(t)|ψᵢ(t+dt)>) / 2, [nbands, nbands, nspin, nsw-1], dimensionless
         COMPLEX(q), ALLOCATABLE :: olaps(:, :, :, :)
@@ -25,7 +26,7 @@ MODULE nac_mod
     CONTAINS
 
 
-    SUBROUTINE nac_calculate(rundir, ikpoint, wavetype, brange, nsw, dt, ndigit, nac_dat)
+    SUBROUTINE nac_calculate(rundir, ikpoint, wavetype, brange, nsw, dt, ndigit, nac_dat, lreal)
         CHARACTER(*), INTENT(in) :: rundir
         INTEGER, INTENT(in)      :: ikpoint
         CHARACTER(*), INTENT(in) :: wavetype
@@ -34,6 +35,7 @@ MODULE nac_mod
         REAL(q), INTENT(in)      :: dt
         INTEGER, INTENT(in)      :: ndigit
         TYPE(nac), INTENT(out)   :: nac_dat
+        LOGICAL, INTENT(in)      :: lreal
 
         !! local variables
         INTEGER        :: nspin, nkpoints, nbands, nbrange
@@ -101,10 +103,16 @@ MODULE nac_mod
         nac_dat%nbrange = nbrange
         nac_dat%nsw     = nsw
         nac_dat%dt      = dt
+        nac_dat%lreal   = lreal
+
+        IF (lreal) THEN
+            nac_dat%olaps = SIGN(ABS(nac_dat%olaps), REALPART(nac_dat%olaps))
+        END IF
+
     END SUBROUTINE
 
 
-    SUBROUTINE nac_calculate_mpi(rundir, ikpoint, wavetype, brange, nsw, dt, ndigit, nac_dat)
+    SUBROUTINE nac_calculate_mpi(rundir, ikpoint, wavetype, brange, nsw, dt, ndigit, nac_dat, lreal)
         USE mpi
 
         CHARACTER(*), INTENT(in)    :: rundir
@@ -115,6 +123,7 @@ MODULE nac_mod
         REAL(q), INTENT(in)         :: dt
         INTEGER, INTENT(in)         :: ndigit
         TYPE(nac), INTENT(out)      :: nac_dat      !< only valid on root node
+        LOGICAL, INTENT(in)         :: lreal
         
         !! local variables
         INTEGER         :: ierr
@@ -171,6 +180,7 @@ MODULE nac_mod
             nac_dat%nbrange = nbrange
             nac_dat%nsw     = nsw
             nac_dat%dt      = dt
+            nac_dat%lreal = lreal
         END IF
 
         !! broadcast nspin, nkpoints and nbands to all nodes
@@ -233,6 +243,10 @@ MODULE nac_mod
         CALL MPI_GATHERV(olaps, SIZE(olaps), MPI_DOUBLE_COMPLEX, nac_dat%olaps, sendcounts, displs, MPI_DOUBLE_COMPLEX, &
                          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
+        IF (lreal) THEN
+            nac_dat%olaps = SIGN(ABS(nac_dat%olaps), REALPART(nac_dat%olaps))
+        END IF
+
         DEALLOCATE(eigs)
         DEALLOCATE(olaps)
         DEALLOCATE(displs)
@@ -257,6 +271,7 @@ MODULE nac_mod
 
         !! local variables
         INTEGER :: ierr
+        INTEGER :: ireal
         INTEGER(HSIZE_T) :: olaps_dims(4), eigs_dims(3), dummy_dims(1) = [1]
         INTEGER(HID_T)   :: file_id, dspace_id, dset_id
 
@@ -265,74 +280,84 @@ MODULE nac_mod
         END IF
 
         !! logic starts
-        CALL h5open_f(ierr)
-        CALL h5fcreate_f(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
+        CALL H5OPEN_F(Ierr)
+        CALL H5FCREATE_f(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
         
             !! Scalars
-            CALL h5screate_f(H5S_SCALAR_F, dspace_id, ierr)
+            CALL H5SCREATE_f(H5S_SCALAR_F, dspace_id, ierr)
                 !! ikpoint
-                CALL h5dcreate_f(file_id, "ikpoint", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%ikpoint, dummy_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+                CALL H5DCREATE_f(file_id, "ikpoint", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%ikpoint, dummy_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
         
                 !! nspin
-                CALL h5dcreate_f(file_id, "nspin", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%nspin, dummy_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+                CALL H5DCREATE_f(file_id, "nspin", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%nspin, dummy_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
          
                 !! nbands
-                CALL h5dcreate_f(file_id, "nbands", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%nbands, dummy_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+                CALL H5DCREATE_f(file_id, "nbands", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%nbands, dummy_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
 
                 !! nbrange
-                CALL h5dcreate_f(file_id, "nbrange", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%nbrange, dummy_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+                CALL H5DCREATE_f(file_id, "nbrange", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%nbrange, dummy_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
          
                 !! nsw
-                CALL h5dcreate_f(file_id, "nsw", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%nsw, dummy_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+                CALL H5DCREATE_f(file_id, "nsw", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%nsw, dummy_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
          
                 !! dt
-                CALL h5dcreate_f(file_id, "dt", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, nac_dat%dt, dummy_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
-            CALL h5sclose_f(dspace_id, ierr)
+                CALL H5DCREATE_f(file_id, "dt", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%dt, dummy_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+
+                !! lreal
+                IF (nac_dat%lreal) THEN
+                    ireal = 1
+                ELSE
+                    ireal = 0
+                END IF
+                CALL H5DCREATE_f(file_id, "lreal", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_INTEGER, ireal, dummy_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
 
 
             !! brange
-            CALL h5screate_simple_f(1, [2_8], dspace_id, ierr)      !! 2_8 means 2 is the type of INTEGER(KIND=8)
-                CALL h5dcreate_f(file_id, "brange", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%brange, [2_8], ierr)
-                CALL h5dclose_f(dset_id, ierr)
-            CALL h5sclose_f(dspace_id, ierr)
+            CALL H5SCREATE_SIMPLE_F(1, [2_8], dspace_id, ierr)      !! 2_8 means 2 is the type of INTEGER(KIND=8)
+                CALL H5DCREATE_F(file_id, "brange", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%brange, [2_8], ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
 
 
             !! olaps
             olaps_dims = SHAPE(nac_dat%olaps)
-            CALL h5screate_simple_f(4, olaps_dims, dspace_id, ierr)
+            CALL H5SCREATE_SIMPLE_F(4, olaps_dims, dspace_id, ierr)
                 !! real part
-                CALL h5dcreate_f(file_id, "olaps_r", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, REALPART(nac_dat%olaps), olaps_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+                CALL H5DCREATE_F(file_id, "olaps_r", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, REALPART(nac_dat%olaps), olaps_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
                 !! imag part
-                CALL h5dcreate_f(file_id, "olaps_i", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(nac_dat%olaps), olaps_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
-            CALL h5sclose_f(dspace_id, ierr)
+                CALL H5DCREATE_F(file_id, "olaps_i", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(nac_dat%olaps), olaps_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
 
             !! eigs
             eigs_dims = SHAPE(nac_dat%eigs)
-            CALL h5screate_simple_f(3, eigs_dims, dspace_id, ierr)
-                CALL h5dcreate_f(file_id, "eigs", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
-                CALL h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, nac_dat%eigs, eigs_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+            CALL H5SCREATE_SIMPLE_F(3, eigs_dims, dspace_id, ierr)
+                CALL H5DCREATE_F(file_id, "eigs", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%eigs, eigs_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
             CALL h5sclose_f(dspace_id, ierr)
 
-        CALL h5fclose_f(file_id, ierr)
-        CALL h5close_f(ierr)
+        CALL H5FCLOSE_F(file_id, ierr)
+        CALL H5CLOSE_F(ierr)
 
         IF (PRESENT(llog)) THEN
             IF (llog) WRITE(STDOUT, '(A)') " Done"
@@ -349,6 +374,7 @@ MODULE nac_mod
 
         !! local variables
         INTEGER          :: ierr
+        INTEGER          :: ireal
         INTEGER(HSIZE_T) :: olaps_dims(4), eigs_dims(3), dummy_dims(1) = [1]
         INTEGER(HID_T)   :: file_id, dset_id
         REAL(q), ALLOCATABLE :: olaps_reim(:, :, :, :)
@@ -358,71 +384,81 @@ MODULE nac_mod
             IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Loading NAC from "' // TRIM(h5fname) // '" ...'
         END IF
 
-        CALL h5open_f(ierr)
-        CALL h5fopen_f(TRIM(h5fname), H5F_ACC_RDONLY_F, file_id, ierr)
+        CALL H5OPEN_F(Ierr)
+        CALL H5FOPEN_F(TRIM(h5fname), H5F_ACC_RDONLY_F, file_id, ierr)
 
             !! Scalars
             !! ikpoint
-            CALL h5dopen_f(file_id, "ikpoint", dset_id, ierr)
-            CALL h5dread_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%ikpoint, dummy_dims, ierr)
-            CALL h5dclose_f(dset_id, ierr)
+            CALL H5DOPEN_F(file_id, "ikpoint", dset_id, ierr)
+            CALL H5DREAD_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%ikpoint, dummy_dims, ierr)
+            CALL H5DCLOSE_F(dset_id, ierr)
 
             !! nspin
-            CALL h5dopen_f(file_id, "nspin", dset_id, ierr)
-            CALL h5dread_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%nspin, dummy_dims, ierr)
-            CALL h5dclose_f(dset_id, ierr)
+            CALL H5DOPEN_F(file_id, "nspin", dset_id, ierr)
+            CALL H5DREAD_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%nspin, dummy_dims, ierr)
+            CALL H5DCLOSE_F(dset_id, ierr)
 
             !! nbands
-            CALL h5dopen_f(file_id, "nbands", dset_id, ierr)
-            CALL h5dread_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%nbands, dummy_dims, ierr)
-            CALL h5dclose_f(dset_id, ierr)
+            CALL H5DOPEN_F(file_id, "nbands", dset_id, ierr)
+            CALL H5DREAD_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%nbands, dummy_dims, ierr)
+            CALL H5DCLOSE_F(dset_id, ierr)
 
             !! nbrange
-            CALL h5dopen_f(file_id, "nbrange", dset_id, ierr)
-            CALL h5dread_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%nbrange, dummy_dims, ierr)
-            CALL h5dclose_f(dset_id, ierr)
+            CALL H5DOPEN_F(file_id, "nbrange", dset_id, ierr)
+            CALL H5DREAD_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%nbrange, dummy_dims, ierr)
+            CALL H5DCLOSE_F(dset_id, ierr)
 
             !! nsw
-            CALL h5dopen_f(file_id, "nsw", dset_id, ierr)
-            CALL h5dread_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%nsw, dummy_dims, ierr)
-            CALL h5dclose_f(dset_id, ierr)
+            CALL H5DOPEN_F(file_id, "nsw", dset_id, ierr)
+            CALL H5DREAD_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%nsw, dummy_dims, ierr)
+            CALL H5DCLOSE_F(dset_id, ierr)
 
             !! dt
-            CALL h5dopen_f(file_id, "dt", dset_id, ierr)
-            CALL h5dread_f(dset_id, H5T_NATIVE_DOUBLE, nac_dat%dt, dummy_dims, ierr)
-            CALL h5dclose_f(dset_id, ierr)
+            CALL H5DOPEN_F(file_id, "dt", dset_id, ierr)
+            CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%dt, dummy_dims, ierr)
+            CALL H5DCLOSE_F(dset_id, ierr)
+
+            !! lreal
+            CALL H5DOPEN_F(file_id, "lreal", dset_id, ierr)
+            CALL H5DREAD_F(dset_id, H5T_NATIVE_INTEGER, ireal, dummy_dims, ierr)
+            IF (ireal == 1) THEN
+                nac_dat%lreal = .TRUE.
+            ELSE
+                nac_dat%lreal = .FALSE.
+            END IF
+            CALL H5DCLOSE_F(dset_id, ierr)
 
             !! brange
-            CALL h5dopen_f(file_id, "brange", dset_id, ierr)
-            CALL h5dread_f(dset_id, H5T_NATIVE_INTEGER, nac_dat%brange, [2_8], ierr)
-            CALL h5dclose_f(dset_id, ierr)
+            CALL H5DOPEN_F(file_id, "brange", dset_id, ierr)
+            CALL H5DREAD_F(dset_id, H5T_NATIVE_INTEGER, nac_dat%brange, [2_8], ierr)
+            CALL H5DCLOSE_F(dset_id, ierr)
 
             !! olaps
             ALLOCATE(nac_dat%olaps(nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
             olaps_dims = SHAPE(nac_dat%olaps)
             ALLOCATE(olaps_reim(nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
                 !! real part
-                CALL h5dopen_f(file_id, "olaps_r", dset_id, ierr)
-                CALL h5dread_f(dset_id, H5T_NATIVE_DOUBLE, olaps_reim, olaps_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+                CALL H5DOPEN_F(file_id, "olaps_r", dset_id, ierr)
+                CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, olaps_reim, olaps_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
                 nac_dat%olaps = olaps_reim
 
                 !! imag part
-                CALL h5dopen_f(file_id, "olaps_i", dset_id, ierr)
-                CALL h5dread_f(dset_id, H5T_NATIVE_DOUBLE, olaps_reim, olaps_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+                CALL H5DOPEN_F(file_id, "olaps_i", dset_id, ierr)
+                CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, olaps_reim, olaps_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
                 nac_dat%olaps = nac_dat%olaps + olaps_reim * (0, 1) 
             DEALLOCATE(olaps_reim)
 
             !! eigs
             ALLOCATE(nac_dat%eigs(nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
             eigs_dims = SHAPE(nac_dat%eigs)
-                CALL h5dopen_f(file_id, "eigs", dset_id, ierr)
-                CALL h5dread_f(dset_id, H5T_NATIVE_DOUBLE, nac_dat%eigs, eigs_dims, ierr)
-                CALL h5dclose_f(dset_id, ierr)
+                CALL H5DOPEN_F(file_id, "eigs", dset_id, ierr)
+                CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%eigs, eigs_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
 
-        CALL h5fclose_f(file_id, ierr)
-        CALL h5close_f(ierr)
+        CALL H5FCLOSE_F(file_id, ierr)
+        CALL H5CLOSE_F(ierr)
 
         IF (PRESENT(llog)) THEN
             IF (llog) WRITE(STDOUT, '(A)') " Done"

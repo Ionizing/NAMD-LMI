@@ -29,7 +29,7 @@ PROGRAM namd_lumi_x
     
     !! calculate the nac
     IF (irank == MPI_ROOT_NODE) WRITE(STDOUT, '("[INFO] Start calculating NAC ...")')
-    CALL nac_calculate_mpi(inp%rundir, inp%ikpoint, inp%wavetype, inp%brange, inp%nsw, inp%dt, inp%ndigit, nac_tot)
+    CALL nac_calculate_mpi(inp%rundir, inp%ikpoint, inp%wavetype, inp%brange, inp%nsw, inp%dt, inp%ndigit, nac_tot, lreal=.TRUE.)
     
     IF (irank == MPI_ROOT_NODE) THEN
         CALL nac_save_to_h5(nac_tot, "nac_total.h5", llog=.TRUE.)
