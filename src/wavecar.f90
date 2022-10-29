@@ -52,7 +52,6 @@ MODULE wavecar_mod
 
         !! local variables
         LOGICAL :: od
-        !LOGICAL :: lgvecs_  = .FALSE.
         INTEGER :: iu       = 12
         INTEGER :: ierr
         INTEGER :: irec
@@ -70,7 +69,6 @@ MODULE wavecar_mod
         IF (PRESENT(iu0)) iu = iu0
         wav%iu = iu
 
-        !IF (PRESENT(lgvecs)) lgvecs_ = lgvecs
 
         SELECT CASE (wavetype)
             CASE("std")

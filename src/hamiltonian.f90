@@ -28,6 +28,9 @@ MODULE hamiltonian_mod
         COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian
     END TYPE hamiltonian
 
+    PRIVATE :: hamiltonian_propagate_finite_difference_
+    PRIVATE :: hamiltonian_propagate_exponential_
+    PRIVATE :: hamiltonian_propagate_liouville_trotter_
 
     CONTAINS
 
@@ -192,5 +195,26 @@ MODULE hamiltonian_mod
                 hamil%eig_t(i, iion) + (hamil%eig_t(i, iion+1) - hamil%eig_t(i, iion)) * iele / hamil%nelm
 
     END SUBROUTINE hamiltonian_make_hamil
+
+
+    SUBROUTINE hamiltonian_propagate
+        !! TODO
+    END SUBROUTINE hamiltonian_propagate
+
+
+    SUBROUTINE hamiltonian_propagate_finite_difference_
+        !! TODO
+    END SUBROUTINE hamiltonian_propagate_finite_difference_
+
+
+    SUBROUTINE hamiltonian_propagate_exponential_
+        !! TODO
+    END SUBROUTINE hamiltonian_propagate_exponential_
+
+
+    SUBROUTINE hamiltonian_propagate_liouville_trotter_
+        !! TODO
+    END SUBROUTINE hamiltonian_propagate_liouville_trotter_
+
 
 END MODULE hamiltonian_mod
