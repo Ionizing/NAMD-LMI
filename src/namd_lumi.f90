@@ -6,37 +6,63 @@ PROGRAM namd_lumi_x
 
     IMPLICIT NONE
 
-    INTEGER, PARAMETER  :: ikpoint = 1
-    CHARACTER(128)      :: rundir = "../run"
+    INTEGER :: irank, ierr
+    INTEGER :: timing_start, timing_end, timing_rate
 
-    !! local variables
-    TYPE(nac)       :: nac_tot, nac_tot_load
-    INTEGER         :: tbeg, tend, rate  ! for timing
-    INTEGER         :: ierr
-    INTEGER         :: irank
+    TYPE(input) :: inp
 
     CALL MPI_INIT(ierr)
     CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
 
-#ifdef OPENBLAS
-    CALL OPENBLAS_SET_NUM_THREADS(4)
-#endif
-
-    CALL SYSTEM_CLOCK(tbeg, rate)
-
-
-    CALL nac_calculate_mpi(rundir, ikpoint, "ncl", [200, 400], 100, 1.0_q, 4, nac_tot)
-
     IF (irank == MPI_ROOT_NODE) THEN
-        CALL nac_save_to_h5(nac_tot, "nac_total.h5", llog=.TRUE.)
-        CALL nac_destroy(nac_tot)
-        CALL SYSTEM_CLOCK(tend, rate)
-
-        PRINT 201, DBLE(tend - tbeg) / rate
-        201 FORMAT("Time used: ", F8.3, "s")
-
-        CALL nac_load_from_h5("nac_total.h5", nac_tot_load, llog=.TRUE.)
+        CALL cli_parse
     END IF
 
+    CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
     CALL MPI_FINALIZE(ierr)
+
+    CONTAINS
+        SUBROUTINE cli_parse
+            CHARACTER(STRLEN)   :: progname     !! STRLEN = 80  from cla.mod
+            CHARACTER(STRLEN)   :: inpname
+            CHARACTER(STRLEN)   :: inp_example_fname
+            INTEGER             :: inp_example_nsw
+            INTEGER             :: inp_example_nsample
+
+            CALL GETARG(0, progname)
+
+            CALL cla_init
+            CALL cla_register(key='-i', longkey='--inp', &
+                              description='Input file name, if left empty, this program reads input from stdin', &
+                              kkind=cla_char, default='namd_lumi-input.nml')
+            CALL cla_register(key='-e', longkey='--inp-example', &
+                              description='Generate the example input and save it to the file you specified', &
+                              kkind=cla_logical, default='F')
+                !! These three registries are required by -e or --inp-example
+                CALL cla_register(key='-f', longkey='--example-fname', &
+                                  description='Example input file name', &
+                                  kkind=cla_int, default='namd_lumi-example.nml')
+                CALL cla_register(key='-w', longkey='--nsw', &
+                                  description='NSW for input file, only valid for generating example input', &
+                                  kkind=cla_int, default='3000')
+                CALL cla_register(key='-s', longkey='--nsample', &
+                                  description='NSAMPLE for input file, only valid for generating example input', &
+                                  kkind=cla_int, default='10')
+
+            CALL cla_validate(TRIM(progname))
+
+            IF (cla_key_present('-e')) THEN
+                CALL cla_get('-f', inp_example_fname)
+                CALL cla_get('-w', inp_example_nsw)
+                CALL cla_get('-s', inp_example_nsample)
+                CALL input_example(inp_example_nsw, inp_example_nsample, TRIM(inp_example_fname))
+            ELSE
+                IF (cla_key_present('-i')) THEN
+                    CALL cla_get('-i', inpname)
+                    CALL input_from_file(inp, TRIM(inpname))
+                ELSE
+                    CALL input_from_file(inp)
+                END IF
+            END IF
+        END SUBROUTINE cli_parse
 END PROGRAM namd_lumi_x

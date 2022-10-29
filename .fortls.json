@@ -2,6 +2,7 @@
     "source_dirs": [
             "./**",
             "/public/home/chenlj/Downloads/hdf5-hdf5-1_13_2/fortran/src",
-            "/public/apps/intel/oneapi/mpi/latest/lib"
+            "/public/apps/intel/oneapi/mpi/latest/lib",
+            "/public/home/chenlj/Downloads/mpi/f90"
         ]
 }

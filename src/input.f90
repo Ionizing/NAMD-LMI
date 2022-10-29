@@ -38,6 +38,7 @@ MODULE input_mod
         INTEGER :: ios
 
         IF (PRESENT(fname)) THEN
+            WRITE(STDOUT, '("[INFO] Reading input file from ", A, " ...")') '"' // fname // '"'
             OPEN(UNIT=iu, FILE=fname, IOSTAT=ios, STATUS="old", ACTION="read")
             IF (ios /= 0) THEN
                 WRITE(STDERR, '("[ERROR] Open file ", A, " failed. ", A)') fname, AT
@@ -46,8 +47,14 @@ MODULE input_mod
             CALL input_from_iu_(iu, inp)
             CLOSE(iu)
         ELSE
+            WRITE(STDOUT, '("[INFO] Reading input file from stdin ...")')
+            WRITE(STDOUT, '("[INFO] Waiting for input ...")')
             CALL input_from_iu_(STDIN, inp)
         END IF
+
+        WRITE(STDOUT, '("[INFO] Input file read successfully, with content of", /, /)')
+        CALL input_to_iu_(STDOUT, inp)
+        WRITE(STDOUT, '(/)')
     END SUBROUTINE input_from_file
 
     
@@ -89,9 +96,11 @@ MODULE input_mod
         !! local variables
         TYPE(input) :: inp
         INTEGER     :: i
+        LOGICAL     :: lexist
+        INTEGER, PARAMETER  :: iu = 10
 
         !! logic starts
-        WRITE(STDOUT, '("[INFO] Generating example input file ...")')
+        WRITE(STDOUT, '("[INFO] Generating example input file with NSW = ", I5, ", NSAMPLE = ", I5, " ...")') nsw, nsample
 
         inp%nsw      = nsw
         inp%nsample  = nsample
@@ -110,6 +119,13 @@ MODULE input_mod
         DO i = 1, nsample
             inp%inisteps(i) = randint_range(1, nsw-1)
         ENDDO
+
+        INQUIRE(FILE=fname, EXIST=lexist)
+        IF (lexist) THEN
+            WRITE(STDOUT, '("[WARN] The file ", A, " exists and will be OVERWRITTEN.")') '"' // fname // '"'
+        END IF
+
+        CALL input_to_file(inp, fname)
 
         WRITE(STDOUT, '("[INFO] The example input file saved to ", A)') '"' // fname // '"'
 
@@ -251,7 +267,7 @@ MODULE input_mod
         WRITE(iu, '(A)') "&NAMDPARAMS"   ! Start
         WRITE(iu, '(1X, A12, " = ",    A, ", ! ", A)') 'RUNDIR',   '"' // TRIM(inp%rundir) // '"', &
             'Directory that contains "????/WAVECAR"'
-        WRITE(iu, '(1X, A12, " = ",    A, ", ! ", A)') 'WAVETYPE', '"' // TRIM(inp%wavetype) // '"', &
+        WRITE(iu, '(1X, A12, " = ",  A10, ", ! ", A)') 'WAVETYPE', '"' // TRIM(inp%wavetype) // '"', &
             'WAVECAR type: "std" "gamx" "gamz" or "ncl"'
         WRITE(iu, '(1X, A12, " = ",  I10, ", ! ", A)') 'IKPOINT',   inp%ikpoint, "Kpoint index"
         WRITE(iu, '(1X, A12, " = ",  2I5, ", ! ", A)') 'BRANGE',    inp%brange,  "Band range to calculate NAC, wider than NBASIS"
@@ -278,7 +294,7 @@ MODULE input_mod
 
         WRITE(iu, '(/)', ADVANCE='no')
         WRITE(iu, '(4X, "!! Initial spin indices for each sample, must be within [1, NSPIN]")')
-        WRITE(iu, '(4X, "!! If all the inispins are same, INISPINS(:) = 8*1 is also ok, where 8 is NSAMPLE and 320 is INISPIN")')
+        WRITE(iu, '(4X, "!! If all the inispins are same, INISPINS(:) = 8*1 is also ok, where 8 is NSAMPLE and 1 is INISPIN")')
         WRITE(iu, '(4X, "INISPINS(:) = ", *(I5))') inp%inispins(:)
         WRITE(iu, '(A)') "/"             ! End
     END SUBROUTINE input_to_iu_
