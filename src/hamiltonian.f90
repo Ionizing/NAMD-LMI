@@ -177,6 +177,7 @@ MODULE hamiltonian_mod
         IF (ALLOCATED(hamil%nac_t)) DEALLOCATE(hamil%nac_t)
     END SUBROUTINE hamiltonian_destroy
 
+    !! TODO: make it capable of replicating NAC
     SUBROUTINE hamiltonian_make_hamil(hamil, iion, iele)
         TYPE(hamiltonian), INTENT(inout) :: hamil
         INTEGER, INTENT(in) :: iion
@@ -197,22 +198,55 @@ MODULE hamiltonian_mod
     END SUBROUTINE hamiltonian_make_hamil
 
 
-    SUBROUTINE hamiltonian_propagate
-        !! TODO
+    SUBROUTINE hamiltonian_propagate(hamil, psi, nelm, method)
+        TYPE(hamiltonian), INTENT(inout)    :: hamil
+        COMPLEX(q), INTENT(in)              :: psi(:)
+        INTEGER, INTENT(in)                 :: nelm
+        CHARACTER(*), INTENT(in)            :: method
+
+        SELECT CASE (method)
+            CASE("finite-difference")
+                CALL hamiltonian_propagate_finite_difference_(hamil, psi, nelm)
+            CASE("exponential")
+                CALL hamiltonian_propagate_exponential_(hamil, psi, nelm)
+            CASE("liouville-trotter")
+                CALL hamiltonian_propagate_liouville_trotter_(hamil, psi, nelm)
+            CASE DEFAULT
+                WRITE(STDERR, '("[ERROR] Invalid propagating method specified: ", A, ", available: ", A)') TRIM(method), &
+                    '"finite-difference", "exponential", "liouville-trotter" ' // AT
+                STOP ERROR_HAMIL_PROPMETHOD
+        END SELECT
     END SUBROUTINE hamiltonian_propagate
 
 
-    SUBROUTINE hamiltonian_propagate_finite_difference_
+    SUBROUTINE hamiltonian_propagate_finite_difference_(hamil, psi, nelm)
+        TYPE(hamiltonian), INTENT(inout)    :: hamil
+        COMPLEX(q), INTENT(in)              :: psi(:)
+        INTEGER, INTENT(in)                 :: nelm
+
+        !! local variables
+        INTEGER :: iion     !> ionic step index
+        INTEGER :: iele     !> electronic step index
+        REAL(q) :: edt      !> time step for each electronic step
+
         !! TODO
     END SUBROUTINE hamiltonian_propagate_finite_difference_
 
 
-    SUBROUTINE hamiltonian_propagate_exponential_
+    SUBROUTINE hamiltonian_propagate_exponential_(hamil, psi, nelm)
+        TYPE(hamiltonian), INTENT(inout)    :: hamil
+        COMPLEX(q), INTENT(in)              :: psi(:)
+        INTEGER, INTENT(in)                 :: nelm
+
         !! TODO
     END SUBROUTINE hamiltonian_propagate_exponential_
 
 
-    SUBROUTINE hamiltonian_propagate_liouville_trotter_
+    SUBROUTINE hamiltonian_propagate_liouville_trotter_(hamil, psi, nelm)
+        TYPE(hamiltonian), INTENT(inout)    :: hamil
+        COMPLEX(q), INTENT(in)              :: psi(:)
+        INTEGER, INTENT(in)                 :: nelm
+
         !! TODO
     END SUBROUTINE hamiltonian_propagate_liouville_trotter_
 
