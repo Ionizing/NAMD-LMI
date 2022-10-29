@@ -135,6 +135,34 @@ MODULE input_mod
     END SUBROUTINE
 
 
+    SUBROUTINE input_mpisync(inp)
+        USE mpi
+
+        TYPE(input), INTENT(inout) :: inp
+        INTEGER :: ierr
+
+        CALL MPI_BCAST(inp%rundir,  256, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%wavetype,  8, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%ikpoint,   1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%brange,    2, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%basis_up,  2, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%basis_dn,  2, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%nsw,       1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%ndigit,    1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%namdtime,  1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%dt,        1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%nsample,   1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+
+        IF (.NOT. ALLOCATED(inp%inibands)) ALLOCATE(inp%inibands(inp%nsample))
+        IF (.NOT. ALLOCATED(inp%inispins)) ALLOCATE(inp%inispins(inp%nsample))
+        IF (.NOT. ALLOCATED(inp%inisteps)) ALLOCATE(inp%inisteps(inp%nsample))
+
+        CALL MPI_BCAST(inp%inibands, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%inispins, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%inisteps, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+    END SUBROUTINE
+
+
     !! Auxiliary subroutine
 
     SUBROUTINE input_from_iu_(iu, inp)

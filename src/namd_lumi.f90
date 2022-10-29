@@ -10,6 +10,7 @@ PROGRAM namd_lumi_x
     INTEGER :: timing_start, timing_end, timing_rate
 
     TYPE(input) :: inp
+    TYPE(nac)   :: nac_tot
 
     CALL MPI_INIT(ierr)
     CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
@@ -17,6 +18,27 @@ PROGRAM namd_lumi_x
     IF (irank == MPI_ROOT_NODE) THEN
         CALL cli_parse
     END IF
+
+    CALL input_mpisync(inp)
+
+#ifdef OPENBLAS
+    CALL OPENBLAS_SET_NUM_THREADS(2)
+#endif
+
+    CALL SYSTEM_CLOCK(timing_start, timing_rate)
+    
+    !! calculate the nac
+    IF (irank == MPI_ROOT_NODE) WRITE(STDOUT, '("[INFO] Start calculating NAC ...")')
+    CALL nac_calculate_mpi(inp%rundir, inp%ikpoint, inp%wavetype, inp%brange, inp%nsw, inp%dt, inp%ndigit, nac_tot)
+    
+    IF (irank == MPI_ROOT_NODE) THEN
+        CALL nac_save_to_h5(nac_tot, "nac_total.h5", llog=.TRUE.)
+        CALL SYSTEM_CLOCK(timing_end, timing_rate)
+
+        WRITE(STDOUT, '("[INFO] Time used for NAC calculation: ", F8.3, " secs")') DBLE(timing_end - timing_start) / timing_rate
+    END IF
+
+    CALL nac_destroy(nac_tot)
 
     CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
     CALL MPI_FINALIZE(ierr)
@@ -56,6 +78,9 @@ PROGRAM namd_lumi_x
                 CALL cla_get('-w', inp_example_nsw)
                 CALL cla_get('-s', inp_example_nsample)
                 CALL input_example(inp_example_nsw, inp_example_nsample, TRIM(inp_example_fname))
+
+                CALL MPI_FINALIZE(ierr)
+                STOP
             ELSE
                 IF (cla_key_present('-i')) THEN
                     CALL cla_get('-i', inpname)
