@@ -30,15 +30,18 @@ MODULE input_mod
     CONTAINS
 
 
-    SUBROUTINE input_from_file(inp, fname)
+    SUBROUTINE input_from_file(inp, fname, llog)
         TYPE(input), INTENT(out)            :: inp
         CHARACTER(*), INTENT(in), OPTIONAL  :: fname
+        LOGICAL, INTENT(in), OPTIONAL       :: llog
 
         INTEGER, PARAMETER :: iu = 114
         INTEGER :: ios
 
         IF (PRESENT(fname)) THEN
-            WRITE(STDOUT, '("[INFO] Reading input file from ", A, " ...")') '"' // fname // '"'
+            IF (PRESENT(llog)) THEN
+                IF (llog) WRITE(STDOUT, '("[INFO] Reading input file from ", A, " ...")') '"' // fname // '"'
+            END IF
             OPEN(UNIT=iu, FILE=fname, IOSTAT=ios, STATUS="old", ACTION="read")
             IF (ios /= 0) THEN
                 WRITE(STDERR, '("[ERROR] Open file ", A, " failed. ", A)') fname, AT
@@ -47,13 +50,17 @@ MODULE input_mod
             CALL input_from_iu_(iu, inp)
             CLOSE(iu)
         ELSE
-            WRITE(STDOUT, '("[INFO] Reading input file from stdin ...")')
-            WRITE(STDOUT, '("[INFO] Waiting for input ...")')
+            IF (PRESENT(llog)) THEN
+                IF (llog) WRITE(STDOUT, '("[INFO] Reading input file from stdin ...")')
+                WRITE(STDOUT, '("[INFO] Waiting for input ...")')
+            END IF
             CALL input_from_iu_(STDIN, inp)
         END IF
 
-        WRITE(STDOUT, '("[INFO] Input file read successfully, with content of", /, /)')
-        CALL input_to_iu_(STDOUT, inp)
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '("[INFO] Input file read successfully, with content of", /, /)')
+            IF (llog) CALL input_to_iu_(STDOUT, inp)
+        END IF
         WRITE(STDOUT, '(/)')
     END SUBROUTINE input_from_file
 
