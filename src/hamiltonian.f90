@@ -24,13 +24,9 @@ MODULE hamiltonian_mod
         COMPLEX(q), ALLOCATABLE :: psi_h(:)     !> the result of hamiltonian applied on the ket, H|psi>, [nbasis]
 
         COMPLEX(q), ALLOCATABLE :: hamil(:, :)  !> Hamiltonian, H_{jk} = [e_{jk} * \delta_{jk} - i\hbar d_{jkk}], [nbasis, nbasis]
-        COMPLEX(q), ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits
+        COMPLEX(q), ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
         COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian
     END TYPE hamiltonian
-
-    PRIVATE :: hamiltonian_propagate_finite_difference_
-    PRIVATE :: hamiltonian_propagate_exponential_
-    PRIVATE :: hamiltonian_propagate_liouville_trotter_
 
     CONTAINS
 
@@ -204,51 +200,39 @@ MODULE hamiltonian_mod
         INTEGER, INTENT(in)                 :: nelm
         CHARACTER(*), INTENT(in)            :: method
 
-        SELECT CASE (method)
-            CASE("finite-difference")
-                CALL hamiltonian_propagate_finite_difference_(hamil, psi, nelm)
-            CASE("exponential")
-                CALL hamiltonian_propagate_exponential_(hamil, psi, nelm)
-            CASE("liouville-trotter")
-                CALL hamiltonian_propagate_liouville_trotter_(hamil, psi, nelm)
-            CASE DEFAULT
-                WRITE(STDERR, '("[ERROR] Invalid propagating method specified: ", A, ", available: ", A)') TRIM(method), &
-                    '"finite-difference", "exponential", "liouville-trotter" ' // AT
-                STOP ERROR_HAMIL_PROPMETHOD
-        END SELECT
-    END SUBROUTINE hamiltonian_propagate
-
-
-    SUBROUTINE hamiltonian_propagate_finite_difference_(hamil, psi, nelm)
-        TYPE(hamiltonian), INTENT(inout)    :: hamil
-        COMPLEX(q), INTENT(in)              :: psi(:)
-        INTEGER, INTENT(in)                 :: nelm
-
         !! local variables
         INTEGER :: iion     !> ionic step index
         INTEGER :: iele     !> electronic step index
         REAL(q) :: edt      !> time step for each electronic step
 
-        !! TODO
-    END SUBROUTINE hamiltonian_propagate_finite_difference_
+        SELECT CASE (method)
+            CASE("finite-difference")
+                CALL propagate_finite_difference_
+            CASE("exponential")
+                CALL propagate_exponential_
+            CASE("liouville-trotter")
+                CALL propagate_liouville_trotter_
+            CASE DEFAULT
+                WRITE(STDERR, '("[ERROR] Invalid propagating method specified: ", A, ", available: ", A)') TRIM(method), &
+                    '"finite-difference", "exponential", "liouville-trotter" ' // AT
+                STOP ERROR_HAMIL_PROPMETHOD
+        END SELECT
+
+        CONTAINS
+
+        SUBROUTINE propagate_finite_difference_
+        END SUBROUTINE propagate_finite_difference_
 
 
-    SUBROUTINE hamiltonian_propagate_exponential_(hamil, psi, nelm)
-        TYPE(hamiltonian), INTENT(inout)    :: hamil
-        COMPLEX(q), INTENT(in)              :: psi(:)
-        INTEGER, INTENT(in)                 :: nelm
-
-        !! TODO
-    END SUBROUTINE hamiltonian_propagate_exponential_
+        SUBROUTINE propagate_exponential_
+        END SUBROUTINE propagate_exponential_
 
 
-    SUBROUTINE hamiltonian_propagate_liouville_trotter_(hamil, psi, nelm)
-        TYPE(hamiltonian), INTENT(inout)    :: hamil
-        COMPLEX(q), INTENT(in)              :: psi(:)
-        INTEGER, INTENT(in)                 :: nelm
+        SUBROUTINE propagate_liouville_trotter_
+        END SUBROUTINE propagate_liouville_trotter_
 
-        !! TODO
-    END SUBROUTINE hamiltonian_propagate_liouville_trotter_
+
+    END SUBROUTINE hamiltonian_propagate
 
 
 END MODULE hamiltonian_mod
