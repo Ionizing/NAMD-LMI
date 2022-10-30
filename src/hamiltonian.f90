@@ -14,6 +14,7 @@ MODULE hamiltonian_mod
         REAL(q) :: dt                           !> time step, in fs
         INTEGER :: namdinit                     !> start index of NAMD in total trajectory
         INTEGER :: namdtime                     !> number of NAMD steps
+        INTEGER :: nsw                          !> number of AIMD steps
         INTEGER :: nelm                         !> number of electronic steps when performing interpolations
 
         COMPLEX(q), ALLOCATABLE :: psi_p(:)     !> ket for previous step, [nbasis]
@@ -25,7 +26,7 @@ MODULE hamiltonian_mod
 
         COMPLEX(q), ALLOCATABLE :: hamil(:, :)  !> Hamiltonian, H_{jk} = [e_{jk} * \delta_{jk} - i\hbar d_{jkk}], [nbasis, nbasis]
         COMPLEX(q), ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
-        COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian
+        COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian, [nbasis, nbasis, nsw-1]
     END TYPE hamiltonian
 
     CONTAINS
@@ -46,7 +47,7 @@ MODULE hamiltonian_mod
         INTEGER :: nb(2)    !> nbasis for each spin
         INTEGER :: bup(2)   !> basis index refer to NAC spin up, bup = basis_up - nac_dat%brange(1) + 1
         INTEGER :: bdn(2)   !> basis index refer to NAC spin dn, bdn = basis_dn - nac_dat%brange(1) + 1
-        INTEGER :: trng(2)  !> time range refer to NAC
+        !INTEGER :: trng(2)  !> time range refer to NAC
 
         !! logic starts
         IF (namdinit <= 0 .OR. &
@@ -112,6 +113,7 @@ MODULE hamiltonian_mod
         hamil%dt       = dt
         hamil%namdinit = namdinit
         hamil%namdtime = namdtime
+        hamil%nsw      = nac_dat%nsw
         hamil%nelm     = nelm
 
         !! allocate memory
@@ -123,8 +125,8 @@ MODULE hamiltonian_mod
         ALLOCATE(hamil%psi_h(nbasis))
         
         ALLOCATE(hamil%hamil(nbasis, nbasis))
-        ALLOCATE(hamil%eig_t(nbasis, nbasis))
-        ALLOCATE(hamil%nac_t(nbasis, nbasis, namdtime))
+        ALLOCATE(hamil%eig_t(nbasis, hamil%nsw-1))
+        ALLOCATE(hamil%nac_t(nbasis, nbasis, hamil%nsw-1))
 
         !! initialize
         hamil%psi_p = 0
@@ -141,20 +143,20 @@ MODULE hamiltonian_mod
         !! construct from nac, need to convert the indices
         bup = basis_up - nac_dat%brange(1) + 1  !> band index refer to NAC
         bdn = basis_dn - nac_dat%brange(1) + 1  !> band index refer to NAC
-        trng = [namdinit, namdinit + namdtime - 1]  !> time range refer to NAC
+        !trng = [namdinit, namdinit + namdtime - 1]  !> time range refer to NAC
 
         IF (nb(2) == 0) THEN        !> spin up only
-            hamil%eig_t = nac_dat%eigs( bup(1):bup(2),                1, trng(1):trng(2))
-            hamil%nac_t = nac_dat%olaps(bup(1):bup(2), bup(1):bup(2), 1, trng(1):trng(2))
+            hamil%eig_t = nac_dat%eigs( bup(1):bup(2),                1, :)
+            hamil%nac_t = nac_dat%olaps(bup(1):bup(2), bup(1):bup(2), 1, :)
         ELSE IF (nb(1) == 0) THEN   !> spin down only
-            hamil%eig_t = nac_dat%eigs( bdn(1):bdn(2),                2, trng(1):trng(2))
-            hamil%nac_t = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, trng(1):trng(2))
+            hamil%eig_t = nac_dat%eigs( bdn(1):bdn(2),                2, :)
+            hamil%nac_t = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
         ELSE                        !> both spin up and spin down, where spin up in the lower part
-            hamil%eig_t(      1:nb(1)      , :) = nac_dat%eigs(bup(1):bup(2), 1, trng(1):trng(2))
-            hamil%eig_t(nb(1)+1:nb(1)+nb(2), :) = nac_dat%eigs(bdn(1):bdn(2), 2, trng(1):trng(2))
+            hamil%eig_t(      1:nb(1)      , :) = nac_dat%eigs(bup(1):bup(2), 1, :)
+            hamil%eig_t(nb(1)+1:nb(1)+nb(2), :) = nac_dat%eigs(bdn(1):bdn(2), 2, :)
 
-            hamil%nac_t(      1:nb(1)      ,       1:nb(1)      , :) = nac_dat%olaps(bup(1):bup(2), bup(1):bup(2), 1, trng(1):trng(2))
-            hamil%nac_t(nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, trng(1):trng(2))
+            hamil%nac_t(      1:nb(1)      ,       1:nb(1)      , :) = nac_dat%olaps(bup(1):bup(2), bup(1):bup(2), 1, :)
+            hamil%nac_t(nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
         END IF
     END SUBROUTINE hamiltonian_init
 
@@ -180,17 +182,41 @@ MODULE hamiltonian_mod
         INTEGER, INTENT(in) :: iele
 
         !! local variable
+        INTEGER :: nelm
+        INTEGER :: rtime, xtime
+        INTEGER :: nsw
         INTEGER :: i
-
-        !! logic starts
-
-        !! linear interpolate
-        hamil%hamil = hamil%nac_t(:, :, iion) + (hamil%nac_t(:, :, iion+1) - hamil%nac_t(:, :, iion)) * iele / hamil%nelm
-        hamil%hamil = -IMGUNIT * HBAR * hamil%hamil
         
-        FORALL (i=1:hamil%nbasis) hamil%hamil(i,i) = &
-                hamil%eig_t(i, iion) + (hamil%eig_t(i, iion+1) - hamil%eig_t(i, iion)) * iele / hamil%nelm
+        nelm  = hamil%nelm
+        nsw   = hamil%nsw - 1
+        rtime = MOD(iion+hamil%namdinit-2, nsw-1) + 1   !> no underflow worries, because iion and namdinit starts from 1
+        xtime = rtime + 1
 
+        !! off diagonal part
+        IF (rtime == 1) THEN
+            IF (iele <= hamil%nelm/2) THEN
+                hamil%hamil = hamil%nac_t(:, :, rtime) - &
+                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (nelm/2 - iele - 0.5_q) / nelm
+            ELSE
+                hamil%hamil = hamil%nac_t(:, :, rtime) + &
+                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
+            END IF
+        ELSE    ! rimt /= 1
+            IF (iele <= hamil%nelm/2) THEN
+                hamil%hamil = hamil%nac_t(:, :, rtime-1) + &
+                    (hamil%nac_t(:, :, rtime) - hamil%nac_t(:, :, rtime-1)) * (iele + nelm/2 - 0.5_q) / nelm
+            ELSE
+                hamil%hamil = hamil%nac_t(:, :, rtime) + &
+                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
+            END IF
+        END IF  ! rtime
+
+        hamil%hamil = -IMGUNIT * HBAR * hamil%hamil
+
+        !! diagonal part, equals to eigen value
+        FORALL(i=1:hamil%nbasis) &
+            hamil%hamil(i,i) = hamil%eig_t(i, rtime) + &
+                              (hamil%eig_t(i, rtime+1) - hamil%eig_t(i, rtime)) * (iele - 0.5_q) / nelm
     END SUBROUTINE hamiltonian_make_hamil
 
 

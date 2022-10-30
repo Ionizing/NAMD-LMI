@@ -19,7 +19,7 @@ MODULE nac_mod
 
         !! (<ψᵢ(t)|ψⱼ(t+dt)> - <ψⱼ(t)|ψᵢ(t+dt)>) / 2, [nbands, nbands, nspin, nsw-1], dimensionless
         COMPLEX(q), ALLOCATABLE :: olaps(:, :, :, :)
-        !! (E_i + E_j) / 2, [nbands, nspin, nsteps], in eV
+        !! (E_i + E_j) / 2, [nbands, nspin, nsw-1], in eV
         REAL(q),    ALLOCATABLE :: eigs(:, :, :)
     END TYPE nac
 
