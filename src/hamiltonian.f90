@@ -220,16 +220,20 @@ MODULE hamiltonian_mod
     END SUBROUTINE hamiltonian_make_hamil
 
 
-    SUBROUTINE hamiltonian_propagate(hamil, psi, nelm, method)
+    SUBROUTINE hamiltonian_propagate(hamil, psi, method)
         TYPE(hamiltonian), INTENT(inout)    :: hamil
         COMPLEX(q), INTENT(in)              :: psi(:)
-        INTEGER, INTENT(in)                 :: nelm
         CHARACTER(*), INTENT(in)            :: method
 
         !! local variables
         INTEGER :: iion     !> ionic step index
         INTEGER :: iele     !> electronic step index
         REAL(q) :: edt      !> time step for each electronic step
+        !REAL(q) :: norm     !> L2 norm of a vector
+
+        !! Preparation
+        edt = hamil%dt / hamil%nelm
+        hamil%psi_c = psi
 
         SELECT CASE (method)
             CASE("finite-difference")
@@ -247,6 +251,23 @@ MODULE hamiltonian_mod
         CONTAINS
 
         SUBROUTINE propagate_finite_difference_
+            DO iion = 1, hamil%namdtime - 1
+                hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+                hamil%psi_t(:, iion) = hamil%psi_c
+
+                DO iele = 1, hamil%nelm
+                    CALL hamiltonian_make_hamil(hamil, iion, iele)
+                    hamil%psi_h = MATMUL(hamil%hamil, hamil%psi_c)
+                    IF (iion == 1 .AND. iele == 1) THEN
+                        hamil%psi_n = hamil%psi_c - IMGUNIT * edt * hamil%psi_h / HBAR
+                    ELSE
+                        hamil%psi_n = hamil%psi_p - 2 * IMGUNIT * edt * hamil%psi_h / HBAR
+                    END IF
+
+                    hamil%psi_p = hamil%psi_c
+                    hamil%psi_c = hamil%psi_n
+                ENDDO
+            ENDDO
         END SUBROUTINE propagate_finite_difference_
 
 
