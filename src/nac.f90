@@ -26,92 +26,6 @@ MODULE nac_mod
     CONTAINS
 
 
-    SUBROUTINE nac_calculate(rundir, ikpoint, wavetype, brange, nsw, dt, ndigit, nac_dat, lreal)
-        CHARACTER(*), INTENT(in) :: rundir
-        INTEGER, INTENT(in)      :: ikpoint
-        CHARACTER(*), INTENT(in) :: wavetype
-        INTEGER, INTENT(in)      :: brange(2)
-        INTEGER, INTENT(in)      :: nsw
-        REAL(q), INTENT(in)      :: dt
-        INTEGER, INTENT(in)      :: ndigit
-        TYPE(nac), INTENT(out)   :: nac_dat
-        LOGICAL, INTENT(in)      :: lreal
-
-        !! local variables
-        INTEGER        :: nspin, nkpoints, nbands, nbrange
-        CHARACTER(256) :: fname_i, fname_j
-        TYPE(wavecar)  :: wav_i, wav_j
-        INTEGER        :: i, j
-        INTEGER        :: timing_start, timing_end, timing_rate
-        LOGICAL        :: lready
-
-        !! logic starts
-
-        !! Do some checking
-        fname_i = TRIM(generate_static_calculation_path(rundir, 1, ndigit)) // "/WAVECAR"
-        CALL wavecar_init(wav_i, fname_i, wavetype)
-        nspin = wav_i%nspin
-        nkpoints = wav_i%nkpoints
-        nbands = wav_i%nbands
-        lready = .TRUE.
-        IF (ikpoint > nkpoints) THEN
-            WRITE(STDERR, *) "Selected ikpoint " // TINT2STR(ikpoint) // " larger than present nkpoints " // &
-                             TINT2STR(nkpoints) // ' from WAVECAR "' // TRIM(fname_i) // '" ' // AT
-            lready = .FALSE.
-        END IF
-        IF (.NOT. lready) THEN
-            STOP ERROR_NAC_WAVE_NREADY
-        END IF
-
-        nbrange = brange(2) - brange(1) + 1
-        IF (ANY(brange <= 0) .OR. ANY(brange > nbands) .OR. nbrange <= 0) THEN
-            WRITE(STDERR, '("[ERROR] Invalid brange selected: ", 2(1X,I5), 1X, A)') brange, AT
-            STOP ERROR_NAC_BRANGEERROR
-        END IF
-
-        CALL wavecar_destroy(wav_i)
-
-
-        ALLOCATE(nac_dat%olaps(nbrange, nbrange, nspin, nsw-1))
-        ALLOCATE(nac_dat%eigs(nbrange, nspin, nsw-1))
-
-        DO i = 1, nsw-1
-            CALL SYSTEM_CLOCK(timing_start, timing_rate)
-
-            j = i + 1
-            fname_i = TRIM(generate_static_calculation_path(rundir, i, ndigit)) // "/WAVECAR"
-            fname_j = TRIM(generate_static_calculation_path(rundir, j, ndigit)) // "/WAVECAR"
-
-            WRITE(STDOUT, '(A)') "[INFO] Reading " // TRIM(fname_i) // " and " // TRIM(fname_j) // " for NAC calculation."
-
-            CALL wavecar_init(wav_i, fname_i, wavetype, iu0=12)
-            CALL wavecar_init(wav_j, fname_j, wavetype, iu0=13)
-
-            CALL nac_ij_(wav_i, wav_j, ikpoint, brange, nac_dat%olaps(:, :, :, i), nac_dat%eigs(:, :, i))
-
-            CALL wavecar_destroy(wav_i)
-            CALL wavecar_destroy(wav_j)
-
-            CALL SYSTEM_CLOCK(timing_end, timing_rate)
-            WRITE(STDOUT, '(A,F10.3,A)') "      Time used: ", DBLE(timing_end - timing_start) / timing_rate, " secs."
-        ENDDO
-
-        nac_dat%ikpoint = ikpoint
-        nac_dat%nspin   = nspin
-        nac_dat%nbands  = nbands
-        nac_dat%brange  = brange
-        nac_dat%nbrange = nbrange
-        nac_dat%nsw     = nsw
-        nac_dat%dt      = dt
-        nac_dat%lreal   = lreal
-
-        IF (lreal) THEN
-            nac_dat%olaps = SIGN(ABS(nac_dat%olaps), REALPART(nac_dat%olaps))
-        END IF
-
-    END SUBROUTINE
-
-
     SUBROUTINE nac_calculate_mpi(rundir, ikpoint, wavetype, brange, nsw, dt, ndigit, nac_dat, lreal)
         USE mpi
 
@@ -464,6 +378,40 @@ MODULE nac_mod
             IF (llog) WRITE(STDOUT, '(A)') " Done"
         END IF
     END SUBROUTINE nac_load_from_h5
+
+
+    SUBROUTINE nac_mpisync(nac_dat)
+        USE mpi
+
+        TYPE(nac), INTENT(inout) :: nac_dat
+
+        INTEGER :: ierr
+        INTEGER :: nbrange, nspin, nsw, length
+
+        CALL MPI_BCAST(nac_dat%ikpoint, 1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nac_dat%nspin,   1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nac_dat%nbands,  1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nac_dat%brange,  2, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nac_dat%nbrange, 1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nac_dat%nsw,     1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nac_dat%dt,      1, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nac_dat%lreal,   1, MPI_LOGICAL, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+
+        nbrange = nac_dat%nbrange
+        nspin   = nac_dat%nspin
+        nsw     = nac_dat%nsw
+
+        IF (.NOT. ALLOCATED(nac_dat%olaps)) ALLOCATE(nac_dat%olaps(nbrange, nbrange, nspin, nsw-1))
+        IF (.NOT. ALLOCATED(nac_dat%eigs)) ALLOCATE(nac_dat%eigs(nbrange, nspin, nsw-1))
+
+        length = nbrange * nbrange * nspin * (nsw-1)
+        CALL MPI_BCAST(nac_dat%olaps, length, MPI_DOUBLE_COMPLEX, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        length = nbrange * nspin * (nsw-1)
+        CALL MPI_BCAST(nac_dat%eigs,  length, MPI_DOUBLE_COMPLEX, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+    END SUBROUTINE nac_mpisync
+
+
+    !! private subroutines
 
 
     SUBROUTINE nac_ij_(wav_i, wav_j, ikpoint, brange, c_ij, e_ij)
