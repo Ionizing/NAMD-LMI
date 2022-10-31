@@ -220,20 +220,19 @@ MODULE hamiltonian_mod
     END SUBROUTINE hamiltonian_make_hamil
 
 
-    SUBROUTINE hamiltonian_propagate(hamil, psi, method)
+    SUBROUTINE hamiltonian_propagate(hamil, iion, method)
         TYPE(hamiltonian), INTENT(inout)    :: hamil
-        COMPLEX(q), INTENT(in)              :: psi(:)
+        INTEGER, INTENT(in)                 :: iion     !< ionic step index
         CHARACTER(*), INTENT(in)            :: method
 
         !! local variables
-        INTEGER :: iion     !> ionic step index
-        INTEGER :: iele     !> electronic step index
-        REAL(q) :: edt      !> time step for each electronic step
-        !REAL(q) :: norm     !> L2 norm of a vector
+        INTEGER :: iele     !< electronic step index
+        REAL(q) :: edt      !< time step for each electronic step
+        REAL(q) :: norm     !< norm of psi_c
 
         !! Preparation
         edt = hamil%dt / hamil%nelm
-        hamil%psi_c = psi
+        !! We require users to initialize hamil%psi_c manually
 
         SELECT CASE (method)
             CASE("finite-difference")
@@ -248,26 +247,33 @@ MODULE hamiltonian_mod
                 STOP ERROR_HAMIL_PROPMETHOD
         END SELECT
 
+        norm = REALPART(SUM(CONJG(hamil%psi_c) * hamil%psi_c))
+        
+        IF (ABS(norm-1) > 1E-5) THEN
+            WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved")')
+            STOP ERROR_HAMIL_PROPFAIL
+        END IF
+
         CONTAINS
 
         !> This method empolys the linear interpolation to integrate the exp(-iHt/hbar)
+        !> In each electronic step, the |psi_c'> = H_ele * |psi_c> are performed,
+        !>  where H_ele are linear interpolated, thus this method requires NELM = ~1000 to preserve the norm of psi_c
         SUBROUTINE propagate_finite_difference_
-            DO iion = 1, hamil%namdtime - 1
-                hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
-                hamil%psi_t(:, iion) = hamil%psi_c
+            hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+            hamil%psi_t(:, iion) = hamil%psi_c
 
-                DO iele = 1, hamil%nelm
-                    CALL hamiltonian_make_hamil(hamil, iion, iele)
-                    hamil%psi_h = MATMUL(hamil%hamil, hamil%psi_c)
-                    IF (iion == 1 .AND. iele == 1) THEN
-                        hamil%psi_n = hamil%psi_c - IMGUNIT * edt * hamil%psi_h / HBAR
-                    ELSE
-                        hamil%psi_n = hamil%psi_p - 2 * IMGUNIT * edt * hamil%psi_h / HBAR
-                    END IF
+            DO iele = 1, hamil%nelm
+                CALL hamiltonian_make_hamil(hamil, iion, iele)
+                hamil%psi_h = MATMUL(hamil%hamil, hamil%psi_c)
+                IF (iion == 1 .AND. iele == 1) THEN
+                    hamil%psi_n = hamil%psi_c - IMGUNIT * edt * hamil%psi_h / HBAR
+                ELSE
+                    hamil%psi_n = hamil%psi_p - 2 * IMGUNIT * edt * hamil%psi_h / HBAR
+                END IF
 
-                    hamil%psi_p = hamil%psi_c
-                    hamil%psi_c = hamil%psi_n
-                ENDDO
+                hamil%psi_p = hamil%psi_c
+                hamil%psi_c = hamil%psi_n
             ENDDO
         END SUBROUTINE propagate_finite_difference_
 
@@ -316,39 +322,75 @@ MODULE hamiltonian_mod
             IF (.NOT. ALLOCATED(DIAG))  ALLOCATE(DIAG(nbasis, nbasis))
             IF (.NOT. ALLOCATED(EXPH))  ALLOCATE(EXPH(nbasis, nbasis))
 
-            DO iion = 1, hamil%namdtime - 1
-                hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
-                hamil%psi_t(:, iion) = hamil%psi_c
+            hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+            hamil%psi_t(:, iion) = hamil%psi_c
 
-                DO iele = 1, hamil%nelm
-                    H = hamil%hamil
-                    E = 0
-                    DIAG = 0
+            DO iele = 1, hamil%nelm
+                CALL hamiltonian_make_hamil(hamil, iion, iele)
 
-                    CALL ZHEEV('V', 'U', NBASIS, H, NBASIS, E, WORK_, LWORK_, RWORK_, INFO_)
+                H = hamil%hamil
+                E = 0
+                DIAG = 0
 
-                    IF (INFO_ < 0) THEN
-                        WRITE(STDERR, '("[ERROR] The ", I2, "th argument of ZHEEV is wrong ", A)') -INFO_, AT
-                        STOP ERROR_HAMIL_DIAGFAIL
-                    ELSE IF (INFO_ > 0) THEN
-                        WRITE(STDERR, '("[ERROR] ZHEEV failed. ", A)') AT
-                        STOP ERROR_HAMIL_DIAGFAIL
-                    END IF
+                CALL ZHEEV('V', 'U', NBASIS, H, NBASIS, E, WORK_, LWORK_, RWORK_, INFO_)
 
-                    !! H(:,i) are the eigen vectorss, E contains the eigen values
-                    FORALL(i=1:nbasis) DIAG(i,i) = EXP(E(i))    !< exp(eigen_values)
+                IF (INFO_ < 0) THEN
+                    WRITE(STDERR, '("[ERROR] The ", I2, "th argument of ZHEEV is wrong ", A)') -INFO_, AT
+                    STOP ERROR_HAMIL_DIAGFAIL
+                ELSE IF (INFO_ > 0) THEN
+                    WRITE(STDERR, '("[ERROR] ZHEEV failed. ", A)') AT
+                    STOP ERROR_HAMIL_DIAGFAIL
+                END IF
 
-                    EXPH = MATMUL(H, DIAG)
-                    EXPH = MATMUL(EXPH, TRANSPOSE(CONJG(H)))    !< exph = e^H
-                    EXPH = EXPH * EXP(-IMGUNIT*edt/HBAR)        !< e^(-iHt/hbar)
+                !! H(:,i) are the eigen vectorss, E contains the eigen values
+                FORALL(i=1:nbasis) DIAG(i,i) = EXP(E(i))    !< exp(eigen_values)
 
-                    hamil%psi_c = MATMUL(EXPH, hamil%psi_c)
-                ENDDO   !! iele
-            ENDDO   !! iion
+                EXPH = MATMUL(H, DIAG)
+                EXPH = MATMUL(EXPH, TRANSPOSE(CONJG(H)))    !< exph = e^H
+                EXPH = EXPH * EXP(-IMGUNIT*edt/HBAR)        !< e^(-iHt/hbar)
+
+                hamil%psi_c = MATMUL(EXPH, hamil%psi_c)
+            ENDDO   !! iele
         END SUBROUTINE propagate_exponential_
 
 
+        !> This method can be much faster than exponential methods, but requires the Hamiltonian off-diagonals to be totally real
+        !> This scheme is proposed by Akimov, A. V., & Prezhdo, O. V. J. Chem. Theory Comput. 2014, 10, 2, 789–804
         SUBROUTINE propagate_liouville_trotter_
+            COMPLEX(q)  :: phi, cos_phi, sin_phi, cjj, ckk
+            INTEGER     :: jj, kk
+
+            DO iele = 1, hamil%nelm
+                CALL hamiltonian_make_hamil(hamil, iion, iele)
+                DO jj = 1, hamil%nbasis
+                    DO kk = jj+1, hamil%nbasis
+                        phi = -IMGUNIT * edt * 0.5 * hamil%hamil(kk, jj) / HBAR
+                        cos_phi = COS(phi)
+                        sin_phi = SIN(phi)
+                        cjj = hamil%psi_c(jj)
+                        ckk = hamil%psi_c(kk)
+                        hamil%psi_c(jj) =  cos_phi * cjj + sin_phi * ckk
+                        hamil%psi_c(kk) = -sin_phi * cjj + cos_phi * ckk
+                    ENDDO !! kk
+                ENDDO !! jj
+
+                DO jj = 1, hamil%nbasis
+                    phi = -IMGUNIT * edt * 0.5 * hamil%hamil(jj, jj) / HBAR
+                    hamil%psi_c(jj) = hamil%psi_c(jj) * EXP(phi)
+                ENDDO
+
+                DO jj = hamil%nbasis, 1, -1
+                    DO kk = hamil%nbasis, jj+1, -1
+                        phi = -IMGUNIT * edt * 0.5 * hamil%hamil(kk, jj) / HBAR
+                        cos_phi = COS(phi)
+                        sin_phi = SIN(phi)
+                        cjj = hamil%psi_c(jj)
+                        ckk = hamil%psi_c(kk)
+                        hamil%psi_c(jj) =  cos_phi * cjj + sin_phi * ckk
+                        hamil%psi_c(kk) = -sin_phi * cjj + cos_phi * ckk
+                    ENDDO !! kk
+                ENDDO !! jj
+            ENDDO   !! iele
         END SUBROUTINE propagate_liouville_trotter_
 
 
