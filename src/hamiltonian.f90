@@ -50,9 +50,7 @@ MODULE hamiltonian_mod
         !INTEGER :: trng(2)  !> time range refer to NAC
 
         !! logic starts
-        IF (namdinit <= 0 .OR. &
-            namdinit + namdtime > (nac_dat%nsw-1) .OR. &
-            namdtime <= 1) THEN
+        IF (namdinit <= 0 .OR. namdtime <= 1) THEN
             WRITE(STDERR, '("[ERROR] Invalid namdinit or namdtime used: ", I5, 2X, I5, 2X, A)') namdinit, namdtime, AT
             STOP ERROR_HAMIL_TINDEXWRONG
         END IF
@@ -248,6 +246,8 @@ MODULE hamiltonian_mod
         END SELECT
 
         norm = REALPART(SUM(CONJG(hamil%psi_c) * hamil%psi_c))
+
+        PRINT '("NORM = ", F10.4)', norm
         
         IF (ABS(norm-1) > 1E-5) THEN
             WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved")')
@@ -359,6 +359,11 @@ MODULE hamiltonian_mod
         SUBROUTINE propagate_liouville_trotter_
             COMPLEX(q)  :: phi, cos_phi, sin_phi, cjj, ckk
             INTEGER     :: jj, kk
+
+            IF (ANY(ABS(IMAGPART(hamil%nac_t)) > 1E-9)) THEN
+                WRITE(STDERR, '("[ERROR] A real NAC is required to use Liouville-Trotter propagation scheme, please check NAC")')
+                STOP ERROR_HAMIL_PROPFAIL
+            END IF
 
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)

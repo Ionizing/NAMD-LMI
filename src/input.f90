@@ -17,7 +17,12 @@ MODULE input_mod
         INTEGER         :: namdtime     = 1000      !! number of steps performed by NAMD
         REAL(q)         :: dt           = 1.0       !! time step, in fs
         INTEGER         :: nsample      = 100       !! number of samplings from total trajectory
+
+        !! TODO
         !INTEGER         :: ncarrier     = 1         !! number of carriers
+        ! method for propagation
+        ! nelm for propagation
+        ! filename for nac data
 
         INTEGER, ALLOCATABLE :: inibands(:)
         INTEGER, ALLOCATABLE :: inispins(:)

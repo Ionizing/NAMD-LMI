@@ -11,6 +11,9 @@ PROGRAM namd_lumi_x
 
     TYPE(input) :: inp
     TYPE(nac)   :: nac_tot
+    TYPE(hamiltonian) :: hamil
+
+    INTEGER :: iion
 
     CALL MPI_INIT(ierr)
     CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
@@ -37,6 +40,14 @@ PROGRAM namd_lumi_x
 
         WRITE(STDOUT, '("[INFO] Time used for NAC calculation: ", F8.3, " secs")') DBLE(timing_end - timing_start) / timing_rate
     END IF
+
+    CALL nac_mpisync(nac_tot)
+    CALL hamiltonian_init(hamil, nac_tot, inp%basis_up, inp%basis_dn, inp%dt, 1, inp%namdtime, 5)
+    hamil%psi_c(hamil%nbasis) = 1.0
+    DO iion = 1, inp%namdtime
+        CALL hamiltonian_propagate(hamil, iion, "liouville-trotter")
+    ENDDO
+
 
     CALL nac_destroy(nac_tot)
 

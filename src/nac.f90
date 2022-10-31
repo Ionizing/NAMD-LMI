@@ -157,7 +157,7 @@ MODULE nac_mod
         CALL MPI_GATHERV(olaps, SIZE(olaps), MPI_DOUBLE_COMPLEX, nac_dat%olaps, sendcounts, displs, MPI_DOUBLE_COMPLEX, &
                          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
-        IF (lreal) THEN
+        IF (lreal .AND. MPI_ROOT_NODE == irank) THEN
             nac_dat%olaps = SIGN(ABS(nac_dat%olaps), REALPART(nac_dat%olaps))
         END IF
 
