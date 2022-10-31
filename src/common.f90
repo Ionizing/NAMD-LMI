@@ -87,6 +87,7 @@ MODULE common_mod
     INTEGER,    PARAMETER :: ERROR_HAMIL_RANGEWRONG  = 73
     INTEGER,    PARAMETER :: ERROR_HAMIL_BASISSHORT  = 74
     INTEGER,    PARAMETER :: ERROR_HAMIL_PROPMETHOD  = 75
+    INTEGER,    PARAMETER :: ERROR_HAMIL_DIAGFAIL    = 76
 
 
     !! MPI related stuff
@@ -138,4 +139,21 @@ MODULE common_mod
         CALL RANDOM_NUMBER(r)
         ret = FLOOR((high-low+1) * r) + low
     END FUNCTION randint_range
+
+
+    !> Initialize the random seed, https://gcc.gnu.org/onlinedocs/gcc-4.4.7/gfortran/RANDOM_005fSEED.html
+    SUBROUTINE init_random_seed
+        INTEGER :: i, n, clock
+        INTEGER, DIMENSION(:), ALLOCATABLE :: seed
+
+        CALL RANDOM_SEED(size = n)
+        ALLOCATE(seed(n))
+
+        CALL SYSTEM_CLOCK(COUNT=clock)
+
+        seed = clock + 37 * (/ (i - 1, i = 1, n) /)
+        CALL RANDOM_SEED(PUT = seed)
+
+        DEALLOCATE(seed)
+    END SUBROUTINE
 END MODULE common_mod

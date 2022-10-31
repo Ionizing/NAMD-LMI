@@ -250,6 +250,7 @@ MODULE hamiltonian_mod
 
         CONTAINS
 
+        !> This method empolys the linear interpolation to integrate the exp(-iHt/hbar)
         SUBROUTINE propagate_finite_difference_
             DO iion = 1, hamil%namdtime - 1
                 hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
@@ -271,7 +272,79 @@ MODULE hamiltonian_mod
         END SUBROUTINE propagate_finite_difference_
 
 
+        !> This method is a general method, and doesn't require very large NELM, but each step may cost considerable time
+        !> This method perform exp(H) = V' * exp(E) * V by diagonalization from LAPACK
+        !> where H is the Hamiltonian matrix, V is the matrix of eigenvectors, E is the eigenvalues
         SUBROUTINE propagate_exponential_
+            INTERFACE
+                SUBROUTINE ZHEEV(JOBZ, UPLO, N, A, LDA, W, WORK, LWORK, RWORK, INFO)
+                    USE common_mod, ONLY: q
+                    IMPLICIT NONE
+                    CHARACTER(1),   INTENT (in)     :: JOBZ, UPLO
+                    INTEGER,        INTENT (in)     :: LDA, LWORK, N
+                    COMPLEX(q),     INTENT (inout)  :: A(LDA, *)
+                    REAL(q),        INTENT (out)    :: W(N)
+                    COMPLEX(q),     INTENT (out)    :: WORK(MAX(1,LWORK))
+                    REAL(q),        INTENT (inout)  :: RWORK(*)
+                    INTEGER,        INTENT (out)    :: INFO
+                    INTRINSIC :: MAX
+                END SUBROUTINE
+            END INTERFACE
+
+            !> We use SAVE attribute to avoid unnecessary allocations, cuz the matrix dimensons do not change
+            COMPLEX(q), ALLOCATABLE, SAVE :: H(:, :)    !< Hamiltonian matrix, for diagonalization use
+            REAL(q),    ALLOCATABLE, SAVE :: E(:)       !< Eigen values of Hamiltonian matrix
+            COMPLEX(q), ALLOCATABLE, SAVE :: WORK_(:)   !< Work matrix used by LAPACK
+            REAL(q),    ALLOCATABLE, SAVE :: RWORK_(:)  !< Work matrix used by LAPACK
+            INTEGER :: lwork_, rworkl
+            INTEGER :: info_
+
+            REAL(q),    ALLOCATABLE, SAVE :: DIAG(:, :) !< Diagonal matrix with diagonal elements being eigenvalues
+            COMPLEX(q), ALLOCATABLE, SAVE :: EXPH(:, :) !< Hamiltonian matrix, for diagonalization use
+
+            INTEGER :: nbasis
+            INTEGER :: i
+
+            nbasis = hamil%nbasis
+            lwork_ = 4 * nbasis
+            rworkl = 3 * nbasis - 2
+
+            IF (.NOT. ALLOCATED(H))     ALLOCATE(H(nbasis, nbasis))
+            IF (.NOT. ALLOCATED(E))     ALLOCATE(E(nbasis))
+            IF (.NOT. ALLOCATED(WORK_)) ALLOCATE(WORK_(lwork_))
+            IF (.NOT. ALLOCATED(RWORK_))ALLOCATE(RWORK_(rworkl))
+            IF (.NOT. ALLOCATED(DIAG))  ALLOCATE(DIAG(nbasis, nbasis))
+            IF (.NOT. ALLOCATED(EXPH))  ALLOCATE(EXPH(nbasis, nbasis))
+
+            DO iion = 1, hamil%namdtime - 1
+                hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+                hamil%psi_t(:, iion) = hamil%psi_c
+
+                DO iele = 1, hamil%nelm
+                    H = hamil%hamil
+                    E = 0
+                    DIAG = 0
+
+                    CALL ZHEEV('V', 'U', NBASIS, H, NBASIS, E, WORK_, LWORK_, RWORK_, INFO_)
+
+                    IF (INFO_ < 0) THEN
+                        WRITE(STDERR, '("[ERROR] The ", I2, "th argument of ZHEEV is wrong ", A)') -INFO_, AT
+                        STOP ERROR_HAMIL_DIAGFAIL
+                    ELSE IF (INFO_ > 0) THEN
+                        WRITE(STDERR, '("[ERROR] ZHEEV failed. ", A)') AT
+                        STOP ERROR_HAMIL_DIAGFAIL
+                    END IF
+
+                    !! H(:,i) are the eigen vectorss, E contains the eigen values
+                    FORALL(i=1:nbasis) DIAG(i,i) = EXP(E(i))    !< exp(eigen_values)
+
+                    EXPH = MATMUL(H, DIAG)
+                    EXPH = MATMUL(EXPH, TRANSPOSE(CONJG(H)))    !< exph = e^H
+                    EXPH = EXPH * EXP(-IMGUNIT*edt/HBAR)        !< e^(-iHt/hbar)
+
+                    hamil%psi_c = MATMUL(EXPH, hamil%psi_c)
+                ENDDO   !! iele
+            ENDDO   !! iion
         END SUBROUTINE propagate_exponential_
 
 
