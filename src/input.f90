@@ -17,12 +17,15 @@ MODULE input_mod
         INTEGER         :: namdtime     = 1000      !! number of steps performed by NAMD
         REAL(q)         :: dt           = 1.0       !! time step, in fs
         INTEGER         :: nsample      = 100       !! number of samplings from total trajectory
+        !! the method used for propagation, available: "finite-difference", "exponential", "liouville-trotter"
+        CHARACTER(32)   :: propmethod   = "exponential"
+        !! electronic steps for each ionic steps in propagation, different propmethod corresponds different nelms
+        !! we suggest: "finite-difference"=>1000, "exponential"=>1, "liouville-trotter"=>1
+        INTEGER         :: nelm         = 1
+        CHARACTER(256)  :: fname        = "nac.h5"  !! file name for saving NAC data
 
         !! TODO
         !INTEGER         :: ncarrier     = 1         !! number of carriers
-        ! method for propagation
-        ! nelm for propagation
-        ! filename for nac data
 
         INTEGER, ALLOCATABLE :: inibands(:)
         INTEGER, ALLOCATABLE :: inispins(:)
@@ -132,6 +135,8 @@ MODULE input_mod
             inp%inisteps(i) = randint_range(1, nsw-1)
         ENDDO
 
+
+
         INQUIRE(FILE=fname, EXIST=lexist)
         IF (lexist) THEN
             WRITE(STDOUT, '("[WARN] The file ", A, " exists and will be OVERWRITTEN.")') '"' // fname // '"'
@@ -164,6 +169,9 @@ MODULE input_mod
         CALL MPI_BCAST(inp%namdtime,  1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%dt,        1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%nsample,   1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%propmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%nelm,      1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%fname,   256, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
         IF (.NOT. ALLOCATED(inp%inibands)) ALLOCATE(inp%inibands(inp%nsample))
         IF (.NOT. ALLOCATED(inp%inispins)) ALLOCATE(inp%inispins(inp%nsample))
@@ -192,6 +200,9 @@ MODULE input_mod
         INTEGER :: namdtime
         REAL(q) :: dt
         INTEGER :: nsample
+        CHARACTER(32)   :: propmethod
+        INTEGER :: nelm
+        CHARACTER(256)  :: fname
         INTEGER, ALLOCATABLE :: inibands(:)
         INTEGER, ALLOCATABLE :: inispins(:)
         INTEGER, ALLOCATABLE :: inisteps(:)
@@ -206,7 +217,10 @@ MODULE input_mod
                               ndigit,   &
                               namdtime, &
                               dt,       &
-                              nsample
+                              nsample,  &
+                              propmethod, &
+                              nelm,     &
+                              fname
 
         NAMELIST /inicon/ inibands, &
                           inispins, &
@@ -266,6 +280,23 @@ MODULE input_mod
             STOP ERROR_INPUT_DTWRONG
         END IF
 
+        IF (nsample < 1) THEN
+            WRITE(STDERR, '("[ERROR] Invalid nsample: ", I8, " ", A)') nsample, AT
+            STOP ERROR_INPUT_RANGEWRONG
+        END IF
+
+        SELECT CASE(propmethod)
+            CASE("finite-difference")
+                CONTINUE
+            CASE("exponential")
+                CONTINUE
+            CASE("liouville-trotter")
+                CONTINUE
+            CASE DEFAULT
+                WRITE(STDERR, '("[ERROR] Invalid propmethod: ", A, ", available: finite-difference, exponential, liouville-trotter ", A)') TRIM(propmethod), AT
+                STOP ERROR_INPUT_METHODERR
+        END SELECT
+
         !! Continue to construct input data
         inp%rundir    = rundir
         inp%wavetype  = wavetype
@@ -278,6 +309,9 @@ MODULE input_mod
         inp%namdtime  = namdtime
         inp%dt        = dt
         inp%nsample   = nsample
+        inp%propmethod = propmethod
+        inp%nelm      = nelm
+        inp%fname     = fname
 
         ALLOCATE(inp%inibands(nsample))
         ALLOCATE(inp%inispins(nsample))
@@ -319,6 +353,19 @@ MODULE input_mod
         WRITE(iu, '(1X, A12, " = ",  I10, ", ! ", A)') 'NAMDTIME',  inp%namdtime,"Time steps for each NAMD sample"
         WRITE(iu, '(1X, A12, " = ",F10.2, ", ! ", A)') 'DT',        inp%dt,      "Time step for trajectory and NAMD, in fs"
         WRITE(iu, '(1X, A12, " = ",  I10, ", ! ", A)') 'NSAMPLE',   inp%nsample, "Number of samplings from total trajectory"
+
+        WRITE(iu, '()')
+        WRITE(iu, '(4X, A)') '!! the method used for propagation, available: "finite-difference", "exponential", "liouville-trotter"'
+        WRITE(iu, '(1X, A12, " = ",    A, ",")') "PROPMETHOD", '"' // TRIM(inp%propmethod) // '"'
+
+        WRITE(iu, '()')
+        WRITE(iu, '(4X, A)') '!! electronic steps for each ionic steps in propagation, different propmethod corresponds different nelms'
+        WRITE(iu, '(4X, A)') '!! we suggest: "finite-difference"=>1000, "exponential"=>1, "liouville-trotter"=>1'
+        WRITE(iu, '(1X, A12, " = ",  I10, ",")') "NELM", inp%nelm
+
+        WRITE(iu, '()')
+        WRITE(iu, '(1X, A12, " = ",    A, ", ! ", A)') "FNAME", '"' // TRIM(inp%fname) // '"', &
+            "file name for saving NAC data, no more than 256 characters"
         WRITE(iu, '(A)') "/"             ! End
 
 
