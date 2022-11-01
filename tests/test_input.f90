@@ -30,6 +30,7 @@ MODULE test_input
         inp%nsample     = 5
         inp%propmethod  = "exponential"
         inp%nelm        = 200
+        inp%lreal       = .TRUE.
         inp%fname       = "./nac_test.h5"
 
         ALLOCATE(inp%inibands(inp%nsample))
@@ -60,6 +61,7 @@ MODULE test_input
         CALL assert_equals(inp%inisteps,  inp_read%inisteps, inp%nsample, AT)
         CALL assert_equals(inp%propmethod, inp_read%propmethod, AT)
         CALL assert_equals(inp%nelm,      inp_read%nelm,      AT)
+        CALL assert_equals(inp%lreal,     inp_read%lreal,     AT)
         CALL assert_equals(inp%fname,     inp_read%fname,     AT)
     END SUBROUTINE test_input_nml
 END MODULE test_input

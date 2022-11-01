@@ -22,6 +22,7 @@ MODULE input_mod
         !! electronic steps for each ionic steps in propagation, different propmethod corresponds different nelms
         !! we suggest: "finite-difference"=>1000, "exponential"=>1, "liouville-trotter"=>1
         INTEGER         :: nelm         = 1
+        LOGICAL         :: lreal        = .FALSE.   !! Use real NAC or not
         CHARACTER(256)  :: fname        = "nac.h5"  !! file name for saving NAC data
 
         !! TODO
@@ -171,6 +172,7 @@ MODULE input_mod
         CALL MPI_BCAST(inp%nsample,   1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%propmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%nelm,      1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%lreal,     1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%fname,   256, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
         IF (.NOT. ALLOCATED(inp%inibands)) ALLOCATE(inp%inibands(inp%nsample))
@@ -202,6 +204,7 @@ MODULE input_mod
         INTEGER :: nsample
         CHARACTER(32)   :: propmethod
         INTEGER :: nelm
+        LOGICAL :: lreal
         CHARACTER(256)  :: fname
         INTEGER, ALLOCATABLE :: inibands(:)
         INTEGER, ALLOCATABLE :: inispins(:)
@@ -219,6 +222,7 @@ MODULE input_mod
                               dt,       &
                               nsample,  &
                               propmethod, &
+                              lreal,    &
                               nelm,     &
                               fname
 
@@ -291,6 +295,10 @@ MODULE input_mod
             CASE("exponential")
                 CONTINUE
             CASE("liouville-trotter")
+                IF (.NOT. lreal) THEN
+                    WRITE(STDERR, '("[ERROR] This method requires NAC to be totally real, consider use LREAL=.TRUE. or use other PROPMETHOD")')
+                    STOP ERROR_INPUT_METHODERR
+                END IF
                 CONTINUE
             CASE DEFAULT
                 WRITE(STDERR, '("[ERROR] Invalid propmethod: ", A, ", available: finite-difference, exponential, liouville-trotter ", A)') TRIM(propmethod), AT
@@ -311,6 +319,7 @@ MODULE input_mod
         inp%nsample   = nsample
         inp%propmethod = propmethod
         inp%nelm      = nelm
+        inp%lreal     = lreal
         inp%fname     = fname
 
         ALLOCATE(inp%inibands(nsample))
@@ -362,6 +371,7 @@ MODULE input_mod
         WRITE(iu, '(4X, A)') '!! electronic steps for each ionic steps in propagation, different propmethod corresponds different nelms'
         WRITE(iu, '(4X, A)') '!! we suggest: "finite-difference"=>1000, "exponential"=>1, "liouville-trotter"=>1'
         WRITE(iu, '(1X, A12, " = ",  I10, ",")') "NELM", inp%nelm
+        WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LREAL",     inp%lreal,  "Use real NAC or not"
 
         WRITE(iu, '()')
         WRITE(iu, '(1X, A12, " = ",    A, ", ! ", A)') "FNAME", '"' // TRIM(inp%fname) // '"', &
