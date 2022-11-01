@@ -7,10 +7,10 @@ PROGRAM namd_lumi_x
     IMPLICIT NONE
 
     INTEGER :: irank, ierr
-    INTEGER :: timing_start, timing_end, timing_rate
+    !INTEGER :: timing_start, timing_end, timing_rate
 
     TYPE(input) :: inp
-    TYPE(nac)   :: nac_tot
+    TYPE(nac)   :: nac_dat
     TYPE(hamiltonian) :: hamil
 
     INTEGER :: iion
@@ -28,28 +28,18 @@ PROGRAM namd_lumi_x
     CALL OPENBLAS_SET_NUM_THREADS(2)
 #endif
 
-    CALL SYSTEM_CLOCK(timing_start, timing_rate)
-    
-    !! calculate the nac
-    IF (irank == MPI_ROOT_NODE) WRITE(STDOUT, '("[INFO] Start calculating NAC ...")')
-    CALL nac_calculate_mpi(inp%rundir, inp%ikpoint, inp%wavetype, inp%brange, inp%nsw, inp%dt, inp%ndigit, nac_tot, lreal=.TRUE.)
-    
-    IF (irank == MPI_ROOT_NODE) THEN
-        CALL nac_save_to_h5(nac_tot, "nac_total.h5", llog=.TRUE.)
-        CALL SYSTEM_CLOCK(timing_end, timing_rate)
+    !! get the NAC
+    CALL nac_load_or_calculate(nac_dat, inp)
+    CALL nac_mpisync(nac_dat)
 
-        WRITE(STDOUT, '("[INFO] Time used for NAC calculation: ", F8.3, " secs")') DBLE(timing_end - timing_start) / timing_rate
-    END IF
-
-    CALL nac_mpisync(nac_tot)
-    CALL hamiltonian_init(hamil, nac_tot, inp%basis_up, inp%basis_dn, inp%dt, 1, inp%namdtime, 5)
+    CALL hamiltonian_init(hamil, nac_dat, inp%basis_up, inp%basis_dn, inp%dt, 1, inp%namdtime, inp%nelm)
     hamil%psi_c(hamil%nbasis) = 1.0
     DO iion = 1, inp%namdtime
-        CALL hamiltonian_propagate(hamil, iion, "liouville-trotter")
+        CALL hamiltonian_propagate(hamil, iion, TRIM(inp%propmethod))
     ENDDO
 
 
-    CALL nac_destroy(nac_tot)
+    CALL nac_destroy(nac_dat)
 
     CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
     CALL MPI_FINALIZE(ierr)

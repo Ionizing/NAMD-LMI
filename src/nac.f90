@@ -25,6 +25,84 @@ MODULE nac_mod
 
     CONTAINS
 
+    !> This subroutine makes sure the MPI_ROOT_NODE have the complete NAC data
+    SUBROUTINE nac_load_or_calculate(nac_dat, inp)
+        USE input_mod
+        USE mpi
+
+        TYPE(nac), INTENT(inout)    :: nac_dat
+        TYPE(input), INTENT(in)     :: inp
+
+        INTEGER :: ierr, irank
+        LOGICAL :: iexist
+        INTEGER :: timing_start, timing_end, timing_rate
+
+        CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
+
+        INQUIRE(FILE=TRIM(inp%fname), EXIST=iexist)
+
+        IF (iexist) THEN
+            IF (MPI_ROOT_NODE == irank) THEN
+                WRITE(STDOUT, '("[INFO] ", A, " exists, reading NAC from it ...")') '"' // TRIM(inp%fname) // '"'
+                CALL nac_load_from_h5(TRIM(inp%fname), nac_dat, llog=.TRUE.)
+                CALL nac_check_inp(nac_dat, inp)
+            END IF
+        ELSE
+            IF (MPI_ROOT_NODE == irank) THEN
+                WRITE(STDOUT, '("[INFO] ", A, " not found, calculating from scratch ...")') '"' // TRIM(inp%fname) // '"'
+            END IF
+
+            CALL SYSTEM_CLOCK(timing_start, timing_rate)
+
+            CALL nac_calculate_mpi(TRIM(inp%rundir), inp%ikpoint, TRIM(inp%wavetype), inp%brange, inp%nsw, inp%dt, &
+                inp%ndigit, nac_dat, lreal=inp%lreal)
+
+            CALL SYSTEM_CLOCK(timing_end, timing_rate)
+
+            IF (MPI_ROOT_NODE == irank) THEN
+                CALL nac_save_to_h5(nac_dat, inp%fname, llog=.TRUE.)
+                WRITE(STDOUT, '("[INFO] Time used for NAC calculation: ", F8.3, " secs")') DBLE(timing_end - timing_start) / timing_rate
+            END IF
+        END IF
+    END SUBROUTINE nac_load_or_calculate
+
+
+    SUBROUTINE nac_check_inp(nac_dat, inp)
+        USE input_mod
+        TYPE(nac), INTENT(in)   :: nac_dat
+        TYPE(input), INTENT(in) :: inp
+
+        IF (nac_dat%ikpoint /= inp%ikpoint) THEN
+            WRITE(STDERR, '("[ERROR] Inconsistent IKPOINT from INPUT and ", A, " :", I3, " /= ", I3)') &
+                TRIM(inp%fname), nac_dat%ikpoint, inp%ikpoint
+            STOP ERROR_NAC_INCONSISTENT
+        END IF
+
+        IF (ANY(nac_dat%brange /= inp%brange)) THEN
+            WRITE(STDERR, '("[ERROR] Inconsistent BRANGE from INPUT and ", A, " :", 2I5, " /= ", 2I5)') &
+                TRIM(inp%fname), nac_dat%brange, inp%brange
+            STOP ERROR_NAC_INCONSISTENT
+        END IF
+
+        IF (nac_dat%nsw /= inp%nsw) THEN
+            WRITE(STDERR, '("[ERROR] Inconsistent NSW from INPUT and ", A, " :", I5, " /= ", I5)') &
+                TRIM(inp%fname), nac_dat%nsw, inp%nsw
+            STOP ERROR_NAC_INCONSISTENT
+        END IF
+
+        IF (ABS(nac_dat%dt-inp%dt) > 1E-5) THEN
+            WRITE(STDERR, '("[ERROR] Inconsistent DT from INPUT and ", A, " :", F5.3, " /= ", F5.3)') &
+                TRIM(inp%fname), nac_dat%dt, inp%dt
+            STOP ERROR_NAC_INCONSISTENT
+        END IF
+
+        IF (nac_dat%lreal .NEQV. inp%lreal) THEN
+            WRITE(STDERR, '("[ERROR] Inconsistent LREAL from INPUT and ", A, " :", L1, " /= ", L1)') &
+                TRIM(inp%fname), nac_dat%lreal, inp%lreal
+            STOP ERROR_NAC_INCONSISTENT
+        END IF
+    END SUBROUTINE nac_check_inp
+
 
     SUBROUTINE nac_calculate_mpi(rundir, ikpoint, wavetype, brange, nsw, dt, ndigit, nac_dat, lreal)
         USE mpi
