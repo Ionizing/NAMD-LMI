@@ -173,7 +173,7 @@ MODULE hamiltonian_mod
         IF (ALLOCATED(hamil%nac_t)) DEALLOCATE(hamil%nac_t)
     END SUBROUTINE hamiltonian_destroy
 
-    !! TODO: make it capable of replicating NAC
+
     SUBROUTINE hamiltonian_make_hamil(hamil, iion, iele)
         TYPE(hamiltonian), INTENT(inout) :: hamil
         INTEGER, INTENT(in) :: iion
@@ -328,7 +328,7 @@ MODULE hamiltonian_mod
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)
 
-                H = hamil%hamil
+                H = hamil%hamil * (-IMGUNIT*edt/HBAR)   ! -iHt/hbar
                 E = 0
                 DIAG = 0
 
@@ -346,8 +346,7 @@ MODULE hamiltonian_mod
                 FORALL(i=1:nbasis) DIAG(i,i) = EXP(E(i))    !< exp(eigen_values)
 
                 EXPH = MATMUL(H, DIAG)
-                EXPH = MATMUL(EXPH, TRANSPOSE(CONJG(H)))    !< exph = e^H
-                EXPH = EXPH * EXP(-IMGUNIT*edt/HBAR)        !< e^(-iHt/hbar)
+                EXPH = MATMUL(EXPH, TRANSPOSE(CONJG(H)))    !< exph = e^(-iHt/hbar)
 
                 hamil%psi_c = MATMUL(EXPH, hamil%psi_c)
             ENDDO   !! iele

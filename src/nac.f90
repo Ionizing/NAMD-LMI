@@ -508,7 +508,7 @@ MODULE nac_mod
 
         !! logic starts
         nspin    = wav_i%nspin
-        nbrange    = brange(2) - brange(1) + 1
+        nbrange  = brange(2) - brange(1) + 1
         nplws    = wav_i%nplws(ikpoint)
 
         ALLOCATE(psi_i(nplws, nbrange))
