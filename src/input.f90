@@ -173,7 +173,7 @@ MODULE input_mod
         CALL MPI_BCAST(inp%propmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%nelm,      1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%lreal,     1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%fname,   256, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%fname,   256, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
         IF (.NOT. ALLOCATED(inp%inibands)) ALLOCATE(inp%inibands(inp%nsample))
         IF (.NOT. ALLOCATED(inp%inispins)) ALLOCATE(inp%inispins(inp%nsample))

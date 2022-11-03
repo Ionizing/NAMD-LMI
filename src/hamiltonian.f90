@@ -218,10 +218,11 @@ MODULE hamiltonian_mod
     END SUBROUTINE hamiltonian_make_hamil
 
 
-    SUBROUTINE hamiltonian_propagate(hamil, iion, method)
+    SUBROUTINE hamiltonian_propagate(hamil, iion, method, llog)
         TYPE(hamiltonian), INTENT(inout)    :: hamil
         INTEGER, INTENT(in)                 :: iion     !< ionic step index
         CHARACTER(*), INTENT(in)            :: method
+        LOGICAL, INTENT(in), OPTIONAL       :: llog
 
         !! local variables
         INTEGER :: iele     !< electronic step index
@@ -246,9 +247,6 @@ MODULE hamiltonian_mod
         END SELECT
 
         norm = REALPART(SUM(CONJG(hamil%psi_c) * hamil%psi_c))
-
-        PRINT '("NORM = ", F10.4)', norm
-        
         IF (ABS(norm-1) > 1E-5) THEN
             WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved")')
             STOP ERROR_HAMIL_PROPFAIL
@@ -305,7 +303,6 @@ MODULE hamiltonian_mod
             INTEGER :: lwork_, rworkl
             INTEGER :: info_
 
-            REAL(q),    ALLOCATABLE, SAVE :: DIAG(:, :) !< Diagonal matrix with diagonal elements being eigenvalues
             COMPLEX(q), ALLOCATABLE, SAVE :: EXPH(:, :) !< Hamiltonian matrix, for diagonalization use
 
             INTEGER :: nbasis
@@ -319,7 +316,6 @@ MODULE hamiltonian_mod
             IF (.NOT. ALLOCATED(E))     ALLOCATE(E(nbasis))
             IF (.NOT. ALLOCATED(WORK_)) ALLOCATE(WORK_(lwork_))
             IF (.NOT. ALLOCATED(RWORK_))ALLOCATE(RWORK_(rworkl))
-            IF (.NOT. ALLOCATED(DIAG))  ALLOCATE(DIAG(nbasis, nbasis))
             IF (.NOT. ALLOCATED(EXPH))  ALLOCATE(EXPH(nbasis, nbasis))
 
             hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
@@ -328,10 +324,12 @@ MODULE hamiltonian_mod
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)
 
-                H = hamil%hamil * (-IMGUNIT*edt/HBAR)   ! -iHt/hbar
+                H = hamil%hamil * (edt/HBAR)   ! -iHt/hbar
                 E = 0
-                DIAG = 0
 
+                !! Let A = -iHt/hbar and can be decomposed by A = P x \Lambda x P^-1
+                !! while A is hermitian, thus P^-1 = P' = (H^*)^T
+                !! After ZHEEV, H = P, E = diag(\Lambda)
                 CALL ZHEEV('V', 'U', NBASIS, H, NBASIS, E, WORK_, LWORK_, RWORK_, INFO_)
 
                 IF (INFO_ < 0) THEN
@@ -343,10 +341,8 @@ MODULE hamiltonian_mod
                 END IF
 
                 !! H(:,i) are the eigen vectorss, E contains the eigen values
-                FORALL(i=1:nbasis) DIAG(i,i) = EXP(E(i))    !< exp(eigen_values)
-
-                EXPH = MATMUL(H, DIAG)
-                EXPH = MATMUL(EXPH, TRANSPOSE(CONJG(H)))    !< exph = e^(-iHt/hbar)
+                FORALL(i=1:nbasis) EXPH(:,i) = H(:,i) * EXP(E(i) * IMGUNIT)     !< EXPH = P*\Lambda
+                EXPH = MATMUL(EXPH, TRANSPOSE(CONJG(H)))                        !< EXPH = P*\Lambda*P' = e^(-iHt/hbar)
 
                 hamil%psi_c = MATMUL(EXPH, hamil%psi_c)
             ENDDO   !! iele
