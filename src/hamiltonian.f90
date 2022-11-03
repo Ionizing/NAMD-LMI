@@ -218,11 +218,10 @@ MODULE hamiltonian_mod
     END SUBROUTINE hamiltonian_make_hamil
 
 
-    SUBROUTINE hamiltonian_propagate(hamil, iion, method, llog)
+    SUBROUTINE hamiltonian_propagate(hamil, iion, method)
         TYPE(hamiltonian), INTENT(inout)    :: hamil
         INTEGER, INTENT(in)                 :: iion     !< ionic step index
         CHARACTER(*), INTENT(in)            :: method
-        LOGICAL, INTENT(in), OPTIONAL       :: llog
 
         !! local variables
         INTEGER :: iele     !< electronic step index

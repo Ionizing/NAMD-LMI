@@ -35,7 +35,7 @@ PROGRAM namd_lumi_x
     CALL hamiltonian_init(hamil, nac_dat, inp%basis_up, inp%basis_dn, inp%dt, 1, inp%namdtime, inp%nelm)
     hamil%psi_c(hamil%nbasis) = 1.0
     DO iion = 1, inp%namdtime
-        CALL hamiltonian_propagate(hamil, iion, TRIM(inp%propmethod), llog=.TRUE.)
+        CALL hamiltonian_propagate(hamil, iion, TRIM(inp%propmethod))
     ENDDO
 
 
