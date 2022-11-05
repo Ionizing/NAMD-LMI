@@ -2,7 +2,11 @@
 
 MODULE test_common
     USE fruit
-    USE common_mod,     ONLY: mpi_partition, randint_range
+    USE common_mod,     ONLY: &
+        q, &
+        mpi_partition, &
+        randint_range, &
+        cumsum
     USE string_mod,     ONLY: int2str
     IMPLICIT NONE
 
@@ -12,6 +16,7 @@ MODULE test_common
         CALL set_case_name("test_common")
         CALL test_common_mpi_partition
         CALL test_randint_range
+        CALL test_cumsum
     END SUBROUTINE test_common_fn
 
 
@@ -73,4 +78,23 @@ MODULE test_common
 
         CALL assert_true(ALL(flags), AT)
     END SUBROUTINE test_randint_range
+
+    
+    SUBROUTINE test_cumsum
+        INTEGER, PARAMETER :: N = 10
+        INTEGER :: Ai(N), Bi(N)
+        REAL(q) :: Af(N), Bf(N)
+        INTEGER :: i
+
+        Ai = [(i, i=1, N)]
+        CALL cumsum(Ai, Bi)
+
+        Bf = [(DBLE(i), i=1, N)]
+        CALL cumsum(Af, Bf)
+
+        DO i = 1, N
+            CALL assert_equals(Bi(i), SUM(Ai(1:i)), AT)
+            CALL assert_equals(Bf(i), SUM(Af(1:i)), AT)
+        ENDDO
+    END SUBROUTINE
 END MODULE test_common

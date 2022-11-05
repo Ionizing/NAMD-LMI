@@ -92,11 +92,79 @@ MODULE common_mod
     INTEGER,    PARAMETER :: ERROR_HAMIL_DIAGFAIL    = 76
     INTEGER,    PARAMETER :: ERROR_HAMIL_PROPFAIL    = 77
 
+    INTEGER,    PARAMETER :: ERROR_SURFHOP_METHOD    = 90
 
     !! MPI related stuff
     INTEGER,    PARAMETER :: MPI_ROOT_NODE           = 0
 
+
+    !! cumulative sum interface
+    INTERFACE cumsum
+        PROCEDURE cumsum_i
+        PROCEDURE cumsum_f
+    END INTERFACE cumsum
+    PRIVATE :: cumsum_i
+    PRIVATE :: cumsum_f
+
+
     CONTAINS
+
+    ! copied from https://github.com/ivan-pi/cumsum_benchmark
+    SUBROUTINE cumsum_i(a, b)
+        INTEGER, INTENT(in)  :: a(:)
+        INTEGER, INTENT(out) :: b(SIZE(a))
+        INTRINSIC :: SIZE
+
+        ! local variables
+        INTEGER :: s0, s1
+        INTEGER :: x0, x1
+        INTEGER :: i, n
+
+        s0 = 0
+        s1 = 0
+        n  = SIZE(a)
+
+        DO i = 1, n, 2
+            x0 = a(i)
+            x1 = a(i+1)
+            s0 = s1 + x0
+            s1 = s1 + (x1 + x0)
+            b( i )   = s0
+            b(i+1) = s1
+        ENDDO
+
+        ! if the length is odd
+        IF (MOD(n,2) /= 0) b(n) = b(n-1) + a(n)
+    END SUBROUTINE cumsum_i
+
+    ! copied from https://github.com/ivan-pi/cumsum_benchmark
+    SUBROUTINE cumsum_f(a, b)
+        REAL(q), INTENT(in)  :: a(:)
+        REAL(q), INTENT(out) :: b(SIZE(a))
+        INTRINSIC :: SIZE
+
+        ! local variables
+        REAL(q) :: s0, s1
+        REAL(q) :: x0, x1
+        INTEGER :: i, n
+
+        s0 = 0.0
+        s1 = 0.0
+        n  = SIZE(a)
+
+        DO i = 1, n, 2
+            x0 = a(i)
+            x1 = a(i+1)
+            s0 = s1 + x0
+            s1 = s1 + (x1 + x0)
+            b( i )   = s0
+            b(i+1) = s1
+        ENDDO
+
+        ! if the length is odd
+        IF (MOD(n,2) /= 0) b(n) = b(n-1) + a(n)
+    END SUBROUTINE cumsum_f
+
 
     !> Partition the indices
     !! Please make sure the nrank <= length, or the sendcounts[i] contains 0, which may cause fatal error with MPI
