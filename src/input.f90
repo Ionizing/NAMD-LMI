@@ -25,6 +25,8 @@ MODULE input_mod
         LOGICAL         :: lreal        = .FALSE.   !! Use real NAC or not
         CHARACTER(256)  :: fname        = "nac.h5"  !! file name for saving NAC data
 
+        REAL(q)         :: temperature  = 300.0     !! NAMD temperature, in Kelvin
+
         !! TODO
         !INTEGER         :: ncarrier     = 1         !! number of carriers
 
@@ -206,6 +208,7 @@ MODULE input_mod
         INTEGER :: nelm
         LOGICAL :: lreal
         CHARACTER(256)  :: fname
+        REAL(q) :: temperature
         INTEGER, ALLOCATABLE :: inibands(:)
         INTEGER, ALLOCATABLE :: inispins(:)
         INTEGER, ALLOCATABLE :: inisteps(:)
@@ -224,7 +227,8 @@ MODULE input_mod
                               propmethod, &
                               lreal,    &
                               nelm,     &
-                              fname
+                              fname,    &
+                              temperature
 
         NAMELIST /inicon/ inibands, &
                           inispins, &
@@ -305,6 +309,11 @@ MODULE input_mod
                 STOP ERROR_INPUT_METHODERR
         END SELECT
 
+        IF (temperature <= 0.0) THEN
+            WRITE(STDERR, '("[ERROR] Invalid temperature from input file: ", F8.2, " Kelvin")') temperature
+            STOP ERROR_INPUT_RANGEWRONG
+        END IF
+
         !! Continue to construct input data
         inp%rundir    = rundir
         inp%wavetype  = wavetype
@@ -321,6 +330,7 @@ MODULE input_mod
         inp%nelm      = nelm
         inp%lreal     = lreal
         inp%fname     = fname
+        inp%temperature = temperature
 
         ALLOCATE(inp%inibands(nsample))
         ALLOCATE(inp%inispins(nsample))
@@ -376,6 +386,7 @@ MODULE input_mod
         WRITE(iu, '()')
         WRITE(iu, '(1X, A12, " = ",    A, ", ! ", A)') "FNAME", '"' // TRIM(inp%fname) // '"', &
             "file name for saving NAC data, no more than 256 characters"
+        WRITE(iu, '(1X, A12, " = ",F10.2, ", ! ", A)') 'TEMPERATURE',   inp%temperature,    "NAMD temperature, in Kelvin"
         WRITE(iu, '(A)') "/"             ! End
 
 

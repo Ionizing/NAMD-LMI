@@ -32,6 +32,7 @@ MODULE test_input
         inp%nelm        = 200
         inp%lreal       = .TRUE.
         inp%fname       = "./nac_test.h5"
+        inp%temperature = 114.0
 
         ALLOCATE(inp%inibands(inp%nsample))
         ALLOCATE(inp%inispins(inp%nsample))
@@ -63,5 +64,6 @@ MODULE test_input
         CALL assert_equals(inp%nelm,      inp_read%nelm,      AT)
         CALL assert_equals(inp%lreal,     inp_read%lreal,     AT)
         CALL assert_equals(inp%fname,     inp_read%fname,     AT)
+        CALL assert_equals(inp%temperature, inp_read%temperature, AT)
     END SUBROUTINE test_input_nml
 END MODULE test_input
