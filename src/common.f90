@@ -1,6 +1,8 @@
 !> Define the precisions and constants.
 !! @author Linjie Chen, Qijing Zheng.
 MODULE common_mod
+    IMPLICIT NONE
+
     !! precisions
     INTEGER, PARAMETER :: q  = SELECTED_REAL_KIND(10)           !< Double precision indicator
     INTEGER, PARAMETER :: qs = SELECTED_REAL_KIND(5)            !< Single precision indicator
@@ -106,6 +108,12 @@ MODULE common_mod
     PRIVATE :: cumsum_i
     PRIVATE :: cumsum_f
 
+    !! lower_bound interface, using binary search algorithm
+    INTERFACE lower_bound
+        PROCEDURE lower_bound_f
+    END INTERFACE lower_bound
+    PRIVATE :: lower_bound_f
+
 
     CONTAINS
 
@@ -164,6 +172,34 @@ MODULE common_mod
         ! if the length is odd
         IF (MOD(n,2) /= 0) b(n) = b(n-1) + a(n)
     END SUBROUTINE cumsum_f
+
+
+    FUNCTION lower_bound_f(A, val) RESULT(ret)
+        REAL(q), INTENT(in)  :: A(:)
+        REAL(q), INTENT(in)  :: val
+        INTEGER :: ret
+
+        !! local variables
+        INTEGER :: l, m, r
+        INTEGER :: N
+
+        N = SIZE(A)
+
+        l = 0
+        r = N + 1
+
+        DO WHILE (l+1 /= r)
+            m = l + (r - l) / 2
+
+            IF (A(m) < val) THEN
+                l = m
+            ELSE
+                r = m
+            END IF
+        ENDDO
+
+        ret = r
+    END FUNCTION lower_bound_f
 
 
     !> Partition the indices

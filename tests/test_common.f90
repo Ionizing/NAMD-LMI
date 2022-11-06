@@ -6,7 +6,8 @@ MODULE test_common
         q, &
         mpi_partition, &
         randint_range, &
-        cumsum
+        cumsum, &
+        lower_bound
     USE string_mod,     ONLY: int2str
     IMPLICIT NONE
 
@@ -17,6 +18,7 @@ MODULE test_common
         CALL test_common_mpi_partition
         CALL test_randint_range
         CALL test_cumsum
+        CALL test_lower_bound
     END SUBROUTINE test_common_fn
 
 
@@ -97,4 +99,20 @@ MODULE test_common
             CALL assert_equals(Bf(i), SUM(Af(1:i)), AT)
         ENDDO
     END SUBROUTINE
+
+
+    SUBROUTINE test_lower_bound
+        REAL(q) :: A(6)
+
+        A = DBLE([1, 2, 4, 5, 5, 6])
+
+        CALL assert_equals(lower_bound(A, 0.0_q), 1, AT)
+        CALL assert_equals(lower_bound(A, 1.0_q), 1, AT)
+        CALL assert_equals(lower_bound(A, 2.0_q), 2, AT)
+        CALL assert_equals(lower_bound(A, 3.0_q), 3, AT)
+        CALL assert_equals(lower_bound(A, 4.0_q), 3, AT)
+        CALL assert_equals(lower_bound(A, 5.0_q), 4, AT)
+        CALL assert_equals(lower_bound(A, 6.0_q), 6, AT)
+        CALL assert_equals(lower_bound(A, 7.0_q), 7, AT)
+    END SUBROUTINE test_lower_bound
 END MODULE test_common
