@@ -118,7 +118,7 @@ MODULE common_mod
     CONTAINS
 
     ! copied from https://github.com/ivan-pi/cumsum_benchmark
-    SUBROUTINE cumsum_i(a, b)
+    PURE SUBROUTINE cumsum_i(a, b)
         INTEGER, INTENT(in)  :: a(:)
         INTEGER, INTENT(out) :: b(SIZE(a))
         INTRINSIC :: SIZE
@@ -146,7 +146,7 @@ MODULE common_mod
     END SUBROUTINE cumsum_i
 
     ! copied from https://github.com/ivan-pi/cumsum_benchmark
-    SUBROUTINE cumsum_f(a, b)
+    PURE SUBROUTINE cumsum_f(a, b)
         REAL(q), INTENT(in)  :: a(:)
         REAL(q), INTENT(out) :: b(SIZE(a))
         INTRINSIC :: SIZE
@@ -204,7 +204,7 @@ MODULE common_mod
 
     !> Partition the indices
     !! Please make sure the nrank <= length, or the sendcounts[i] contains 0, which may cause fatal error with MPI
-    SUBROUTINE mpi_partition(nrank, length, sendcounts, displs)
+    PURE SUBROUTINE mpi_partition(nrank, length, sendcounts, displs)
         INTEGER, INTENT(in)  :: nrank
         INTEGER, INTENT(in)  :: length
         INTEGER, INTENT(out) :: sendcounts(nrank)

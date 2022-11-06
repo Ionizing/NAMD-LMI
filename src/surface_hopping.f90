@@ -5,6 +5,8 @@ MODULE surface_hopping_mod
     USE string_mod
     USE hamiltonian_mod
 
+    IMPLICIT NONE
+
     PRIVATE :: sh_fssh_
     PRIVATE :: sh_dcsh_
     PRIVATE :: sh_dish_
@@ -29,9 +31,28 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_run
 
     
-    FUNCTION surface_hopping_hopping_destination(sh_prop) RESULT(des)
-        REAL(q), INTENT(in) :: sh_prop
+    FUNCTION surface_hopping_hopping_destination(sh_prop_cum) RESULT(des)
+        REAL(q), INTENT(in) :: sh_prop_cum(:)
+        INTEGER :: des
+
+        !! local variables
+
+        INTEGER :: N
+        REAL(q) :: val
+
+        !! logic starts
+
+        N = SIZE(sh_prop_cum)
+
+        CALL RANDOM_NUMBER(val)
+        des = lower_bound(sh_prop_cum, val)
+        des = MOD(des, N+1)
     END FUNCTION surface_hopping_hopping_destination
+
+
+    !SUBROUTINE surface_hopping_calc_hop_prob(hamil, iion, istate)
+        !! TODO
+    !END SUBROUTINE
 
 
     !! private subroutines
