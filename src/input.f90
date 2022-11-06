@@ -69,8 +69,8 @@ MODULE input_mod
         IF (PRESENT(llog)) THEN
             IF (llog) WRITE(STDOUT, '("[INFO] Input file read successfully, with content of", /, /)')
             IF (llog) CALL input_to_iu_(STDOUT, inp)
+            IF (llog) WRITE(STDOUT, '(/)')
         END IF
-        WRITE(STDOUT, '(/)')
     END SUBROUTINE input_from_file
 
     

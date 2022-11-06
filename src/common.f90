@@ -174,7 +174,7 @@ MODULE common_mod
     END SUBROUTINE cumsum_f
 
 
-    FUNCTION lower_bound_f(A, val) RESULT(ret)
+    PURE FUNCTION lower_bound_f(A, val) RESULT(ret)
         REAL(q), INTENT(in)  :: A(:)
         REAL(q), INTENT(in)  :: val
         INTEGER :: ret
