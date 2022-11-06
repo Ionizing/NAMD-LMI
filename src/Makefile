@@ -1,6 +1,6 @@
 include ../make.inc
 
-OBJS = string.o common.o wavecar.o tdm.o nac.o hamiltonian.o input.o
+OBJS = string.o common.o wavecar.o tdm.o nac.o hamiltonian.o input.o surface_hopping.o
 LIB = libnamd.a
 LIBEXTERNAL = ../external/libexternal.a
 
@@ -21,6 +21,8 @@ nac.o: string.o common.o wavecar.o input.o
 hamiltonian.o: string.o nac.o wavecar.o common.o
 
 input.o: string.o
+
+surface_hopping.o: common.o string.o hamiltonian.o
 
 clean:
 	rm -f *.x *.o *.mod *.a
