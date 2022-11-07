@@ -50,9 +50,33 @@ MODULE surface_hopping_mod
     END FUNCTION surface_hopping_hopping_destination
 
 
-    !SUBROUTINE surface_hopping_calc_hop_prob(hamil, iion, istate)
-        !! TODO
-    !END SUBROUTINE
+    !> Hopping probability
+    !> P_{jk} = \max[\frac{2*\int_t^{t+\Delta t} Re(\rho_{jk}*d_{jk}) dt}{\rho_{jj}}, 0]
+    SUBROUTINE surface_hopping_calc_hop_prob(hamil, iion, istate)
+        TYPE(hamiltonian), INTENT(inout) :: hamil
+        INTEGER, INTENT(in) :: iion
+        INTEGER, INTENT(in) :: istate
+
+        !! local variables
+        INTEGER :: i
+        REAL(q) :: rho_jj
+        REAL(q), ALLOCATABLE, SAVE :: thermal_factor(:)     !< use SAVE attribute to avoid repetitive allocations
+        REAL(q), ALLOCATABLE, SAVE :: rhod_jk(:)
+
+        !! logic starts
+
+        IF (.NOT. ALLOCATED(thermal_factor))    ALLOCATE(thermal_factor(hamil%nbasis))
+        IF (.NOT. ALLOCATED(rhod_jk))           ALLOCATE(rhod_jk(hamil%nbasis))
+
+        rho_jj  = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(istate, iion))
+        rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, iion))  !< Re(rho_jk * d_jk)
+
+        thermal_factor = EXP(-ABS(hamil%eig_t(:, iion) - hamil%eig_t(istate, iion)) / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
+        hamil%sh_prob(:, iion) = 2 * rhod_jk * hamil%dt / rho_jj    !< P_jk_ = 2 * Re(rho_jk * d_jk) * dt / rho_jj
+        hamil%sh_prob(:, iion) = hamil%sh_prob(:, iion) * thermal_factor
+
+        FORALL (i=1:hamil%nbasis, hamil%sh_prob(i, iion) < 0) hamil%sh_prob(i, iion) = 0.0  !! P_jk = max(P_jk_, 0)
+    END SUBROUTINE surface_hopping_calc_hop_prob
 
 
     !! private subroutines

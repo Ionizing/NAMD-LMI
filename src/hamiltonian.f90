@@ -28,6 +28,9 @@ MODULE hamiltonian_mod
         COMPLEX(q), ALLOCATABLE :: hamil(:, :)  !> Hamiltonian, H_{jk} = [e_{jk} * \delta_{jk} - i\hbar d_{jkk}], [nbasis, nbasis]
         COMPLEX(q), ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
         COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian, [nbasis, nbasis, nsw-1]
+
+        REAL(q), ALLOCATABLE :: sh_prob(:, :)   !< surface hopping probability, [nbasis, namdtime]
+        REAL(q), ALLOCATABLE :: sh_pops(:, :)   !< population after surface hopping, [nbasis, namdtime]
     END TYPE hamiltonian
 
     CONTAINS
@@ -134,6 +137,9 @@ MODULE hamiltonian_mod
         ALLOCATE(hamil%eig_t(nbasis, hamil%nsw-1))
         ALLOCATE(hamil%nac_t(nbasis, nbasis, hamil%nsw-1))
 
+        ALLOCATE(hamil%sh_prob(nbasis, namdtime))
+        ALLOCATE(hamil%sh_pops(nbasis, namdtime))
+
         !! initialize
         hamil%psi_p = 0
         hamil%psi_c = 0
@@ -145,6 +151,9 @@ MODULE hamiltonian_mod
         hamil%hamil = 0
         hamil%eig_t = 0
         hamil%nac_t = 0
+
+        hamil%sh_prob = 0
+        hamil%sh_pops = 0
 
         !! construct from nac, need to convert the indices
         bup = basis_up - nac_dat%brange(1) + 1  !> band index refer to NAC
@@ -179,6 +188,9 @@ MODULE hamiltonian_mod
         IF (ALLOCATED(hamil%hamil)) DEALLOCATE(hamil%hamil)
         IF (ALLOCATED(hamil%eig_t)) DEALLOCATE(hamil%eig_t)
         IF (ALLOCATED(hamil%nac_t)) DEALLOCATE(hamil%nac_t)
+
+        IF (ALLOCATED(hamil%sh_prob)) DEALLOCATE(hamil%sh_prob)
+        IF (ALLOCATED(hamil%sh_pops)) DEALLOCATE(hamil%sh_pops)
     END SUBROUTINE hamiltonian_destroy
 
 
