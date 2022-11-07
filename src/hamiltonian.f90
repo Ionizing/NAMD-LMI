@@ -16,6 +16,7 @@ MODULE hamiltonian_mod
         INTEGER :: namdtime                     !> number of NAMD steps
         INTEGER :: nsw                          !> number of AIMD steps
         INTEGER :: nelm                         !> number of electronic steps when performing interpolations
+        REAL(q) :: temperature                  !> NAMD temperature, in Kelvin
 
         COMPLEX(q), ALLOCATABLE :: psi_p(:)     !> ket for previous step, [nbasis]
         COMPLEX(q), ALLOCATABLE :: psi_c(:)     !> ket for current step, [nbasis]
@@ -32,7 +33,7 @@ MODULE hamiltonian_mod
     CONTAINS
 
 
-    SUBROUTINE hamiltonian_init(hamil, nac_dat, basis_up, basis_dn, dt, namdinit, namdtime, nelm)
+    SUBROUTINE hamiltonian_init(hamil, nac_dat, basis_up, basis_dn, dt, namdinit, namdtime, nelm, temperature)
         TYPE(nac), INTENT(in)   :: nac_dat      !> NAC object
         INTEGER, INTENT(in)     :: basis_up(2)  !> basis range for spin up
         INTEGER, INTENT(in)     :: basis_dn(2)  !> basis range for spin down
@@ -40,6 +41,7 @@ MODULE hamiltonian_mod
         INTEGER, INTENT(in)     :: namdinit     !> initial namdtime step in trajectory
         INTEGER, INTENT(in)     :: namdtime     !> namd simulation steps
         INTEGER, INTENT(in)     :: nelm         !> electronic step during the propagation
+        REAL(q), INTENT(in)     :: temperature  !> NAMD temperature, in fs
         TYPE(hamiltonian), INTENT(inout)    :: hamil
 
         !! local variables
@@ -105,6 +107,11 @@ MODULE hamiltonian_mod
             STOP ERROR_HAMIL_BASISSHORT
         END IF
 
+        IF (temperature <= 0.0) THEN
+            WRITE(STDERR, '("[ERROR] Invalid temperature: ", F8.2, " Kelvin ", A)') temperature, AT
+            STOP ERROR_HAMIL_TEMPWRONG
+        END IF
+
         hamil%basis_up = basis_up
         hamil%basis_dn = basis_dn
         hamil%nbasis   = nbasis
@@ -113,6 +120,7 @@ MODULE hamiltonian_mod
         hamil%namdtime = namdtime
         hamil%nsw      = nac_dat%nsw
         hamil%nelm     = nelm
+        hamil%temperature = temperature
 
         !! allocate memory
         ALLOCATE(hamil%psi_p(nbasis))
