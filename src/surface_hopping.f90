@@ -31,8 +31,8 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_run
 
     
-    FUNCTION surface_hopping_hopping_destination(sh_prop_cum) RESULT(des)
-        REAL(q), INTENT(in) :: sh_prop_cum(:)
+    FUNCTION surface_hopping_hopping_destination(sh_prob_cum) RESULT(des)
+        REAL(q), INTENT(in) :: sh_prob_cum(:)
         INTEGER :: des
 
         !! local variables
@@ -42,10 +42,10 @@ MODULE surface_hopping_mod
 
         !! logic starts
 
-        N = SIZE(sh_prop_cum)
+        N = SIZE(sh_prob_cum)
 
         CALL RANDOM_NUMBER(val)
-        des = lower_bound(sh_prop_cum, val)
+        des = lower_bound(sh_prob_cum, val)
         des = MOD(des, N+1)
     END FUNCTION surface_hopping_hopping_destination
 
@@ -62,20 +62,24 @@ MODULE surface_hopping_mod
         REAL(q) :: rho_jj
         REAL(q), ALLOCATABLE, SAVE :: thermal_factor(:)     !< use SAVE attribute to avoid repetitive allocations
         REAL(q), ALLOCATABLE, SAVE :: rhod_jk(:)
+        REAL(q), ALLOCATABLE, SAVE :: prob(:)
 
         !! logic starts
 
         IF (.NOT. ALLOCATED(thermal_factor))    ALLOCATE(thermal_factor(hamil%nbasis))
         IF (.NOT. ALLOCATED(rhod_jk))           ALLOCATE(rhod_jk(hamil%nbasis))
+        IF (.NOT. ALLOCATED(prob))              ALLOCATE(prob(hamil%nbasis))
 
         rho_jj  = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(istate, iion))
         rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, iion))  !< Re(rho_jk * d_jk)
 
         thermal_factor = EXP(-ABS(hamil%eig_t(:, iion) - hamil%eig_t(istate, iion)) / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
-        hamil%sh_prob(:, iion) = 2 * rhod_jk * hamil%dt / rho_jj    !< P_jk_ = 2 * Re(rho_jk * d_jk) * dt / rho_jj
-        hamil%sh_prob(:, iion) = hamil%sh_prob(:, iion) * thermal_factor
+        prob = 2 * rhod_jk * hamil%dt / rho_jj    !< P_jk_ = 2 * Re(rho_jk * d_jk) * dt / rho_jj
+        prob = prob * thermal_factor
 
-        FORALL (i=1:hamil%nbasis, hamil%sh_prob(i, iion) < 0) hamil%sh_prob(i, iion) = 0.0  !! P_jk = max(P_jk_, 0)
+        FORALL (i=1:hamil%nbasis, prob(i) < 0) prob(i) = 0.0  !! P_jk = max(P_jk_, 0)
+
+        CALL cumsum(prob, hamil%sh_prob(:, iion))    !< calculate the accumulated prob
     END SUBROUTINE surface_hopping_calc_hop_prob
 
 
