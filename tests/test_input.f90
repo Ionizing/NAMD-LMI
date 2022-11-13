@@ -28,6 +28,7 @@ MODULE test_input
         inp%namdtime    = 900
         inp%dt          = 0.5
         inp%nsample     = 5
+        inp%ntraj       = 2000
         inp%propmethod  = "exponential"
         inp%nelm        = 200
         inp%lreal       = .TRUE.
@@ -57,6 +58,7 @@ MODULE test_input
         CALL assert_equals(inp%namdtime,  inp_read%namdtime,  AT)
         CALL assert_equals(inp%dt,        inp_read%dt,        AT)
         CALL assert_equals(inp%nsample,   inp_read%nsample,   AT)
+        CALL assert_equals(inp%ntraj,     inp_read%ntraj,     AT)
         CALL assert_equals(inp%inibands,  inp_read%inibands, inp%nsample, AT)
         CALL assert_equals(inp%inispins,  inp_read%inispins, inp%nsample, AT)
         CALL assert_equals(inp%inisteps,  inp_read%inisteps, inp%nsample, AT)

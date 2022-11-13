@@ -17,6 +17,7 @@ MODULE input_mod
         INTEGER         :: namdtime     = 1000      !! number of steps performed by NAMD
         REAL(q)         :: dt           = 1.0       !! time step, in fs
         INTEGER         :: nsample      = 100       !! number of samplings from total trajectory
+        INTEGER         :: ntraj        = 10000     !! number of hopping samples
         !! the method used for propagation, available: "finite-difference", "exponential", "liouville-trotter"
         CHARACTER(32)   :: propmethod   = "exponential"
         !! electronic steps for each ionic steps in propagation, different propmethod corresponds different nelms
@@ -138,8 +139,6 @@ MODULE input_mod
             inp%inisteps(i) = randint_range(1, nsw-1)
         ENDDO
 
-
-
         INQUIRE(FILE=fname, EXIST=lexist)
         IF (lexist) THEN
             WRITE(STDOUT, '("[WARN] The file ", A, " exists and will be OVERWRITTEN.")') '"' // fname // '"'
@@ -204,6 +203,7 @@ MODULE input_mod
         INTEGER :: namdtime
         REAL(q) :: dt
         INTEGER :: nsample
+        INTEGER :: ntraj
         CHARACTER(32)   :: propmethod
         INTEGER :: nelm
         LOGICAL :: lreal
@@ -224,6 +224,7 @@ MODULE input_mod
                               namdtime, &
                               dt,       &
                               nsample,  &
+                              ntraj,    &
                               propmethod, &
                               lreal,    &
                               nelm,     &
@@ -293,6 +294,11 @@ MODULE input_mod
             STOP ERROR_INPUT_RANGEWRONG
         END IF
 
+        IF (ntraj < 1) THEN
+            WRITE(STDERR, '("[ERROR] Invalid ntraj: ", I8, " ", A)') ntraj, AT
+            STOP ERROR_INPUT_RANGEWRONG
+        END IF
+
         SELECT CASE(propmethod)
             CASE("finite-difference")
                 CONTINUE
@@ -326,6 +332,7 @@ MODULE input_mod
         inp%namdtime  = namdtime
         inp%dt        = dt
         inp%nsample   = nsample
+        inp%ntraj     = ntraj
         inp%propmethod = propmethod
         inp%nelm      = nelm
         inp%lreal     = lreal
@@ -372,6 +379,7 @@ MODULE input_mod
         WRITE(iu, '(1X, A12, " = ",  I10, ", ! ", A)') 'NAMDTIME',  inp%namdtime,"Time steps for each NAMD sample"
         WRITE(iu, '(1X, A12, " = ",F10.2, ", ! ", A)') 'DT',        inp%dt,      "Time step for trajectory and NAMD, in fs"
         WRITE(iu, '(1X, A12, " = ",  I10, ", ! ", A)') 'NSAMPLE',   inp%nsample, "Number of samplings from total trajectory"
+        WRITE(iu, '(1X, A12, " = ",  I10, ", ! ", A)') 'NTRAJ',     inp%ntraj,   "Number of hopping samples"
 
         WRITE(iu, '()')
         WRITE(iu, '(4X, A)') '!! the method used for propagation, available: "finite-difference", "exponential", "liouville-trotter"'
