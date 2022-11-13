@@ -13,17 +13,18 @@ MODULE surface_hopping_mod
 
     CONTAINS
 
-    SUBROUTINE surface_hopping_run(hamil, method)
+    SUBROUTINE surface_hopping_run(hamil, method, propmethod)
         TYPE(hamiltonian), INTENT(inout) :: hamil
         CHARACTER(*), INTENT(in)         :: method
+        CHARACTER(*), INTENT(in)         :: propmethod
 
         SELECT CASE (method)
             CASE("FSSH")
-                CALL sh_fssh_(hamil)
+                CALL sh_fssh_(hamil, propmethod)
             CASE("DCSH")
-                CALL sh_dcsh_(hamil)
+                CALL sh_dcsh_(hamil, propmethod)
             CASE("DISH")
-                CALL sh_dish_(hamil)
+                CALL sh_dish_(hamil, propmethod)
             CASE DEFAULT
                 WRITE(STDERR, '("[ERROR] Invalid method for surface_hopping_run: ", A, " , available: FSSH, DCSH, DISH.")') method
                 STOP ERROR_SURFHOP_METHOD
@@ -86,20 +87,30 @@ MODULE surface_hopping_mod
     !! private subroutines
 
 
-    SUBROUTINE sh_fssh_(hamil)
+    SUBROUTINE sh_fssh_(hamil, propmethod)
         TYPE(hamiltonian), INTENT(inout) :: hamil
+        CHARACTER(*), INTENT(in)         :: propmethod
+
+        INTEGER :: i, j, iion
+
+        !! propagate
+        DO iion = 1, hamil%namdtime
+            CALL hamiltonian_propagate(hamil, iion, propmethod)
+        ENDDO
 
     END SUBROUTINE sh_fssh_
 
 
-    SUBROUTINE sh_dcsh_(hamil)
+    SUBROUTINE sh_dcsh_(hamil, propmethod)
         TYPE(hamiltonian), INTENT(inout) :: hamil
+        CHARACTER(*), INTENT(in)         :: propmethod
 
     END SUBROUTINE sh_dcsh_
 
 
-    SUBROUTINE sh_dish_(hamil)
+    SUBROUTINE sh_dish_(hamil, propmethod)
         TYPE(hamiltonian), INTENT(inout) :: hamil
+        CHARACTER(*), INTENT(in)         :: propmethod
 
     END SUBROUTINE sh_dish_
 END MODULE surface_hopping_mod

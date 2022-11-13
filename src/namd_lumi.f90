@@ -32,8 +32,9 @@ PROGRAM namd_lumi_x
     CALL nac_load_or_calculate(nac_dat, inp)
     CALL nac_mpisync(nac_dat)
 
-    CALL hamiltonian_init(hamil, nac_dat, inp%basis_up, inp%basis_dn, inp%dt, 1, inp%namdtime, inp%nelm, inp%temperature)
-    hamil%psi_c(hamil%nbasis) = 1.0
+    !CALL hamiltonian_init(hamil, nac_dat, inp%basis_up, inp%basis_dn, inp%dt, inp%inisteps(1), inp%inibands(1), inp%inispins(1), inp%namdtime, inp%nelm, inp%temperature)
+    !hamil%psi_c(hamil%nbasis) = 1.0
+    CALL hamiltonian_init_with_input(hamil, nac_dat, inp, 1)
     DO iion = 1, inp%namdtime
         CALL hamiltonian_propagate(hamil, iion, TRIM(inp%propmethod))
     ENDDO

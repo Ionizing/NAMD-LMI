@@ -4,6 +4,7 @@ MODULE hamiltonian_mod
     USE common_mod
     USE string_mod
     USE nac_mod
+    USE input_mod
 
     IMPLICIT NONE
 
@@ -36,12 +37,14 @@ MODULE hamiltonian_mod
     CONTAINS
 
 
-    SUBROUTINE hamiltonian_init(hamil, nac_dat, basis_up, basis_dn, dt, namdinit, namdtime, nelm, temperature)
+    SUBROUTINE hamiltonian_init(hamil, nac_dat, basis_up, basis_dn, dt, namdinit, iniband, inispin, namdtime, nelm, temperature)
         TYPE(nac), INTENT(in)   :: nac_dat      !> NAC object
         INTEGER, INTENT(in)     :: basis_up(2)  !> basis range for spin up
         INTEGER, INTENT(in)     :: basis_dn(2)  !> basis range for spin down
         REAL(q), INTENT(in)     :: dt           !> time step, in fs
         INTEGER, INTENT(in)     :: namdinit     !> initial namdtime step in trajectory
+        INTEGER, INTENT(in)     :: iniband      !> initial band index
+        INTEGER, INTENT(in)     :: inispin      !> initial spin index
         INTEGER, INTENT(in)     :: namdtime     !> namd simulation steps
         INTEGER, INTENT(in)     :: nelm         !> electronic step during the propagation
         REAL(q), INTENT(in)     :: temperature  !> NAMD temperature, in fs
@@ -58,6 +61,11 @@ MODULE hamiltonian_mod
         IF (namdinit <= 0 .OR. namdtime <= 1) THEN
             WRITE(STDERR, '("[ERROR] Invalid namdinit or namdtime used: ", I5, 2X, I5, 2X, A)') namdinit, namdtime, AT
             STOP ERROR_HAMIL_TINDEXWRONG
+        END IF
+
+        IF (inispin < 1 .OR. inispin > nac_dat%nspin) THEN
+            WRITE(STDERR, '("[ERROR] Invalid inispin used: ", I2, " , expected [1, ", I2, "]", 2X, A)') inispin, nac_dat%nspin, AT
+            STOP ERROR_HAMIL_RANGEWRONG
         END IF
 
         IF (dt <= 0.01) THEN
@@ -155,6 +163,10 @@ MODULE hamiltonian_mod
         hamil%sh_prob = 0
         hamil%sh_pops = 0
 
+        !! put the electron or hole on the initial band
+        hamil%psi_c(iniband_index_convert_(basis_up, basis_dn, inispin, iniband)) = 1.0
+        hamil%psi_t(:, 1) = hamil%psi_c
+
         !! construct from nac, need to convert the indices
         bup = basis_up - nac_dat%brange(1) + 1  !> band index refer to NAC
         bdn = basis_dn - nac_dat%brange(1) + 1  !> band index refer to NAC
@@ -174,6 +186,19 @@ MODULE hamiltonian_mod
             hamil%nac_t(nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
         END IF
     END SUBROUTINE hamiltonian_init
+
+
+    SUBROUTINE hamiltonian_init_with_input(hamil, nac_dat, inp, inicon_idx)
+        TYPE(hamiltonian), INTENT(inout) :: hamil
+        TYPE(nac), INTENT(in)   :: nac_dat
+        TYPE(input), INTENT(in) :: inp
+        INTEGER, INTENT(in)     :: inicon_idx
+
+        CALL hamiltonian_init(hamil, nac_dat, inp%basis_up, inp%basis_dn, inp%dt, &
+            inp%inisteps(inicon_idx), inp%inibands(inicon_idx), inp%inispins(inicon_idx), &
+            inp%namdtime, inp%nelm, inp%temperature)
+    END SUBROUTINE hamiltonian_init_with_input
+
 
     SUBROUTINE hamiltonian_destroy(hamil)
         TYPE(hamiltonian), INTENT(out)  :: hamil
@@ -411,9 +436,24 @@ MODULE hamiltonian_mod
                 ENDDO !! jj
             ENDDO   !! iele
         END SUBROUTINE propagate_liouville_trotter_
-
-
     END SUBROUTINE hamiltonian_propagate
+
+
+    FUNCTION iniband_index_convert_(bup, bdn, inispin, iniband) RESULT(ret)
+        INTEGER, INTENT(in) :: bup(2), bdn(2)
+        INTEGER, INTENT(in) :: inispin
+        INTEGER, INTENT(in) :: iniband
+        INTEGER :: ret
+
+        INTEGER :: nbup
+
+        IF (inispin == 1) THEN
+            ret = iniband - bup(1) + 1
+        ELSE
+            nbup = bup(2) - bup(1) + 1
+            ret = iniband - bdn(1) + 1 + nbup
+        END IF
+    END FUNCTION iniband_index_convert_
 
 
 END MODULE hamiltonian_mod
