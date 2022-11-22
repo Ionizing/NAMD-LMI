@@ -13,18 +13,19 @@ MODULE surface_hopping_mod
 
     CONTAINS
 
-    SUBROUTINE surface_hopping_run(hamil, method, propmethod)
+    SUBROUTINE surface_hopping_run(hamil, method, propmethod, ntraj)
         TYPE(hamiltonian), INTENT(inout) :: hamil
         CHARACTER(*), INTENT(in)         :: method
         CHARACTER(*), INTENT(in)         :: propmethod
+        INTEGER, INTENT(in)              :: ntraj
 
         SELECT CASE (method)
             CASE("FSSH")
-                CALL sh_fssh_(hamil, propmethod)
+                CALL sh_fssh_(hamil, propmethod, ntraj)
             CASE("DCSH")
-                CALL sh_dcsh_(hamil, propmethod)
+                CALL sh_dcsh_(hamil, propmethod, ntraj)
             CASE("DISH")
-                CALL sh_dish_(hamil, propmethod)
+                CALL sh_dish_(hamil, propmethod, ntraj)
             CASE DEFAULT
                 WRITE(STDERR, '("[ERROR] Invalid method for surface_hopping_run: ", A, " , available: FSSH, DCSH, DISH.")') method
                 STOP ERROR_SURFHOP_METHOD
@@ -80,37 +81,68 @@ MODULE surface_hopping_mod
 
         FORALL (i=1:hamil%nbasis, prob(i) < 0) prob(i) = 0.0  !! P_jk = max(P_jk_, 0)
 
-        CALL cumsum(prob, hamil%sh_prob(:, iion))    !< calculate the accumulated prob
+        CALL cumsum(prob, hamil%sh_prob(istate, :, iion))    !< calculate the accumulated prob
     END SUBROUTINE surface_hopping_calc_hop_prob
 
 
     !! private subroutines
 
 
-    SUBROUTINE sh_fssh_(hamil, propmethod)
+    SUBROUTINE sh_fssh_(hamil, propmethod, ntraj)
         TYPE(hamiltonian), INTENT(inout) :: hamil
         CHARACTER(*), INTENT(in)         :: propmethod
+        INTEGER, INTENT(in)              :: ntraj
 
-        INTEGER :: i, j, iion
+        INTEGER :: i
+        INTEGER :: iion
+        INTEGER :: inistate, curstate
+        INTEGER :: istate
+        INTEGER :: hop_dest
+
+        hamil%sh_prob = 0
+        hamil%sh_pops = 0
+        inistate = MAXLOC(ABS(hamil%psi_c), DIM=1)
 
         !! propagate
         DO iion = 1, hamil%namdtime
             CALL hamiltonian_propagate(hamil, iion, propmethod)
         ENDDO
 
+        DO iion = 1, hamil%namdtime
+            DO istate = 1, hamil%nbasis
+                CALL surface_hopping_calc_hop_prob(hamil, iion, istate)
+            ENDDO
+        ENDDO
+
+        DO i = 1, ntraj
+            curstate = inistate
+            DO iion = 1, hamil%namdtime
+                hop_dest = surface_hopping_hopping_destination(hamil%sh_prob(curstate, :, iion))
+                IF (hop_dest > 0) curstate = hop_dest
+                hamil%sh_pops(curstate, iion) = hamil%sh_pops(curstate, iion) + 1
+            ENDDO
+        ENDDO
+
+        hamil%sh_pops = hamil%sh_pops / ntraj
     END SUBROUTINE sh_fssh_
 
 
-    SUBROUTINE sh_dcsh_(hamil, propmethod)
+    SUBROUTINE sh_dcsh_(hamil, propmethod, ntraj)
         TYPE(hamiltonian), INTENT(inout) :: hamil
         CHARACTER(*), INTENT(in)         :: propmethod
+        INTEGER, INTENT(in)              :: ntraj
 
+        WRITE(STDERR, *) "Not implemented yet: " // AT
+        STOP 1
     END SUBROUTINE sh_dcsh_
 
 
-    SUBROUTINE sh_dish_(hamil, propmethod)
+    SUBROUTINE sh_dish_(hamil, propmethod, ntraj)
         TYPE(hamiltonian), INTENT(inout) :: hamil
         CHARACTER(*), INTENT(in)         :: propmethod
+        INTEGER, INTENT(in)              :: ntraj
 
+        WRITE(STDERR, *) "Not implemented yet: " // AT
+        STOP 1
     END SUBROUTINE sh_dish_
 END MODULE surface_hopping_mod
