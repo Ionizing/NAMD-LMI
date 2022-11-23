@@ -7,11 +7,34 @@ MODULE surface_hopping_mod
 
     IMPLICIT NONE
 
+    TYPE :: surface_hopping
+        CHARACTER(len=16)    :: sh_method
+        CHARACTER(len=16)    :: prop_method
+        INTEGER              :: ntraj
+        REAL(q), ALLOCATABLE :: sh_prob(:, :, :)   !< cumulated surface hopping probability, 
+                                                   !< sh_prob[i]-sh_prob[i-1] is the real probability, [nbasis, nbasis, namdtime]
+        REAL(q), ALLOCATABLE :: sh_pops(:, :)   !< population after surface hopping, [nbasis, namdtime]
+    END TYPE surface_hopping
+
     PRIVATE :: sh_fssh_
     PRIVATE :: sh_dcsh_
     PRIVATE :: sh_dish_
 
     CONTAINS
+
+
+    SUBROUTINE surface_hopping_init(sh, hamil)
+        TYPE(surface_hopping), INTENT(inout) :: sh
+        TYPE(hamiltonian), INTENT(in)        :: hamil
+
+        !! TODO
+    END SUBROUTINE surface_hopping_init
+
+    
+    SUBROUTINE surface_hopping_destroy(sh)
+        TYPE(surface_hopping), INTENT(inout) :: sh
+    END SUBROUTINE surface_hopping_destroy
+
 
     SUBROUTINE surface_hopping_run(hamil, method, propmethod, ntraj)
         TYPE(hamiltonian), INTENT(inout) :: hamil
