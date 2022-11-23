@@ -1,4 +1,4 @@
-.PHONY: install
+.PHONY: install test tests
 
 all: main
 

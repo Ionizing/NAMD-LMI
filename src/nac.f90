@@ -485,7 +485,7 @@ MODULE nac_mod
         length = nbrange * nbrange * nspin * (nsw-1)
         CALL MPI_BCAST(nac_dat%olaps, length, MPI_DOUBLE_COMPLEX, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         length = nbrange * nspin * (nsw-1)
-        CALL MPI_BCAST(nac_dat%eigs,  length, MPI_DOUBLE_COMPLEX, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nac_dat%eigs,  length, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
     END SUBROUTINE nac_mpisync
 
 
