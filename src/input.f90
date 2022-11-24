@@ -18,10 +18,12 @@ MODULE input_mod
         REAL(q)         :: dt           = 1.0       !! time step, in fs
         INTEGER         :: nsample      = 100       !! number of samplings from total trajectory
         INTEGER         :: ntraj        = 10000     !! number of hopping samples
-        !! the method used for propagation, available: "finite-difference", "exponential", "liouville-trotter"
-        CHARACTER(32)   :: propmethod   = "exponential"
+        !! the method used for propagation, available: "FINITE-DIFFERENCE", "EXACT", "LIOUVILLE-TROTTER"
+        CHARACTER(32)   :: propmethod   = "EXACT"
+        !! the method used for surface hopping, available: "FSSH"
+        CHARACTER(32)   :: shmethod     = "FSSH"
         !! electronic steps for each ionic steps in propagation, different propmethod corresponds different nelms
-        !! we suggest: "finite-difference"=>1000, "exponential"=>1, "liouville-trotter"=>1
+        !! we suggest: "FINITE-DIFFERENCE"=>1000, "EXACT"=>1, "LIOUVILLE-TROTTER"=>1
         INTEGER         :: nelm         = 1
         LOGICAL         :: lreal        = .FALSE.   !! Use real NAC or not
         CHARACTER(256)  :: fname        = "nac.h5"  !! file name for saving NAC data
@@ -172,6 +174,7 @@ MODULE input_mod
         CALL MPI_BCAST(inp%dt,        1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%nsample,   1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%propmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%shmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%nelm,      1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%lreal,     1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%fname,   256, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
@@ -205,6 +208,7 @@ MODULE input_mod
         INTEGER :: nsample
         INTEGER :: ntraj
         CHARACTER(32)   :: propmethod
+        CHARACTER(32)   :: shmethod
         INTEGER :: nelm
         LOGICAL :: lreal
         CHARACTER(256)  :: fname
@@ -226,6 +230,7 @@ MODULE input_mod
                               nsample,  &
                               ntraj,    &
                               propmethod, &
+                              shmethod, &
                               lreal,    &
                               nelm,     &
                               fname,    &
@@ -299,19 +304,33 @@ MODULE input_mod
             STOP ERROR_INPUT_RANGEWRONG
         END IF
 
-        SELECT CASE(propmethod)
-            CASE("finite-difference")
+        propmethod = toupper(propmethod)
+        SELECT CASE (propmethod)
+            CASE("FINITE-DIFFERENCE")
                 CONTINUE
-            CASE("exponential")
+            CASE("EXACT")
                 CONTINUE
-            CASE("liouville-trotter")
+            CASE("LIOUVILLE-TROTTER")
                 IF (.NOT. lreal) THEN
                     WRITE(STDERR, '("[ERROR] This method requires NAC to be totally real, consider use LREAL=.TRUE. or use other PROPMETHOD")')
                     STOP ERROR_INPUT_METHODERR
                 END IF
                 CONTINUE
             CASE DEFAULT
-                WRITE(STDERR, '("[ERROR] Invalid propmethod: ", A, ", available: finite-difference, exponential, liouville-trotter ", A)') TRIM(propmethod), AT
+                WRITE(STDERR, '("[ERROR] Invalid propmethod: ", A, ", available: FINITE-DIFFERENCE, EXACT, LIOUVILLE-TROTTER ", A)') TRIM(propmethod), AT
+                STOP ERROR_INPUT_METHODERR
+        END SELECT
+
+        shmethod = toupper(shmethod)
+        SELECT CASE (shmethod)
+            CASE("FSSH")
+                CONTINUE
+            CASE("DCSH")
+                CONTINUE
+            CASE("DISH")
+                CONTINUE
+            CASE DEFAULT
+                WRITE(STDERR, '("[ERROR] Invalid shmethod: ", A, ", available: FSSH, DCSH, DISH ", A)') TRIM(shmethod), AT
                 STOP ERROR_INPUT_METHODERR
         END SELECT
 
@@ -334,6 +353,7 @@ MODULE input_mod
         inp%nsample   = nsample
         inp%ntraj     = ntraj
         inp%propmethod = propmethod
+        inp%shmethod  = shmethod
         inp%nelm      = nelm
         inp%lreal     = lreal
         inp%fname     = fname
@@ -382,14 +402,18 @@ MODULE input_mod
         WRITE(iu, '(1X, A12, " = ",  I10, ", ! ", A)') 'NTRAJ',     inp%ntraj,   "Number of hopping samples"
 
         WRITE(iu, '()')
-        WRITE(iu, '(4X, A)') '!! the method used for propagation, available: "finite-difference", "exponential", "liouville-trotter"'
+        WRITE(iu, '(4X, A)') '!! the method used for propagation, available: "FINITE-DIFFERENCE", "EXACT", "LIOUVILLE-TROTTER"'
         WRITE(iu, '(1X, A12, " = ",    A, ",")') "PROPMETHOD", '"' // TRIM(inp%propmethod) // '"'
 
         WRITE(iu, '()')
         WRITE(iu, '(4X, A)') '!! electronic steps for each ionic steps in propagation, different propmethod corresponds different nelms'
-        WRITE(iu, '(4X, A)') '!! we suggest: "finite-difference"=>1000, "exponential"=>1, "liouville-trotter"=>1'
+        WRITE(iu, '(4X, A)') '!! we suggest: "FINITE-DIFFERENCE"=>1000, "EXACT"=>1, "LIOUVILLE-TROTTER"=>1'
         WRITE(iu, '(1X, A12, " = ",  I10, ",")') "NELM", inp%nelm
         WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LREAL",     inp%lreal,  "Use real NAC or not"
+
+        WRITE(iu, '()')
+        WRITE(iu, '(4X, A)') '!! the method used for surface hoppint, available: "FSSH", "DCSH", "DISH"'
+        WRITE(iu, '(1X, A12, " = ",    A, ",")') "SHMETHOD", '"' // TRIM(inp%shmethod) // '"'
 
         WRITE(iu, '()')
         WRITE(iu, '(1X, A12, " = ",    A, ", ! ", A)') "FNAME", '"' // TRIM(inp%fname) // '"', &

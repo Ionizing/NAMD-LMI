@@ -39,33 +39,33 @@ MODULE string_mod
         WRITE(ret, fmt_str) TRIM(rundir), '/', idx
     END FUNCTION generate_static_calculation_path
 
-	PURE FUNCTION toupper(str) RESULT(ret)
-		CHARACTER(*), INTENT(in)    :: str
-		CHARACTER(LEN=LEN(str))     :: ret
-		INTEGER :: I,J
+    PURE FUNCTION toupper(str) RESULT(ret)
+        CHARACTER(*), INTENT(in)    :: str
+        CHARACTER(LEN=LEN(str))     :: ret
+        INTEGER :: I,J
 
-		DO i = 1, LEN(str)
-			j = IACHAR(str(i:i))
-			IF (j>=IACHAR("a") .AND. j<=IACHAR("z") ) THEN
-				ret(i:i) = ACHAR(IACHAR(str(i:i))-32)
-			ELSE
-				ret(i:i) = str(i:i)
-			END IF
-		END DO
-	END FUNCTION toupper
+        DO i = 1, LEN(str)
+            j = IACHAR(str(i:i))
+            IF (j>=IACHAR("a") .AND. j<=IACHAR("z") ) THEN
+                ret(i:i) = ACHAR(IACHAR(str(i:i))-32)
+            ELSE
+                ret(i:i) = str(i:i)
+            END IF
+        END DO
+    END FUNCTION toupper
 
     PURE FUNCTION tolower(str) RESULT(ret)
-		CHARACTER(*), INTENT(in)    :: str
-		CHARACTER(LEN=LEN(str))     :: ret
-		INTEGER :: I,J
+        CHARACTER(*), INTENT(in)    :: str
+        CHARACTER(LEN=LEN(str))     :: ret
+        INTEGER :: I,J
 
-		DO i = 1, LEN(str)
-			j = IACHAR(str(i:i))
-			IF (j>=IACHAR("A") .AND. j<=IACHAR("Z") ) THEN
-				ret(i:i) = ACHAR(IACHAR(str(i:i))+32)
-			ELSE
-				ret(i:i) = str(i:i)
-			END IF
-		END DO
+        DO i = 1, LEN(str)
+            j = IACHAR(str(i:i))
+            IF (j>=IACHAR("A") .AND. j<=IACHAR("Z") ) THEN
+                ret(i:i) = ACHAR(IACHAR(str(i:i))+32)
+            ELSE
+                ret(i:i) = str(i:i)
+            END IF
+        END DO
     END FUNCTION tolower
 END MODULE string_mod

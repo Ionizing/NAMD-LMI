@@ -29,7 +29,8 @@ MODULE test_input
         inp%dt          = 0.5
         inp%nsample     = 5
         inp%ntraj       = 2000
-        inp%propmethod  = "exponential"
+        inp%propmethod  = "EXACT"
+        inp%shmethod    = "DCSH"
         inp%nelm        = 200
         inp%lreal       = .TRUE.
         inp%fname       = "./nac_test.h5"
@@ -44,7 +45,6 @@ MODULE test_input
         inp%inisteps = [  1, 200, 500, 100, 114]
 
         CALL input_to_file(inp, fname="test_input.nml")
-        !CALL input_to_file(inp)
         CALL input_from_file(inp_read, fname="test_input.nml")
 
         CALL assert_equals(inp%rundir,    inp_read%rundir,    AT)
@@ -63,6 +63,7 @@ MODULE test_input
         CALL assert_equals(inp%inispins,  inp_read%inispins, inp%nsample, AT)
         CALL assert_equals(inp%inisteps,  inp_read%inisteps, inp%nsample, AT)
         CALL assert_equals(inp%propmethod, inp_read%propmethod, AT)
+        CALL assert_equals(inp%shmethod,  inp_read%shmethod,  AT)
         CALL assert_equals(inp%nelm,      inp_read%nelm,      AT)
         CALL assert_equals(inp%lreal,     inp_read%lreal,     AT)
         CALL assert_equals(inp%fname,     inp_read%fname,     AT)

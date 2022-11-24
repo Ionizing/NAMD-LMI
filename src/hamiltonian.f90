@@ -142,9 +142,6 @@ MODULE hamiltonian_mod
         ALLOCATE(hamil%eig_t(nbasis, hamil%nsw-1))
         ALLOCATE(hamil%nac_t(nbasis, nbasis, hamil%nsw-1))
 
-        ALLOCATE(hamil%sh_prob(nbasis, nbasis, namdtime))
-        ALLOCATE(hamil%sh_pops(nbasis, namdtime))
-
         !! initialize
         hamil%psi_p = 0
         hamil%psi_c = 0
@@ -156,9 +153,6 @@ MODULE hamiltonian_mod
         hamil%hamil = 0
         hamil%eig_t = 0
         hamil%nac_t = 0
-
-        hamil%sh_prob = 0
-        hamil%sh_pops = 0
 
         !! put the electron or hole on the initial band
         hamil%psi_c(iniband_index_convert_(basis_up, basis_dn, inispin, iniband)) = 1.0
@@ -210,9 +204,6 @@ MODULE hamiltonian_mod
         IF (ALLOCATED(hamil%hamil)) DEALLOCATE(hamil%hamil)
         IF (ALLOCATED(hamil%eig_t)) DEALLOCATE(hamil%eig_t)
         IF (ALLOCATED(hamil%nac_t)) DEALLOCATE(hamil%nac_t)
-
-        IF (ALLOCATED(hamil%sh_prob)) DEALLOCATE(hamil%sh_prob)
-        IF (ALLOCATED(hamil%sh_pops)) DEALLOCATE(hamil%sh_pops)
     END SUBROUTINE hamiltonian_destroy
 
 
@@ -275,15 +266,15 @@ MODULE hamiltonian_mod
         !! We require users to initialize hamil%psi_c manually
 
         SELECT CASE (method)
-            CASE("finite-difference")
+            CASE("FINITE-DIFFERENCE")
                 CALL propagate_finite_difference_
-            CASE("exponential")
-                CALL propagate_exponential_
-            CASE("liouville-trotter")
+            CASE("EXACT")
+                CALL propagate_exact_
+            CASE("LIOUVILLE-TROTTER")
                 CALL propagate_liouville_trotter_
             CASE DEFAULT
                 WRITE(STDERR, '("[ERROR] Invalid propagating method specified: ", A, ", available: ", A)') TRIM(method), &
-                    '"finite-difference", "exponential", "liouville-trotter" ' // AT
+                    '"FINITE-DIFFERENCE", "EXACT", "LIOUVILLE-TROTTER" (case sensitive)' // AT
                 STOP ERROR_HAMIL_PROPMETHOD
         END SELECT
 
@@ -320,7 +311,7 @@ MODULE hamiltonian_mod
         !> This method is a general method, and doesn't require very large NELM, but each step may cost considerable time
         !> This method perform exp(H) = V' * exp(E) * V by diagonalization from LAPACK
         !> where H is the Hamiltonian matrix, V is the matrix of eigenvectors, E is the eigenvalues
-        SUBROUTINE propagate_exponential_
+        SUBROUTINE propagate_exact_
             INTERFACE
                 SUBROUTINE ZHEEV(JOBZ, UPLO, N, A, LDA, W, WORK, LWORK, RWORK, INFO)
                     USE common_mod, ONLY: q
@@ -387,10 +378,10 @@ MODULE hamiltonian_mod
 
                 hamil%psi_c = MATMUL(EXPH, hamil%psi_c)
             ENDDO   !! iele
-        END SUBROUTINE propagate_exponential_
+        END SUBROUTINE propagate_exact_
 
 
-        !> This method can be much faster than exponential methods, but requires the Hamiltonian off-diagonals to be totally real
+        !> This method can be much faster than exact methods, but requires the Hamiltonian off-diagonals to be totally real
         !> This scheme is proposed by Akimov, A. V., & Prezhdo, O. V. J. Chem. Theory Comput. 2014, 10, 2, 789–804
         SUBROUTINE propagate_liouville_trotter_
             COMPLEX(q)  :: phi, cos_phi, sin_phi, cjj, ckk

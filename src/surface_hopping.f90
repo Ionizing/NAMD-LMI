@@ -8,12 +8,12 @@ MODULE surface_hopping_mod
     IMPLICIT NONE
 
     TYPE :: surface_hopping
-        CHARACTER(len=16)    :: sh_method
-        CHARACTER(len=16)    :: prop_method
+        CHARACTER(len=16)    :: shmethod
+        CHARACTER(len=16)    :: propmethod
         INTEGER              :: ntraj
         REAL(q), ALLOCATABLE :: sh_prob(:, :, :)   !< cumulated surface hopping probability, 
                                                    !< sh_prob[i]-sh_prob[i-1] is the real probability, [nbasis, nbasis, namdtime]
-        REAL(q), ALLOCATABLE :: sh_pops(:, :)   !< population after surface hopping, [nbasis, namdtime]
+        REAL(q), ALLOCATABLE :: sh_pops(:, :)      !< population after surface hopping, [nbasis, namdtime]
     END TYPE surface_hopping
 
     PRIVATE :: sh_fssh_
@@ -23,20 +23,45 @@ MODULE surface_hopping_mod
     CONTAINS
 
 
-    SUBROUTINE surface_hopping_init(sh, hamil)
+    SUBROUTINE surface_hopping_init(sh, hamil, propmethod, shmethod, ntraj)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(in)        :: hamil
+        CHARACTER(LEN=*), INTENT(in)         :: propmethod
+        CHARACTER(LEN=*), INTENT(in)         :: shmethod
+        INTEGER, INTENT(in)                  :: ntraj
 
-        !! TODO
+        !! logic starts
+        sh%ntraj        = ntraj
+        sh%propmethod   = toupper(propmethod)
+        sh%shmethod     = toupper(shmethod)
+
+        ALLOCATE(sh%sh_prob(hamil%nbasis, hamil%nbasis, hamil%namdtime))
+        ALLOCATE(sh%sh_pops(hamil%nbasis, hamil%namdtime))
+
+        sh%sh_prob = 0
+        sh%sh_pops = 0
     END SUBROUTINE surface_hopping_init
+
+
+    SUBROUTINE surface_hopping_init_with_inp(sh, hamil, inp)
+        TYPE(surface_hopping), INTENT(inout) :: sh
+        TYPE(hamiltonian), INTENT(in)        :: hamil
+        TYPE(input), INTENT(in)              :: inp
+
+        CALL surface_hopping_init(sh, hamil, inp%propmethod, inp%shmethod, inp%ntraj)
+    END SUBROUTINE surface_hopping_init_with_inp
 
     
     SUBROUTINE surface_hopping_destroy(sh)
         TYPE(surface_hopping), INTENT(inout) :: sh
+
+        IF (ALLOCATED(sh%sh_prob)) DEALLOCATE(sh%sh_prob)
+        IF (ALLOCATED(sh%sh_pops)) DEALLOCATE(sh%sh_pops)
     END SUBROUTINE surface_hopping_destroy
 
 
-    SUBROUTINE surface_hopping_run(hamil, method, propmethod, ntraj)
+    SUBROUTINE surface_hopping_run(sh, hamil, method, propmethod, ntraj)
+        TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
         CHARACTER(*), INTENT(in)         :: method
         CHARACTER(*), INTENT(in)         :: propmethod
@@ -44,11 +69,11 @@ MODULE surface_hopping_mod
 
         SELECT CASE (method)
             CASE("FSSH")
-                CALL sh_fssh_(hamil, propmethod, ntraj)
+                CALL sh_fssh_(sh, hamil, propmethod, ntraj)
             CASE("DCSH")
-                CALL sh_dcsh_(hamil, propmethod, ntraj)
+                CALL sh_dcsh_(sh, hamil, propmethod, ntraj)
             CASE("DISH")
-                CALL sh_dish_(hamil, propmethod, ntraj)
+                CALL sh_dish_(sh, hamil, propmethod, ntraj)
             CASE DEFAULT
                 WRITE(STDERR, '("[ERROR] Invalid method for surface_hopping_run: ", A, " , available: FSSH, DCSH, DISH.")') method
                 STOP ERROR_SURFHOP_METHOD
@@ -61,12 +86,10 @@ MODULE surface_hopping_mod
         INTEGER :: des
 
         !! local variables
-
         INTEGER :: N
         REAL(q) :: val
 
         !! logic starts
-
         N = SIZE(sh_prob_cum)
 
         CALL RANDOM_NUMBER(val)
@@ -77,7 +100,8 @@ MODULE surface_hopping_mod
 
     !> Hopping probability
     !> P_{jk} = \max[\frac{2*\int_t^{t+\Delta t} Re(\rho_{jk}*d_{jk}) dt}{\rho_{jj}}, 0]
-    SUBROUTINE surface_hopping_calc_hop_prob(hamil, iion, istate)
+    SUBROUTINE surface_hopping_calc_hop_prob(sh, hamil, iion, istate)
+        TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
         INTEGER, INTENT(in) :: iion
         INTEGER, INTENT(in) :: istate
@@ -104,14 +128,25 @@ MODULE surface_hopping_mod
 
         FORALL (i=1:hamil%nbasis, prob(i) < 0) prob(i) = 0.0  !! P_jk = max(P_jk_, 0)
 
-        CALL cumsum(prob, hamil%sh_prob(istate, :, iion))    !< calculate the accumulated prob
+        CALL cumsum(prob, sh%sh_prob(istate, :, iion))    !< calculate the accumulated prob
     END SUBROUTINE surface_hopping_calc_hop_prob
+
+
+    SUBROUTINE surface_hopping_save_to_file
+        !! TODO
+    END SUBROUTINE surface_hopping_save_to_file
+
+
+    SUBROUTINE surface_hopping_print_stat
+        !! TODO
+    END SUBROUTINE surface_hopping_print_stat
 
 
     !! private subroutines
 
 
-    SUBROUTINE sh_fssh_(hamil, propmethod, ntraj)
+    SUBROUTINE sh_fssh_(sh, hamil, propmethod, ntraj)
+        TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
         CHARACTER(*), INTENT(in)         :: propmethod
         INTEGER, INTENT(in)              :: ntraj
@@ -122,8 +157,8 @@ MODULE surface_hopping_mod
         INTEGER :: istate
         INTEGER :: hop_dest
 
-        hamil%sh_prob = 0
-        hamil%sh_pops = 0
+        sh%sh_prob = 0
+        sh%sh_pops = 0
         inistate = MAXLOC(ABS(hamil%psi_c), DIM=1)
 
         !! propagate
@@ -133,39 +168,41 @@ MODULE surface_hopping_mod
 
         DO iion = 1, hamil%namdtime
             DO istate = 1, hamil%nbasis
-                CALL surface_hopping_calc_hop_prob(hamil, iion, istate)
+                CALL surface_hopping_calc_hop_prob(sh, hamil, iion, istate)
             ENDDO
         ENDDO
 
         DO i = 1, ntraj
             curstate = inistate
             DO iion = 1, hamil%namdtime
-                hop_dest = surface_hopping_hopping_destination(hamil%sh_prob(curstate, :, iion))
+                hop_dest = surface_hopping_hopping_destination(sh%sh_prob(curstate, :, iion))
                 IF (hop_dest > 0) curstate = hop_dest
-                hamil%sh_pops(curstate, iion) = hamil%sh_pops(curstate, iion) + 1
+                sh%sh_pops(curstate, iion) = sh%sh_pops(curstate, iion) + 1
             ENDDO
         ENDDO
 
-        hamil%sh_pops = hamil%sh_pops / ntraj
+        sh%sh_pops = sh%sh_pops / ntraj
     END SUBROUTINE sh_fssh_
 
 
-    SUBROUTINE sh_dcsh_(hamil, propmethod, ntraj)
+    SUBROUTINE sh_dcsh_(sh, hamil, propmethod, ntraj)
+        TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
         CHARACTER(*), INTENT(in)         :: propmethod
         INTEGER, INTENT(in)              :: ntraj
 
-        WRITE(STDERR, *) "Not implemented yet: " // AT
+        WRITE(STDERR, *) "This SHMETHOD not implemented yet: " // AT
         STOP 1
     END SUBROUTINE sh_dcsh_
 
 
-    SUBROUTINE sh_dish_(hamil, propmethod, ntraj)
+    SUBROUTINE sh_dish_(sh, hamil, propmethod, ntraj)
+        TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
         CHARACTER(*), INTENT(in)         :: propmethod
         INTEGER, INTENT(in)              :: ntraj
 
-        WRITE(STDERR, *) "Not implemented yet: " // AT
+        WRITE(STDERR, *) "This SHMETHOD not implemented yet: " // AT
         STOP 1
     END SUBROUTINE sh_dish_
 END MODULE surface_hopping_mod
