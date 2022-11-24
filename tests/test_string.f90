@@ -3,7 +3,7 @@
 MODULE test_string
     USE fruit
     USE common_mod
-    USE string_mod, ONLY: int2str, real2str, generate_static_calculation_path, toupper
+    USE string_mod, ONLY: int2str, real2str, generate_static_calculation_path, toupper, tolower
     IMPLICIT NONE
 
     CONTAINS
@@ -13,6 +13,7 @@ MODULE test_string
         CALL test_real2str
         CALL test_generate_static_calculation_path
         CALL test_toupper
+        CALL test_tolower
     END SUBROUTINE test_string_fn
 
     SUBROUTINE test_int2str
@@ -39,4 +40,11 @@ MODULE test_string
 
         CALL assert_equals(toupper(str), expect, AT)
     END SUBROUTINE test_toupper
+
+    SUBROUTINE test_tolower
+        CHARACTER(len=40) :: str = "ABCEDF123."
+        CHARACTER(len=40) :: expect = "abcedf123."
+
+        CALL assert_equals(tolower(str), expect, AT)
+    END SUBROUTINE test_tolower
 END MODULE test_string
