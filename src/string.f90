@@ -38,4 +38,19 @@ MODULE string_mod
         fmt_str = "(A,A,I0." // TRIM(int2str(ndigit)) // ")"      ! "(A,I0.<ndigit>)"
         WRITE(ret, fmt_str) TRIM(rundir), '/', idx
     END FUNCTION generate_static_calculation_path
+
+	PURE FUNCTION toupper(str) RESULT(ret)
+		CHARACTER(*), INTENT(in)    :: str
+		CHARACTER(LEN=LEN(str))     :: ret
+		INTEGER :: I,J
+
+		DO i = 1, LEN(str)
+			j = IACHAR(str(i:i))
+			IF (j>=IACHAR("a") .AND. j<=IACHAR("z") ) THEN
+				ret(i:i) = ACHAR(IACHAR(str(i:i))-32)
+			ELSE
+				ret(i:i) = str(i:i)
+			END IF
+		END DO
+	END FUNCTION toupper
 END MODULE string_mod
