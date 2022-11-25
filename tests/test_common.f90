@@ -7,7 +7,8 @@ MODULE test_common
         mpi_partition, &
         randint_range, &
         cumsum, &
-        lower_bound
+        lower_bound, &
+        qsort_i
     USE string_mod,     ONLY: int2str
     IMPLICIT NONE
 
@@ -19,6 +20,7 @@ MODULE test_common
         CALL test_randint_range
         CALL test_cumsum
         CALL test_lower_bound
+        CALL test_qsort_i
     END SUBROUTINE test_common_fn
 
 
@@ -115,4 +117,24 @@ MODULE test_common
         CALL assert_equals(lower_bound(A, 6.0_q), 6, AT)
         CALL assert_equals(lower_bound(A, 7.0_q), 7, AT)
     END SUBROUTINE test_lower_bound
+
+
+    SUBROUTINE test_qsort_i
+        INTEGER :: A(6) = [5, 1, 1, 2, 0, 0]
+
+        CALL qsort_i(A)
+        CALL assert_equals(A, [0, 0, 1, 1, 2, 5], 6, AT)
+
+        A = [5, 0, 0, 2, 3, 1]
+        CALL qsort_i(A)
+        CALL assert_equals(A, [0, 0, 1, 2, 3, 5], 6, AT)
+
+        A = [1, 1, 1, 1, 1, 0]
+        CALL qsort_i(A)
+        CALL assert_equals(A, [0, 1, 1, 1, 1, 1], 6, AT)
+
+        A = [6, 5, 4, 3, 2, 1]
+        CALL qsort_i(A)
+        CALL assert_equals(A, [1, 2, 3, 4, 5, 6], 6, AT)
+    END SUBROUTINE test_qsort_i
 END MODULE test_common

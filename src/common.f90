@@ -264,4 +264,46 @@ MODULE common_mod
 
         DEALLOCATE(seed)
     END SUBROUTINE
+
+
+    !> Sort integer array in ascending order
+    RECURSIVE SUBROUTINE qsort_i(A)
+        INTEGER, INTENT(inout) :: A(:)
+
+        INTEGER :: len, p
+        INTEGER :: temp
+
+        len = SIZE(A)
+        IF (len <= 1) RETURN
+        p = randint_range(1, len)
+#define SWAP(_X, _Y) temp=_X; _X=_Y; _Y=temp;
+        SWAP(A(1), A(p))
+#undef SWAP
+
+        CALL qsort_partition_(A, p)
+        CALL qsort_i(A(:p-1))
+        CALL qsort_i(A(p+1:))
+    END SUBROUTINE qsort_i
+
+
+    SUBROUTINE qsort_partition_(A, p)
+        INTEGER, INTENT(inout) :: A(:)
+        INTEGER, INTENT(inout) :: p
+        INTEGER :: i, j
+        INTEGER :: temp
+#define SWAP(_X, _Y) temp=_X; _X=_Y; _Y=temp;
+        p = SIZE(A)
+        i = 1
+        DO j = 1, p
+            IF (A(j) < A(p)) THEN
+                SWAP(A(i), A(j))
+                i = i + 1
+            ENDIF
+        ENDDO
+
+        SWAP(A(i), A(p))
+        p = i
+#undef SWAP
+    END SUBROUTINE qsort_partition_
+
 END MODULE common_mod
