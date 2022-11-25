@@ -140,6 +140,7 @@ MODULE input_mod
         DO i = 1, nsample
             inp%inisteps(i) = randint_range(1, nsw-1)
         ENDDO
+        CALL qsort_i(inp%inisteps)
 
         INQUIRE(FILE=fname, EXIST=lexist)
         IF (lexist) THEN

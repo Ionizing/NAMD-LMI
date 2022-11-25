@@ -272,7 +272,7 @@ MODULE nac_mod
         END IF
 
         !! logic starts
-        CALL H5OPEN_F(Ierr)
+        CALL H5OPEN_F(ierr)
         CALL H5FCREATE_f(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
         
             !! Scalars
