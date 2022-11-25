@@ -27,7 +27,7 @@ MODULE hamiltonian_mod
         COMPLEX(q), ALLOCATABLE :: psi_h(:)     !> the result of hamiltonian applied on the ket, H|psi>, [nbasis]
 
         COMPLEX(q), ALLOCATABLE :: hamil(:, :)  !> Hamiltonian, H_{jk} = [e_{jk} * \delta_{jk} - i\hbar d_{jkk}], [nbasis, nbasis]
-        COMPLEX(q), ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
+        REAL(q),    ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
         COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian, [nbasis, nbasis, nsw-1]
     END TYPE hamiltonian
 
@@ -425,6 +425,52 @@ MODULE hamiltonian_mod
             ENDDO   !! iele
         END SUBROUTINE propagate_liouville_trotter_
     END SUBROUTINE hamiltonian_propagate
+
+
+    SUBROUTINE hamiltonian_save_to_h5(hamil, h5fname, llog)
+        USE hdf5
+
+        TYPE(hamiltonian), INTENT(in) :: hamil
+        CHARACTER(*), INTENT(in)      :: h5fname
+        LOGICAL, OPTIONAL             :: llog
+
+        !! local variables
+        INTEGER :: ierr
+        INTEGER(HSIZE_T) :: nac_dims(3), eigs_dims(2) !, dummy_dims(1) = [1]
+        INTEGER(HID_T)   :: file_id, dspace_id, dset_id
+        
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Writing calculated Hamiltonian to "' // TRIM(h5fname) // '" ...'
+        ENDIF
+
+
+        !! logic starts
+        CALL H5OPEN_F(ierr)
+        CALL H5FCREATE_F(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
+            nac_dims = SHAPE(hamil%nac_t)
+            CALL H5SCREATE_SIMPLE_F(3, nac_dims, dspace_id, ierr)
+                !! real part
+                CALL H5DCREATE_F(file_id, "nac_t_r", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, REALPART(hamil%nac_t), nac_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+                !! imag part
+                CALL H5DCREATE_F(file_id, "nac_t_i", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(hamil%nac_t), nac_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
+
+            eigs_dims = SHAPE(hamil%eig_t)
+            CALL H5SCREATE_SIMPLE_F(2, eigs_dims, dspace_id, ierr)
+                CALL H5DCREATE_F(file_id, "eigs_t", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, hamil%eig_t, eigs_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
+        CALL H5FCLOSE_F(file_id, ierr)
+        CALL H5CLOSE_F(ierr)
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '(A)') " Done"
+        ENDIF
+    END SUBROUTINE hamiltonian_save_to_h5
 
 
     FUNCTION iniband_index_convert_(bup, bdn, inispin, iniband) RESULT(ret)
