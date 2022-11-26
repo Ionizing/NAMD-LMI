@@ -280,7 +280,7 @@ MODULE hamiltonian_mod
 
         norm = REALPART(SUM(CONJG(hamil%psi_c) * hamil%psi_c))
         IF (ABS(norm-1) > 1E-5) THEN
-            WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved")')
+            WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved: ", F9.6)') norm
             STOP ERROR_HAMIL_PROPFAIL
         END IF
 

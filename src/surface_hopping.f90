@@ -43,13 +43,13 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_init
 
 
-    SUBROUTINE surface_hopping_init_with_inp(sh, hamil, inp)
+    SUBROUTINE surface_hopping_init_with_input(sh, hamil, inp)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(in)        :: hamil
         TYPE(input), INTENT(in)              :: inp
 
         CALL surface_hopping_init(sh, hamil, inp%propmethod, inp%shmethod, inp%ntraj)
-    END SUBROUTINE surface_hopping_init_with_inp
+    END SUBROUTINE surface_hopping_init_with_input
 
     
     SUBROUTINE surface_hopping_destroy(sh)
@@ -60,24 +60,29 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_destroy
 
 
-    SUBROUTINE surface_hopping_run(sh, hamil, method, propmethod, ntraj)
+    SUBROUTINE surface_hopping_run(sh, hamil)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
-        CHARACTER(*), INTENT(in)         :: method
-        CHARACTER(*), INTENT(in)         :: propmethod
-        INTEGER, INTENT(in)              :: ntraj
 
-        SELECT CASE (method)
+        !! local variables
+        INTEGER :: timing_start, timing_end, timing_rate
+        REAL(q) :: time
+
+        CALL SYSTEM_CLOCK(timing_start, timing_rate)
+        SELECT CASE (sh%shmethod)
             CASE("FSSH")
-                CALL sh_fssh_(sh, hamil, propmethod, ntraj)
+                CALL sh_fssh_(sh, hamil)
             CASE("DCSH")
-                CALL sh_dcsh_(sh, hamil, propmethod, ntraj)
+                CALL sh_dcsh_(sh, hamil)
             CASE("DISH")
-                CALL sh_dish_(sh, hamil, propmethod, ntraj)
+                CALL sh_dish_(sh, hamil)
             CASE DEFAULT
-                WRITE(STDERR, '("[ERROR] Invalid method for surface_hopping_run: ", A, " , available: FSSH, DCSH, DISH.")') method
+                WRITE(STDERR, '("[ERROR] Invalid method for surface_hopping_run: ", A, " , available: FSSH, DCSH, DISH.")') sh%shmethod
                 STOP ERROR_SURFHOP_METHOD
         END SELECT
+        CALL SYSTEM_CLOCK(timing_end, timing_rate)
+        time = DBLE(timing_end - timing_start) / timing_rate
+        CALL surface_hopping_print_stat(sh, hamil, time)
     END SUBROUTINE surface_hopping_run
 
     
@@ -102,9 +107,9 @@ MODULE surface_hopping_mod
     !> P_{jk} = \max[\frac{2*\int_t^{t+\Delta t} Re(\rho_{jk}*d_{jk}) dt}{\rho_{jj}}, 0]
     SUBROUTINE surface_hopping_calc_hop_prob(sh, hamil, iion, istate)
         TYPE(surface_hopping), INTENT(inout) :: sh
-        TYPE(hamiltonian), INTENT(inout) :: hamil
-        INTEGER, INTENT(in) :: iion
-        INTEGER, INTENT(in) :: istate
+        TYPE(hamiltonian), INTENT(in)        :: hamil
+        INTEGER, INTENT(in)                  :: iion
+        INTEGER, INTENT(in)                  :: istate
 
         !! local variables
         INTEGER :: i
@@ -137,19 +142,22 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_save_to_file
 
 
-    SUBROUTINE surface_hopping_print_stat
-        !! TODO
+    SUBROUTINE surface_hopping_print_stat(sh, hamil, time)
+        TYPE(surface_hopping), INTENT(in) :: sh
+        TYPE(hamiltonian), INTENT(in)     :: hamil
+        REAL(q), INTENT(in) :: time
+
+        WRITE(STDOUT, 100) hamil%namdinit, time
+        100 FORMAT(/, /, "----------", /, "NAMDINIT = ", I5, " Time used: ", F10.3, " secs", /, "----------", /)
     END SUBROUTINE surface_hopping_print_stat
 
 
     !! private subroutines
 
 
-    SUBROUTINE sh_fssh_(sh, hamil, propmethod, ntraj)
+    SUBROUTINE sh_fssh_(sh, hamil)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
-        CHARACTER(*), INTENT(in)         :: propmethod
-        INTEGER, INTENT(in)              :: ntraj
 
         INTEGER :: i
         INTEGER :: iion
@@ -163,7 +171,7 @@ MODULE surface_hopping_mod
 
         !! propagate
         DO iion = 1, hamil%namdtime
-            CALL hamiltonian_propagate(hamil, iion, propmethod)
+            CALL hamiltonian_propagate(hamil, iion, sh%propmethod)
         ENDDO
 
         DO iion = 1, hamil%namdtime
@@ -172,7 +180,7 @@ MODULE surface_hopping_mod
             ENDDO
         ENDDO
 
-        DO i = 1, ntraj
+        DO i = 1, sh%ntraj
             curstate = inistate
             DO iion = 1, hamil%namdtime
                 hop_dest = surface_hopping_hopping_destination(sh%sh_prob(curstate, :, iion))
@@ -181,26 +189,22 @@ MODULE surface_hopping_mod
             ENDDO
         ENDDO
 
-        sh%sh_pops = sh%sh_pops / ntraj
+        sh%sh_pops = sh%sh_pops / sh%ntraj
     END SUBROUTINE sh_fssh_
 
 
-    SUBROUTINE sh_dcsh_(sh, hamil, propmethod, ntraj)
+    SUBROUTINE sh_dcsh_(sh, hamil)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
-        CHARACTER(*), INTENT(in)         :: propmethod
-        INTEGER, INTENT(in)              :: ntraj
 
         WRITE(STDERR, *) "This SHMETHOD not implemented yet: " // AT
         STOP 1
     END SUBROUTINE sh_dcsh_
 
 
-    SUBROUTINE sh_dish_(sh, hamil, propmethod, ntraj)
+    SUBROUTINE sh_dish_(sh, hamil)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
-        CHARACTER(*), INTENT(in)         :: propmethod
-        INTEGER, INTENT(in)              :: ntraj
 
         WRITE(STDERR, *) "This SHMETHOD not implemented yet: " // AT
         STOP 1

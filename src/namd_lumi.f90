@@ -12,8 +12,10 @@ PROGRAM namd_lumi_x
     TYPE(input) :: inp
     TYPE(nac)   :: nac_dat
     TYPE(hamiltonian) :: hamil
+    TYPE(surface_hopping) :: sh
 
     INTEGER :: iion
+    INTEGER :: timing_start, timing_end, timing_rate
 
     CALL MPI_INIT(ierr)
     CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
@@ -35,9 +37,14 @@ PROGRAM namd_lumi_x
     !CALL hamiltonian_init(hamil, nac_dat, inp%basis_up, inp%basis_dn, inp%dt, inp%inisteps(1), inp%inibands(1), inp%inispins(1), inp%namdtime, inp%nelm, inp%temperature)
     !hamil%psi_c(hamil%nbasis) = 1.0
     CALL hamiltonian_init_with_input(hamil, nac_dat, inp, 1)
-    DO iion = 1, inp%namdtime
-        CALL hamiltonian_propagate(hamil, iion, TRIM(inp%propmethod))
-    ENDDO
+    IF (irank == MPI_ROOT_NODE) THEN
+        CALL hamiltonian_save_to_h5(hamil, "hamil.h5", llog=.TRUE.)
+    ENDIF
+
+    IF (irank == MPI_ROOT_NODE) THEN
+        CALL surface_hopping_init_with_input(sh, hamil, inp)
+        CALL surface_hopping_run(sh, hamil)
+    ENDIF
 
 
     CALL nac_destroy(nac_dat)

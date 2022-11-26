@@ -61,6 +61,9 @@ MODULE common_mod
     INTEGER,    PARAMETER :: STDOUT = 6
     INTEGER,    PARAMETER :: STDERR = 0
 
+    !! Newline character
+    CHARACTER,  PARAMETER :: NEWLINE = ACHAR(10)
+
     !! Error codes
     INTEGER,    PARAMETER :: ERROR_WAVE_OPEN_FAILED  = 11
     INTEGER,    PARAMETER :: ERROR_WAVE_INVALID_PREC = 12
