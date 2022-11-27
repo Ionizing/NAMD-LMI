@@ -14,6 +14,7 @@ MODULE surface_hopping_mod
         REAL(q), ALLOCATABLE :: sh_prob(:, :, :)   !< cumulated surface hopping probability, 
                                                    !< sh_prob[i]-sh_prob[i-1] is the real probability, [nbasis, nbasis, namdtime]
         REAL(q), ALLOCATABLE :: sh_pops(:, :)      !< population after surface hopping, [nbasis, namdtime]
+        REAL(q), ALLOCATABLE :: sh_eigs(:)         !< Total energy of system
     END TYPE surface_hopping
 
     PRIVATE :: sh_fssh_
@@ -37,9 +38,11 @@ MODULE surface_hopping_mod
 
         ALLOCATE(sh%sh_prob(hamil%nbasis, hamil%nbasis, hamil%namdtime))
         ALLOCATE(sh%sh_pops(hamil%nbasis, hamil%namdtime))
+        ALLOCATE(sh%sh_eigs(hamil%namdtime))
 
         sh%sh_prob = 0
         sh%sh_pops = 0
+        sh%sh_eigs = 0
     END SUBROUTINE surface_hopping_init
 
 
@@ -57,6 +60,7 @@ MODULE surface_hopping_mod
 
         IF (ALLOCATED(sh%sh_prob)) DEALLOCATE(sh%sh_prob)
         IF (ALLOCATED(sh%sh_pops)) DEALLOCATE(sh%sh_pops)
+        IF (ALLOCATED(sh%sh_eigs)) DEALLOCATE(sh%sh_eigs)
     END SUBROUTINE surface_hopping_destroy
 
 
@@ -67,6 +71,7 @@ MODULE surface_hopping_mod
         !! local variables
         INTEGER :: timing_start, timing_end, timing_rate
         REAL(q) :: time
+        INTEGER :: iion, rtime
 
         CALL SYSTEM_CLOCK(timing_start, timing_rate)
         SELECT CASE (sh%shmethod)
@@ -82,7 +87,12 @@ MODULE surface_hopping_mod
         END SELECT
         CALL SYSTEM_CLOCK(timing_end, timing_rate)
         time = DBLE(timing_end - timing_start) / timing_rate
-        CALL surface_hopping_print_stat(sh, hamil, time)
+        CALL surface_hopping_print_stat(hamil, time)
+
+        DO iion = 1, hamil%namdtime
+            rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
+            sh%sh_eigs(iion) = SUM(sh%sh_pops(:, iion) * hamil%eig_t(:, rtime))
+        ENDDO
     END SUBROUTINE surface_hopping_run
 
     
@@ -139,18 +149,27 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_calc_hop_prob
 
 
-    SUBROUTINE surface_hopping_save_to_file
-        !! TODO
-    END SUBROUTINE surface_hopping_save_to_file
-
-
-    SUBROUTINE surface_hopping_print_stat(sh, hamil, time)
+    SUBROUTINE surface_hopping_save_to_h5(sh, hamil)
         TYPE(surface_hopping), INTENT(in) :: sh
+        TYPE(hamiltonian), INTENT(in)     :: hamil
+
+        REAL(q), ALLOCATABLE :: time_indices(:)
+
+    END SUBROUTINE surface_hopping_save_to_h5
+
+
+    SUBROUTINE surface_hopping_print_stat(hamil, time)
+        USE mpi
+
         TYPE(hamiltonian), INTENT(in)     :: hamil
         REAL(q), INTENT(in) :: time
 
-        WRITE(STDOUT, 100) hamil%namdinit, time
-        100 FORMAT(/, /, "----------", /, "NAMDINIT = ", I5, " Time used: ", F10.3, " secs", /, "----------", /)
+        INTEGER :: irank, ierr
+
+        CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
+
+        WRITE(STDOUT, 100) irank, hamil%namdinit, time
+        100 FORMAT(/, "[NODE", I4, "] NAMDINIT = ", I5, " Time used: ", F10.3, " secs", /)
     END SUBROUTINE surface_hopping_print_stat
 
 

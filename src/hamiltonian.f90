@@ -23,11 +23,12 @@ MODULE hamiltonian_mod
         COMPLEX(q), ALLOCATABLE :: psi_c(:)     !> ket for current step, [nbasis]
         COMPLEX(q), ALLOCATABLE :: psi_n(:)     !> ket for next step, [nbasis]
         COMPLEX(q), ALLOCATABLE :: psi_t(:, :)  !> time dependent kets, [nbasis, namdtime]
-        COMPLEX(q), ALLOCATABLE :: pop_t(:, :)  !> the population ABS(psi_t), [nbasis, namdtime]
+        REAL(q),    ALLOCATABLE :: pop_t(:, :)  !> the population ABS(psi_t), [nbasis, namdtime]
         COMPLEX(q), ALLOCATABLE :: psi_h(:)     !> the result of hamiltonian applied on the ket, H|psi>, [nbasis]
 
         COMPLEX(q), ALLOCATABLE :: hamil(:, :)  !> Hamiltonian, H_{jk} = [e_{jk} * \delta_{jk} - i\hbar d_{jkk}], [nbasis, nbasis]
         REAL(q),    ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
+        REAL(q),    ALLOCATABLE :: prop_eigs(:) !> time-dependent energy of system due to propagation
         COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian, [nbasis, nbasis, nsw-1]
     END TYPE hamiltonian
 
@@ -140,6 +141,7 @@ MODULE hamiltonian_mod
         
         ALLOCATE(hamil%hamil(nbasis, nbasis))
         ALLOCATE(hamil%eig_t(nbasis, hamil%nsw-1))
+        ALLOCATE(hamil%prop_eigs(hamil%nsw))
         ALLOCATE(hamil%nac_t(nbasis, nbasis, hamil%nsw-1))
 
         !! initialize
@@ -152,6 +154,7 @@ MODULE hamiltonian_mod
 
         hamil%hamil = 0
         hamil%eig_t = 0
+        hamil%prop_eigs = 0
         hamil%nac_t = 0
 
         !! put the electron or hole on the initial band
@@ -203,6 +206,7 @@ MODULE hamiltonian_mod
 
         IF (ALLOCATED(hamil%hamil)) DEALLOCATE(hamil%hamil)
         IF (ALLOCATED(hamil%eig_t)) DEALLOCATE(hamil%eig_t)
+        IF (ALLOCATED(hamil%prop_eigs)) DEALLOCATE(hamil%prop_eigs)
         IF (ALLOCATED(hamil%nac_t)) DEALLOCATE(hamil%nac_t)
     END SUBROUTINE hamiltonian_destroy
 
@@ -260,9 +264,11 @@ MODULE hamiltonian_mod
         INTEGER :: iele     !< electronic step index
         REAL(q) :: edt      !< time step for each electronic step
         REAL(q) :: norm     !< norm of psi_c
+        INTEGER :: rtime
 
         !! Preparation
         edt = hamil%dt / hamil%nelm
+        rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
         !! We require users to initialize hamil%psi_c manually
 
         SELECT CASE (method)
@@ -283,6 +289,8 @@ MODULE hamiltonian_mod
             WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved: ", F9.6)') norm
             STOP ERROR_HAMIL_PROPFAIL
         END IF
+
+        hamil%prop_eigs(iion) = SUM(hamil%pop_t(:, iion) * hamil%eig_t(:, rtime))
 
         CONTAINS
 
@@ -391,6 +399,8 @@ MODULE hamiltonian_mod
                 WRITE(STDERR, '("[ERROR] A real NAC is required to use Liouville-Trotter propagation scheme, please check NAC")')
                 STOP ERROR_HAMIL_PROPFAIL
             END IF
+
+            hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
 
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)
