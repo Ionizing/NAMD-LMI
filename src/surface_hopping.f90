@@ -113,21 +113,23 @@ MODULE surface_hopping_mod
 
         !! local variables
         INTEGER :: i
+        INTEGER :: rtime
         REAL(q) :: rho_jj
         REAL(q), ALLOCATABLE, SAVE :: thermal_factor(:)     !< use SAVE attribute to avoid repetitive allocations
         REAL(q), ALLOCATABLE, SAVE :: rhod_jk(:)
         REAL(q), ALLOCATABLE, SAVE :: prob(:)
 
         !! logic starts
+        rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
 
         IF (.NOT. ALLOCATED(thermal_factor))    ALLOCATE(thermal_factor(hamil%nbasis))
         IF (.NOT. ALLOCATED(rhod_jk))           ALLOCATE(rhod_jk(hamil%nbasis))
         IF (.NOT. ALLOCATED(prob))              ALLOCATE(prob(hamil%nbasis))
 
         rho_jj  = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(istate, iion))
-        rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, iion))  !< Re(rho_jk * d_jk)
+        rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime))  !< Re(rho_jk * d_jk)
 
-        thermal_factor = EXP(-ABS(hamil%eig_t(:, iion) - hamil%eig_t(istate, iion)) / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
+        thermal_factor = EXP(-ABS(hamil%eig_t(:, rtime) - hamil%eig_t(istate, rtime)) / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
         prob = 2 * rhod_jk * hamil%dt / rho_jj    !< P_jk_ = 2 * Re(rho_jk * d_jk) * dt / rho_jj
         prob = prob * thermal_factor
 
