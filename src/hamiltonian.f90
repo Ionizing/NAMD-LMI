@@ -141,7 +141,7 @@ MODULE hamiltonian_mod
         
         ALLOCATE(hamil%hamil(nbasis, nbasis))
         ALLOCATE(hamil%eig_t(nbasis, hamil%nsw-1))
-        ALLOCATE(hamil%prop_eigs(hamil%nsw))
+        ALLOCATE(hamil%prop_eigs(hamil%namdtime))
         ALLOCATE(hamil%nac_t(nbasis, nbasis, hamil%nsw-1))
 
         !! initialize

@@ -65,13 +65,18 @@ MODULE surface_hopping_mod
 
 
     SUBROUTINE surface_hopping_run(sh, hamil)
+        USE mpi
+
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
 
         !! local variables
         INTEGER :: timing_start, timing_end, timing_rate
+        INTEGER :: irank, ierr
         REAL(q) :: time
         INTEGER :: iion, rtime
+
+        CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
 
         CALL SYSTEM_CLOCK(timing_start, timing_rate)
         SELECT CASE (sh%shmethod)
@@ -87,7 +92,7 @@ MODULE surface_hopping_mod
         END SELECT
         CALL SYSTEM_CLOCK(timing_end, timing_rate)
         time = DBLE(timing_end - timing_start) / timing_rate
-        CALL surface_hopping_print_stat(hamil, time)
+        CALL surface_hopping_print_stat(hamil, time, irank)
 
         DO iion = 1, hamil%namdtime
             rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
@@ -149,24 +154,28 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_calc_hop_prob
 
 
-    SUBROUTINE surface_hopping_save_to_h5(sh, hamil)
+    SUBROUTINE surface_hopping_save_to_h5(sh, hamil, llog)
+        USE hdf5
+
         TYPE(surface_hopping), INTENT(in) :: sh
         TYPE(hamiltonian), INTENT(in)     :: hamil
+        LOGICAL, OPTIONAL   :: llog
 
-        REAL(q), ALLOCATABLE :: time_indices(:)
+        !! logic starts
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Writing calculated Hamiltonian to "' // TRIM(h5fname) // '" ...'
+        ENDIF
 
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '(A)') " Done"
+        ENDIF
     END SUBROUTINE surface_hopping_save_to_h5
 
 
-    SUBROUTINE surface_hopping_print_stat(hamil, time)
-        USE mpi
-
-        TYPE(hamiltonian), INTENT(in)     :: hamil
+    SUBROUTINE surface_hopping_print_stat(hamil, time, irank)
+        TYPE(hamiltonian), INTENT(in) :: hamil
+        INTEGER, INTENT(in) :: irank
         REAL(q), INTENT(in) :: time
-
-        INTEGER :: irank, ierr
-
-        CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
 
         WRITE(STDOUT, 100) irank, hamil%namdinit, time
         100 FORMAT(/, "[NODE", I4, "] NAMDINIT = ", I5, " Time used: ", F10.3, " secs", /)
