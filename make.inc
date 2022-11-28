@@ -18,3 +18,6 @@ F90FLAGS    += -DOPENBLAS $(BLASLIBS)
 HDF5     ?= #/public/apps/HDF5/1.13.2_gcc-4.8.5
 HDF5INC  += -I$(HDF5)/include
 F90FLAGS += $(HDF5INC) -DHDF5 -L$(HDF5)/lib -lhdf5_fortran -lhdf5
+
+GIT_VERSION := "$(shell git describe --dirty --always --tags)"
+F90FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
