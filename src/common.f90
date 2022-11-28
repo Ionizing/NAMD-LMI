@@ -118,8 +118,38 @@ MODULE common_mod
     END INTERFACE lower_bound
     PRIVATE :: lower_bound_f
 
+    !! version info
+    TYPE :: version
+        INTEGER         :: major
+        INTEGER         :: minor
+        INTEGER         :: patch
+        CHARACTER(32)   :: datetime !< build date and time
+        CHARACTER(64)   :: commit   !< git commit hash code
+    END TYPE version
+
+    TYPE(version), PARAMETER :: NAMD_VERSION = &
+        version (       &
+        0, 0, 0,        &
+        __DATE__ // " " // __TIME__, &
+        GIT_VERSION     &
+        )
 
     CONTAINS
+
+    SUBROUTINE version_print(ver, io, str)
+        TYPE(version), INTENT(in)       :: ver
+        INTEGER, INTENT(in), OPTIONAL   :: io
+        CHARACTER(*), INTENT(inout), OPTIONAL :: str
+
+        IF (PRESENT(io)) THEN
+            WRITE(io, 100) ver%major, ver%minor, ver%patch, TRIM(ver%datetime), TRIM(ver%commit)
+        ELSE IF (PRESENT(str)) THEN
+            WRITE(str, 100) ver%major, ver%minor, ver%patch, TRIM(ver%datetime), TRIM(ver%commit)
+        ELSE
+            WRITE(STDOUT, 100) ver%major, ver%minor, ver%patch, TRIM(ver%datetime), TRIM(ver%commit)
+        END IF
+        100 FORMAT("NAMD_lumi v", I0, ".", I0, ".", I0, "  BuiltDateTime: ", A, "  GitCommit: ", A)
+    END SUBROUTINE version_print
 
     ! copied from https://github.com/ivan-pi/cumsum_benchmark
     PURE SUBROUTINE cumsum_i(a, b)

@@ -1,5 +1,6 @@
 !> Currently, this file is for test only
 PROGRAM namd_lumi_x
+    USE common_mod
     USE cla
     USE mpi
     USE namd_lumi_mod
@@ -20,6 +21,7 @@ PROGRAM namd_lumi_x
     CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
 
     IF (irank == MPI_ROOT_NODE) THEN
+        CALL version_print(NAMD_VERSION)
         CALL cli_parse
     END IF
 
