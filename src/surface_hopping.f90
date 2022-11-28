@@ -154,21 +154,96 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_calc_hop_prob
 
 
-    SUBROUTINE surface_hopping_save_to_h5(sh, hamil, llog)
+    SUBROUTINE surface_hopping_save_to_h5(sh, hamil, ndigit, llog)
         USE hdf5
 
         TYPE(surface_hopping), INTENT(in) :: sh
         TYPE(hamiltonian), INTENT(in)     :: hamil
+        INTEGER, INTENT(in) :: ndigit
         LOGICAL, OPTIONAL   :: llog
 
-        !! logic starts
-        IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Writing calculated Hamiltonian to "' // TRIM(h5fname) // '" ...'
-        ENDIF
+        !! local variables
+        CHARACTER(FNAMELEN)  :: h5fname
+        REAL(q), ALLOCATABLE :: time_idx(:)
+        INTEGER          :: i
+        INTEGER          :: ierr
+        INTEGER(HSIZE_T) :: time_dims(1), propagation_dims(2), shpop_dims(2)
+        INTEGER(HID_T)   :: file_id, dspace_id, dset_id
 
+        !! logic starts
+        ALLOCATE(time_idx(hamil%namdtime))
+        FORALL(i=1:hamil%namdtime) time_idx(i) = i * hamil%dt
+        time_dims = [hamil%namdtime]
+
+        !! propagation
+        h5fname = "propagation_" // TRIM(int2str(hamil%namdinit, ndigit=ndigit)) // ".h5"
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Writing propagation info to "' // TRIM(h5fname) // '" ...'
+        ENDIF
+        CALL H5OPEN_F(ierr)
+        CALL H5FCREATE_F(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
+            CALL H5SCREATE_SIMPLE_F(1, time_dims, dspace_id, ierr)
+                !! time indices
+                CALL H5DCREATE_F(file_id, "time", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, time_idx, time_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+                !! evolution of system's energy
+                CALL H5DCREATE_F(file_id, "energy", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, hamil%prop_eigs, time_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
+
+            !! psi_t
+            propagation_dims = SHAPE(hamil%psi_t)
+            CALL H5SCREATE_SIMPLE_F(2, propagation_dims, dspace_id, ierr)
+                !! real part
+                CALL H5DCREATE_F(file_id, "psi_t_r", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, REALPART(hamil%psi_t), propagation_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+                !! imag part
+                CALL H5DCREATE_F(file_id, "psi_t_i", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(hamil%psi_t), propagation_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
+        CALL H5FCLOSE_F(file_id, ierr)
+        CALL H5CLOSE_F(ierr)
         IF (PRESENT(llog)) THEN
             IF (llog) WRITE(STDOUT, '(A)') " Done"
         ENDIF
+
+
+        !! surface hopping
+        h5fname = "shpop_" // TRIM(int2str(hamil%namdinit, ndigit=ndigit)) // ".h5"
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Writing surface hopping info to "' // TRIM(h5fname) // '" ...'
+        ENDIF
+        CALL H5OPEN_F(ierr)
+        CALL H5FCREATE_F(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
+            CALL H5SCREATE_SIMPLE_F(1, time_dims, dspace_id, ierr)
+                !! time indices
+                CALL H5DCREATE_F(file_id, "time", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, time_idx, time_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+                !! evolution of system's energy
+                CALL H5DCREATE_F(file_id, "energy", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, sh%sh_eigs, time_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
+
+            !! sh_pops
+            shpop_dims = SHAPE(sh%sh_pops)
+            CALL H5SCREATE_SIMPLE_F(2, shpop_dims, dspace_id, ierr)
+                CALL H5DCREATE_F(file_id, "shpops", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, sh%sh_pops, shpop_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
+        CALL H5FCLOSE_F(file_id, ierr)
+        CALL H5CLOSE_F(ierr)
+        IF (PRESENT(llog)) THEN
+            IF (llog) WRITE(STDOUT, '(A)') " Done"
+        ENDIF
+
+        DEALLOCATE(time_idx)
     END SUBROUTINE surface_hopping_save_to_h5
 
 
