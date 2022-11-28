@@ -2,16 +2,24 @@ MODULE string_mod
     IMPLICIT NONE
     CONTAINS
 
-    CHARACTER(len=32) FUNCTION int2str(x, fmt)
+    RECURSIVE FUNCTION int2str(x, fmt, ndigit) RESULT(ret)
         INTEGER, INTENT(in)                :: x
         CHARACTER(*), INTENT(in), OPTIONAL :: fmt
+        INTEGER, INTENT(in), OPTIONAL      :: ndigit
+        CHARACTER(32) :: ret
+
+        CHARACTER(32) :: fmt_str
 
         IF (PRESENT(fmt)) THEN
-            write(int2str, fmt) x
-            int2str = trim(adjustl(int2str))
+            WRITE(ret, fmt) x
+            ret = TRIM(ADJUSTL(ret))
+        ELSE IF (PRESENT(ndigit)) THEN
+            fmt_str = "(I0." // TRIM(int2str(ndigit)) // ")"
+            WRITE(ret, fmt_str) x
+            ret = TRIM(ADJUSTL(ret))
         ELSE
-            write(int2str, *) x
-            int2str = trim(adjustl(int2str))
+            WRITE(ret, *) x
+            ret = TRIM(ADJUSTL(ret))
         END IF
     END FUNCTION int2str
 

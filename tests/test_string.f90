@@ -21,6 +21,12 @@ MODULE test_string
 
         result = int2str(114514)
         CALL assert_equals(result, "114514", AT)
+
+        result = int2str(114514, fmt="(I0.8)")
+        CALL assert_equals(result, "00114514", AT)
+
+        result = int2str(114514, ndigit=8)
+        CALL assert_equals(result, "00114514", AT)
     END SUBROUTINE test_int2str
 
     SUBROUTINE test_real2str
