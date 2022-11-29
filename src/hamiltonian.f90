@@ -280,12 +280,12 @@ MODULE hamiltonian_mod
                 CALL propagate_liouville_trotter_
             CASE DEFAULT
                 WRITE(STDERR, '("[ERROR] Invalid propagating method specified: ", A, ", available: ", A)') TRIM(method), &
-                    '"FINITE-DIFFERENCE", "EXACT", "LIOUVILLE-TROTTER" (case sensitive)' // AT
+                    '"FINITE-DIFFERENCE", "EXACT", "LIOUVILLE-TROTTER" (case insensitive)' // AT
                 STOP ERROR_HAMIL_PROPMETHOD
         END SELECT
 
         norm = REALPART(SUM(CONJG(hamil%psi_c) * hamil%psi_c))
-        IF (ABS(norm-1) > 1E-5) THEN
+        IF (ABS(norm-1) > 1E-3) THEN
             WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved: ", F9.6)') norm
             STOP ERROR_HAMIL_PROPFAIL
         END IF

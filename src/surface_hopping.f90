@@ -8,8 +8,8 @@ MODULE surface_hopping_mod
     IMPLICIT NONE
 
     TYPE :: surface_hopping
-        CHARACTER(len=16)    :: shmethod
-        CHARACTER(len=16)    :: propmethod
+        CHARACTER(len=32)    :: shmethod
+        CHARACTER(len=32)    :: propmethod
         INTEGER              :: ntraj
         REAL(q), ALLOCATABLE :: sh_prob(:, :, :)   !< cumulated surface hopping probability, 
                                                    !< sh_prob[i]-sh_prob[i-1] is the real probability, [nbasis, nbasis, namdtime]
