@@ -14,6 +14,7 @@ MODULE nac_mod
         INTEGER :: brange(2)    !> The index range of stored NAC, we treat spin up and spin down equally
         INTEGER :: nbrange      !> Number of stored bands
         INTEGER :: nsw          !> Number of steps in the AIMD trajectory
+        REAL(q) :: efermi       !> Averaged fermi level
         REAL(q) :: dt           !> Time step, in fs
         LOGICAL :: lreal        !> Whether make NAC totally real (imaginary part set zero)
 
@@ -127,6 +128,7 @@ MODULE nac_mod
         LOGICAL         :: lready
         COMPLEX(q), ALLOCATABLE :: olaps(:, :, :, :)
         REAL(q), ALLOCATABLE    :: eigs(:, :, :)
+        REAL(q) :: efermis_global, efermis_local
 
         !! MPI related local variables
         INTEGER         :: irank, nrank
@@ -138,6 +140,8 @@ MODULE nac_mod
 
         !! logic starts
         nbrange = brange(2) - brange(1) + 1
+        efermis_global = 0.0_q
+        efermis_local  = 0.0_q
 
         !! get MPI irank and nrank
         CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
@@ -213,6 +217,8 @@ MODULE nac_mod
             j0 = i0 + 1
             CALL nac_ij_(wav_i, wav_j, ikpoint, brange, olaps(:, :, :, i0), eigs(:, :, i0))
 
+            efermis_local = efermis_local + wav_i%efermi
+
             CALL wavecar_destroy(wav_i)
             CALL wavecar_destroy(wav_j)
 
@@ -238,6 +244,10 @@ MODULE nac_mod
         IF (lreal .AND. MPI_ROOT_NODE == irank) THEN
             nac_dat%olaps = SIGN(ABS(nac_dat%olaps), REALPART(nac_dat%olaps))
         END IF
+
+        CALL MPI_REDUCE(efermis_local, efermis_global, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+
+        IF (MPI_ROOT_NODE == irank) nac_dat%efermi = efermis_global / (nac_dat%nsw-1)
 
         DEALLOCATE(eigs)
         DEALLOCATE(olaps)
@@ -305,6 +315,11 @@ MODULE nac_mod
                 !! dt
                 CALL H5DCREATE_f(file_id, "dt", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%dt, dummy_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+         
+                !! efermi
+                CALL H5DCREATE_f(file_id, "efermi", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%efermi, dummy_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
 
                 !! lreal
@@ -410,6 +425,11 @@ MODULE nac_mod
             CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%dt, dummy_dims, ierr)
             CALL H5DCLOSE_F(dset_id, ierr)
 
+            !! efermi
+            CALL H5DOPEN_F(file_id, "efermi", dset_id, ierr)
+            CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%efermi, dummy_dims, ierr)
+            CALL H5DCLOSE_F(dset_id, ierr)
+
             !! lreal
             CALL H5DOPEN_F(file_id, "lreal", dset_id, ierr)
             CALL H5DREAD_F(dset_id, H5T_NATIVE_INTEGER, ireal, dummy_dims, ierr)
@@ -473,6 +493,7 @@ MODULE nac_mod
         CALL MPI_BCAST(nac_dat%nbrange, 1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(nac_dat%nsw,     1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(nac_dat%dt,      1, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(nac_dat%efermi,  1, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(nac_dat%lreal,   1, MPI_LOGICAL, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
         nbrange = nac_dat%nbrange
