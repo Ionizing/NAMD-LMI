@@ -25,6 +25,10 @@ PROGRAM namd_lumi_x
         CALL cli_parse
     END IF
 
+    IF (inp%scissor > 0.0) THEN
+        WRITE(STDOUT, '("[WARN] You have specified SCISSOR > 0, thus no band crossings between VBM and CBM are required.")')
+    ENDIF
+
     CALL input_mpisync(inp)
 
 #ifdef OPENBLAS

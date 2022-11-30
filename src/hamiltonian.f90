@@ -35,7 +35,7 @@ MODULE hamiltonian_mod
     CONTAINS
 
 
-    SUBROUTINE hamiltonian_init(hamil, nac_dat, basis_up, basis_dn, dt, namdinit, iniband, inispin, namdtime, nelm, temperature)
+    SUBROUTINE hamiltonian_init(hamil, nac_dat, basis_up, basis_dn, dt, namdinit, iniband, inispin, namdtime, nelm, temperature, scissor)
         TYPE(nac), INTENT(in)   :: nac_dat      !> NAC object
         INTEGER, INTENT(in)     :: basis_up(2)  !> basis range for spin up
         INTEGER, INTENT(in)     :: basis_dn(2)  !> basis range for spin down
@@ -46,6 +46,7 @@ MODULE hamiltonian_mod
         INTEGER, INTENT(in)     :: namdtime     !> namd simulation steps
         INTEGER, INTENT(in)     :: nelm         !> electronic step during the propagation
         REAL(q), INTENT(in)     :: temperature  !> NAMD temperature, in fs
+        REAL(q), INTENT(in)     :: scissor      !> scissor operator, in eV
         TYPE(hamiltonian), INTENT(inout)    :: hamil
 
         !! local variables
@@ -53,6 +54,8 @@ MODULE hamiltonian_mod
         INTEGER :: nb(2)    !> nbasis for each spin
         INTEGER :: bup(2)   !> basis index refer to NAC spin up, bup = basis_up - nac_dat%brange(1) + 1
         INTEGER :: bdn(2)   !> basis index refer to NAC spin dn, bdn = basis_dn - nac_dat%brange(1) + 1
+        INTEGER :: iband    !> band level index
+        INTEGER :: istep    !> ionic time index
         !INTEGER :: trng(2)  !> time range refer to NAC
 
         !! logic starts
@@ -179,6 +182,12 @@ MODULE hamiltonian_mod
             hamil%nac_t(      1:nb(1)      ,       1:nb(1)      , :) = nac_dat%olaps(bup(1):bup(2), bup(1):bup(2), 1, :)
             hamil%nac_t(nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
         END IF
+
+        hamil%eig_t = hamil%eig_t - nac_dat%efermi
+
+        !! Find the index of CBM
+        FORALL(iband=1:hamil%nbasis, istep=1:(hamil%nsw-1), hamil%eig_t(iband, istep)>0) &
+                hamil%eig_t(iband, istep) = hamil%eig_t(iband, istep) + scissor
     END SUBROUTINE hamiltonian_init
 
 
@@ -190,7 +199,7 @@ MODULE hamiltonian_mod
 
         CALL hamiltonian_init(hamil, nac_dat, inp%basis_up, inp%basis_dn, inp%dt, &
             inp%inisteps(inicon_idx), inp%inibands(inicon_idx), inp%inispins(inicon_idx), &
-            inp%namdtime, inp%nelm, inp%temperature)
+            inp%namdtime, inp%nelm, inp%temperature, inp%scissor)
     END SUBROUTINE hamiltonian_init_with_input
 
 

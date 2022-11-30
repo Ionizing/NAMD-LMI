@@ -29,6 +29,7 @@ MODULE input_mod
         CHARACTER(256)  :: fname        = "nac.h5"  !! file name for saving NAC data
 
         REAL(q)         :: temperature  = 300.0     !! NAMD temperature, in Kelvin
+        REAL(q)         :: scissor      = 0.0       !! Value for scissor operator, inv eV
 
         !! TODO
         !INTEGER         :: ncarrier     = 1         !! number of carriers
@@ -105,6 +106,7 @@ MODULE input_mod
         TYPE(input), INTENT(inout)  :: inp
 
         IF (ALLOCATED(inp%inibands)) DEALLOCATE(inp%inibands)
+        IF (ALLOCATED(inp%inispins)) DEALLOCATE(inp%inispins)
         IF (ALLOCATED(inp%inisteps)) DEALLOCATE(inp%inisteps)
     END SUBROUTINE input_destroy
 
@@ -174,11 +176,14 @@ MODULE input_mod
         CALL MPI_BCAST(inp%namdtime,  1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%dt,        1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%nsample,   1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%ntraj,     1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%propmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%shmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%nelm,      1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%lreal,     1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%fname,   256, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%temperature, 1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%scissor,   1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
         IF (.NOT. ALLOCATED(inp%inibands)) ALLOCATE(inp%inibands(inp%nsample))
         IF (.NOT. ALLOCATED(inp%inispins)) ALLOCATE(inp%inispins(inp%nsample))
@@ -214,6 +219,7 @@ MODULE input_mod
         LOGICAL :: lreal
         CHARACTER(256)  :: fname
         REAL(q) :: temperature
+        REAL(q) :: scissor
         INTEGER, ALLOCATABLE :: inibands(:)
         INTEGER, ALLOCATABLE :: inispins(:)
         INTEGER, ALLOCATABLE :: inisteps(:)
@@ -235,7 +241,8 @@ MODULE input_mod
                               lreal,    &
                               nelm,     &
                               fname,    &
-                              temperature
+                              temperature, &
+                              scissor
 
         NAMELIST /inicon/ inibands, &
                           inispins, &
@@ -245,11 +252,32 @@ MODULE input_mod
         INTEGER :: nbrange
         INTEGER :: nbasis
 
+        !! Default values for namdparams
+        rundir       = "../run"
+        wavetype     = "std"
+        ikpoint      = 1
+        brange       = [0, 0]
+        basis_up     = [0, 0]
+        basis_dn     = [0, 0]
+        nsw          = 0
+        ndigit       = 4
+        namdtime     = 1000
+        dt           = 1.0
+        nsample      = 100
+        ntraj        = 10000
+        propmethod   = "EXACT"
+        shmethod     = "FSSH"
+        nelm         = 1
+        lreal        = .FALSE.
+        fname        = "nac.h5"
+        temperature  = 300.0
+        scissor      = 0.0
+
         READ(iu, NML=namdparams)
 
         !! Do some checking (limited, not complete)
         IF (brange(1) <= 0 .OR. brange(1) >= brange(2)) THEN
-            WRITE(STDERR, '("[ERROR] Invalid brange: ", 2I5, " ", A)') brange, AT
+            WRITE(STDERR, '("[ERROR] Invalid BRANGE: ", 2I5, " ", A)') brange, AT
             STOP ERROR_INPUT_RANGEWRONG
         END IF
         nbrange = brange(2) - brange(1) + 1
@@ -269,8 +297,8 @@ MODULE input_mod
         IF (nb(1) /= 0) THEN
             IF (nb(1) < 0 .OR. nb(1) > nbrange .OR. &
                 ANY(basis_up < brange(1)) .OR. ANY(basis_up > brange(2))) THEN
-                WRITE(STDERR, '("[ERROR] Invalid basis range: basis_up = (", 2I5, ")")') basis_up
-                WRITE(STDERR, '(8X, "Valid range should be: (", 2I5, ")", 2X, A)') brange, AT
+                WRITE(STDERR, '("[ERROR] Invalid basis range: BASIS_UP = (", 2I5, ")")') basis_up
+                WRITE(STDERR, '(8X, "valid range should be: (", 2I5, ")", 2X, A)') brange, AT
                 STOP ERROR_INPUT_RANGEWRONG
             END IF
         END IF
@@ -278,8 +306,8 @@ MODULE input_mod
         IF (nb(2) /= 0) THEN
             IF (nb(2) < 0 .OR. nb(2) > nbrange .OR. &
                 ANY(basis_dn < brange(1)) .OR. ANY(basis_dn > brange(2))) THEN
-                WRITE(STDERR, '("[ERROR] Invalid basis range: basis_dn = (", 2I5, ")")') basis_dn
-                WRITE(STDERR, '(8X, "Valid range should be: (", 2I5, ")", 2X, A)') brange, AT
+                WRITE(STDERR, '("[ERROR] Invalid basis range: BASIS_DN = (", 2I5, ")")') basis_dn
+                WRITE(STDERR, '(8X, "valid range should be: (", 2I5, ")", 2X, A)') brange, AT
                 STOP ERROR_INPUT_RANGEWRONG
             END IF
         END IF
@@ -291,17 +319,17 @@ MODULE input_mod
         END IF
 
         IF (dt <= 0) THEN
-            WRITE(STDERR, '("[ERROR] Invalid brange: ", F8.3, " ", A)') dt, AT
+            WRITE(STDERR, '("[ERROR] Invalid BRANGE: ", F8.3, " ", A)') dt, AT
             STOP ERROR_INPUT_DTWRONG
         END IF
 
         IF (nsample < 1) THEN
-            WRITE(STDERR, '("[ERROR] Invalid nsample: ", I8, " ", A)') nsample, AT
+            WRITE(STDERR, '("[ERROR] Invalid NSAMPLE: ", I8, " ", A)') nsample, AT
             STOP ERROR_INPUT_RANGEWRONG
         END IF
 
         IF (ntraj < 1) THEN
-            WRITE(STDERR, '("[ERROR] Invalid ntraj: ", I8, " ", A)') ntraj, AT
+            WRITE(STDERR, '("[ERROR] Invalid NTRAJ: ", I8, " ", A)') ntraj, AT
             STOP ERROR_INPUT_RANGEWRONG
         END IF
 
@@ -318,7 +346,7 @@ MODULE input_mod
                 END IF
                 CONTINUE
             CASE DEFAULT
-                WRITE(STDERR, '("[ERROR] Invalid propmethod: ", A, ", available: FINITE-DIFFERENCE, EXACT, LIOUVILLE-TROTTER ", A)') TRIM(propmethod), AT
+                WRITE(STDERR, '("[ERROR] Invalid PROPMETHOD: ", A, ", available: FINITE-DIFFERENCE, EXACT, LIOUVILLE-TROTTER ", A)') TRIM(propmethod), AT
                 STOP ERROR_INPUT_METHODERR
         END SELECT
 
@@ -331,14 +359,19 @@ MODULE input_mod
             CASE("DISH")
                 CONTINUE
             CASE DEFAULT
-                WRITE(STDERR, '("[ERROR] Invalid shmethod: ", A, ", available: FSSH, DCSH, DISH ", A)') TRIM(shmethod), AT
+                WRITE(STDERR, '("[ERROR] Invalid SHMETHOD: ", A, ", available: FSSH, DCSH, DISH ", A)') TRIM(shmethod), AT
                 STOP ERROR_INPUT_METHODERR
         END SELECT
 
         IF (temperature <= 0.0) THEN
-            WRITE(STDERR, '("[ERROR] Invalid temperature from input file: ", F8.2, " Kelvin")') temperature
+            WRITE(STDERR, '("[ERROR] Invalid TEMPERATURE from input file: ", F8.2, " Kelvin")') temperature
             STOP ERROR_INPUT_RANGEWRONG
         END IF
+
+        IF (scissor < 0.0) THEN
+            WRITE(STDERR, '("[ERROR] Negative SCISSOR from input file: ", F8.2, " eV")') temperature
+            STOP ERROR_INPUT_RANGEWRONG
+        ENDIF
 
         !! Continue to construct input data
         inp%rundir    = rundir
@@ -359,6 +392,7 @@ MODULE input_mod
         inp%lreal     = lreal
         inp%fname     = fname
         inp%temperature = temperature
+        inp%scissor   = scissor
 
         ALLOCATE(inp%inibands(nsample))
         ALLOCATE(inp%inispins(nsample))
@@ -420,6 +454,7 @@ MODULE input_mod
         WRITE(iu, '(1X, A12, " = ",    A, ", ! ", A)') "FNAME", '"' // TRIM(inp%fname) // '"', &
             "file name for saving NAC data, no more than 256 characters"
         WRITE(iu, '(1X, A12, " = ",F10.2, ", ! ", A)') 'TEMPERATURE',   inp%temperature,    "NAMD temperature, in Kelvin"
+        WRITE(iu, '(1X, A12, " = ",F10.2, ", ! ", A)') 'SCISSOR',       inp%scissor,        "Scissor operator, in eV"
         WRITE(iu, '(A)') "/"             ! End
 
 
