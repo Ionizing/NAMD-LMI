@@ -162,7 +162,7 @@ MODULE hamiltonian_mod
 
         !! put the electron or hole on the initial band
         hamil%psi_c(iniband_index_convert_(basis_up, basis_dn, inispin, iniband)) = 1.0
-        hamil%psi_t(:, 1) = hamil%psi_c
+        !hamil%psi_t(:, 1) = hamil%psi_c
 
         !! construct from nac, need to convert the indices
         bup = basis_up - nac_dat%brange(1) + 1  !> band index refer to NAC
@@ -183,9 +183,10 @@ MODULE hamiltonian_mod
             hamil%nac_t(nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
         END IF
 
+        hamil%nac_t = hamil%nac_t * (-IMGUNIT * HBAR / (2.0 * hamil%dt))
         hamil%eig_t = hamil%eig_t - nac_dat%efermi
 
-        !! Find the index of CBM
+        !! Applying scissor operator
         FORALL(iband=1:hamil%nbasis, istep=1:(hamil%nsw-1), hamil%eig_t(iband, istep)>0) &
                 hamil%eig_t(iband, istep) = hamil%eig_t(iband, istep) + scissor
     END SUBROUTINE hamiltonian_init
@@ -237,25 +238,28 @@ MODULE hamiltonian_mod
         xtime = rtime + 1
 
         !! off diagonal part
-        IF (rtime == 1) THEN
-            IF (iele <= hamil%nelm/2) THEN
-                hamil%hamil = hamil%nac_t(:, :, rtime) - &
-                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (nelm/2 - iele - 0.5_q) / nelm
-            ELSE
-                hamil%hamil = hamil%nac_t(:, :, rtime) + &
-                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
-            END IF
-        ELSE    ! rimt /= 1
-            IF (iele <= hamil%nelm/2) THEN
-                hamil%hamil = hamil%nac_t(:, :, rtime-1) + &
-                    (hamil%nac_t(:, :, rtime) - hamil%nac_t(:, :, rtime-1)) * (iele + nelm/2 - 0.5_q) / nelm
-            ELSE
-                hamil%hamil = hamil%nac_t(:, :, rtime) + &
-                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
-            END IF
-        END IF  ! rtime
+        !IF (rtime == 1) THEN
+            !IF (iele <= hamil%nelm/2) THEN
+                !hamil%hamil = hamil%nac_t(:, :, rtime) - &
+                    !(hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (nelm/2 - iele - 0.5_q) / nelm
+            !ELSE
+                !hamil%hamil = hamil%nac_t(:, :, rtime) + &
+                    !(hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
+            !END IF
+        !ELSE    ! rimt /= 1
+            !IF (iele <= hamil%nelm/2) THEN
+                !hamil%hamil = hamil%nac_t(:, :, rtime-1) + &
+                    !(hamil%nac_t(:, :, rtime) - hamil%nac_t(:, :, rtime-1)) * (iele + nelm/2 - 0.5_q) / nelm
+            !ELSE
+                !hamil%hamil = hamil%nac_t(:, :, rtime) + &
+                    !(hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
+            !END IF
+        !END IF  ! rtime
 
-        hamil%hamil = -IMGUNIT * HBAR * hamil%hamil
+        hamil%hamil(:, :) = hamil%nac_t(:, :, rtime) + &
+                            (hamil%nac_t(:, :, xtime) - hamil%nac_t(:, :, rtime)) * (DBLE(iele) / nelm)
+
+        !hamil%hamil = -IMGUNIT * HBAR * hamil%hamil
 
         !! diagonal part, equals to eigen value
         FORALL(i=1:hamil%nbasis) &
@@ -404,12 +408,13 @@ MODULE hamiltonian_mod
             COMPLEX(q)  :: phi, cos_phi, sin_phi, cjj, ckk
             INTEGER     :: jj, kk
 
-            IF (ANY(ABS(IMAGPART(hamil%nac_t)) > 1E-9)) THEN
+            IF (ANY(ABS(REALPART(hamil%nac_t)) > 1E-9)) THEN
                 WRITE(STDERR, '("[ERROR] A real NAC is required to use Liouville-Trotter propagation scheme, please check NAC")')
                 STOP ERROR_HAMIL_PROPFAIL
             END IF
 
             hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+            hamil%psi_t(:, iion) = hamil%psi_c
 
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)

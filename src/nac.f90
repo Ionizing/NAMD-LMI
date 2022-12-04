@@ -459,7 +459,7 @@ MODULE nac_mod
                 CALL H5DOPEN_F(file_id, "olaps_i", dset_id, ierr)
                 CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, olaps_reim, olaps_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
-                nac_dat%olaps = nac_dat%olaps + olaps_reim * (0, 1) 
+                nac_dat%olaps = nac_dat%olaps + olaps_reim * IMGUNIT
             DEALLOCATE(olaps_reim)
 
             !! eigs

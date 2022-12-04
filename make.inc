@@ -20,4 +20,10 @@ HDF5INC  += -I$(HDF5)/include
 F90FLAGS += $(HDF5INC) -DHDF5 -L$(HDF5)/lib -lhdf5_fortran -lhdf5
 
 GIT_VERSION := "$(shell git describe --dirty --always --tags)"
-F90FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+VER_MAJOR := 0
+VER_MINOR := 0
+VER_PATCH := 0
+F90FLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\" \
+            -DVER_MAJOR=$(VER_MAJOR) \
+            -DVER_MINOR=$(VER_MINOR) \
+            -DVER_PATCH=$(VER_PATCH)

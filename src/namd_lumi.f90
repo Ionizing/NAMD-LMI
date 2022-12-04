@@ -7,6 +7,13 @@ PROGRAM namd_lumi_x
 
     IMPLICIT NONE
 
+    TYPE(version), PARAMETER :: NAMD_VERSION = &
+        version (       &
+        VER_MAJOR, VER_MINOR, VER_PATCH,        &
+        __DATE__ // " " // __TIME__, &
+        GIT_VERSION     &
+        )
+
     INTEGER :: irank, ierr
 
     TYPE(input) :: inp

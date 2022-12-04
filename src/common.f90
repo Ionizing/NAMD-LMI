@@ -127,13 +127,6 @@ MODULE common_mod
         CHARACTER(64)   :: commit   !< git commit hash code
     END TYPE version
 
-    TYPE(version), PARAMETER :: NAMD_VERSION = &
-        version (       &
-        0, 0, 0,        &
-        __DATE__ // " " // __TIME__, &
-        GIT_VERSION     &
-        )
-
     CONTAINS
 
     SUBROUTINE version_print(ver, io, str)
