@@ -19,10 +19,12 @@ HDF5     ?= #/public/apps/HDF5/1.13.2_gcc-4.8.5
 HDF5INC  += -I$(HDF5)/include
 F90FLAGS += $(HDF5INC) -DHDF5 -L$(HDF5)/lib -lhdf5_fortran -lhdf5
 
-GIT_HASH    := $(shell ../git-ver.sh hash)
-VER_MAJOR   := $(shell ../git-ver.sh major)
-VER_MINOR   := $(shell ../git-ver.sh minor)
-VER_PATCH   := $(shell ../git-ver.sh patch)
+GIT_HASH    := $(shell git describe --match=nEvErMaTcH --always --abbrev=8 --dirty)
+GIT_VERSION := $(shell (git describe --dirty --always --tags | sed -nE 's/^v([0-9]+).([0-9]+).([0-9]+)(.*)/\1 \2 \3/p'))
+
+VER_MAJOR   := $(or $(word 1, $(GIT_VERSION)), 0)
+VER_MINOR   := $(or $(word 2, $(GIT_VERSION)), 0)
+VER_PATCH   := $(or $(word 3, $(GIT_VERSION)), 0)
 
 F90FLAGS += -DGIT_HASH=\"$(GIT_HASH)\" \
             -DVER_MAJOR=$(VER_MAJOR) \
