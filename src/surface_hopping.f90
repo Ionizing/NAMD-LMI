@@ -133,6 +133,7 @@ MODULE surface_hopping_mod
         REAL(q), ALLOCATABLE, SAVE :: thermal_factor(:)     !< use SAVE attribute to avoid repetitive allocations
         REAL(q), ALLOCATABLE, SAVE :: rhod_jk(:)
         REAL(q), ALLOCATABLE, SAVE :: prob(:)
+        REAL(q), ALLOCATABLE, SAVE :: dE(:)
 
         !! logic starts
         rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
@@ -140,12 +141,15 @@ MODULE surface_hopping_mod
         IF (.NOT. ALLOCATED(thermal_factor))    ALLOCATE(thermal_factor(hamil%nbasis))
         IF (.NOT. ALLOCATED(rhod_jk))           ALLOCATE(rhod_jk(hamil%nbasis))
         IF (.NOT. ALLOCATED(prob))              ALLOCATE(prob(hamil%nbasis))
+        IF (.NOT. ALLOCATED(dE))                ALLOCATE(dE(hamil%nbasis))
 
         rho_jj  = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(istate, iion))
         rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime))  !< Re(rho_jk * d_jk)
 
-        thermal_factor = EXP(-ABS(hamil%eig_t(:, rtime) - hamil%eig_t(istate, rtime)) / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
-        prob = 2 * rhod_jk * hamil%dt / rho_jj    !< P_jk_ = 2 * Re(rho_jk * d_jk) * dt / rho_jj
+        !< Boltzmann factor only works for upward hoppings, i.e. dE < 0
+        FORALL (i=1:hamil%nbasis) dE(i) = MIN(0.0, hamil%eig_t(istate, rtime) - hamil%eig_t(i, rtime))
+        thermal_factor = EXP(dE / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
+        prob = 2 * rhod_jk * hamil%dt / rho_jj                  !< P_jk_ = 2 * Re(rho_jk * d_jk) * dt / rho_jj
         prob = prob * thermal_factor
 
         FORALL (i=1:hamil%nbasis, prob(i) < 0) prob(i) = 0.0  !! P_jk = max(P_jk_, 0)
