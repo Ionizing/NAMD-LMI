@@ -11,7 +11,7 @@ PROGRAM namd_lumi_x
         version (       &
         VER_MAJOR, VER_MINOR, VER_PATCH,        &
         __DATE__ // " " // __TIME__, &
-        GIT_VERSION     &
+        GIT_HASH     &
         )
 
     INTEGER :: irank, ierr
