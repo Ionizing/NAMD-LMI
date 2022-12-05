@@ -215,7 +215,7 @@ MODULE nac_mod
 
             i0 = i - local_start + 1    ! starts from 1
             j0 = i0 + 1
-            CALL nac_ij_(wav_i, wav_j, ikpoint, brange, olaps(:, :, :, i0), eigs(:, :, i0))
+            CALL nac_ij_(wav_j, wav_i, ikpoint, brange, olaps(:, :, :, i0), eigs(:, :, i0))
 
             efermis_local = efermis_local + wav_i%efermi
 
@@ -546,6 +546,8 @@ MODULE nac_mod
             c_ij(:, :, ispin) =   MATMUL(CONJG(TRANSPOSE(psi_i)), psi_j) &  !! p_ji = <psi_i(t)|psi_j(t+dt)>
                                 - MATMUL(CONJG(TRANSPOSE(psi_j)), psi_i)    !! p_ij = <psi_j(t)|psi_i(t+dt)>
         ENDDO
+
+        IF (wav_i%wavetype(1:3) == "gam") c_ij = REALPART(c_ij)
 
         e_ij(:, :) = (wav_i%eigs(brange(1):brange(2), ikpoint, :) + wav_j%eigs(brange(1):brange(2), ikpoint, :)) / 2.0
 

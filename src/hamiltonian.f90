@@ -186,6 +186,9 @@ MODULE hamiltonian_mod
         hamil%nac_t = hamil%nac_t * (-IMGUNIT * HBAR / (2.0 * hamil%dt))
         hamil%eig_t = hamil%eig_t - nac_dat%efermi
 
+        !! Fill the diagonal with 0
+        FORALL(iband=1:hamil%nbasis) hamil%nac_t(iband, iband, :) = 0.0
+
         !! Applying scissor operator
         FORALL(iband=1:hamil%nbasis, istep=1:(hamil%nsw-1), hamil%eig_t(iband, istep)>0) &
                 hamil%eig_t(iband, istep) = hamil%eig_t(iband, istep) + scissor
@@ -284,6 +287,10 @@ MODULE hamiltonian_mod
         rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
         !! We require users to initialize hamil%psi_c manually
 
+        hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+        hamil%prop_eigs(iion) = SUM(hamil%pop_t(:, iion) * hamil%eig_t(:, rtime))
+        hamil%psi_t(:, iion) = hamil%psi_c
+
         SELECT CASE (method)
             CASE("FINITE-DIFFERENCE")
                 CALL propagate_finite_difference_
@@ -303,7 +310,6 @@ MODULE hamiltonian_mod
             STOP ERROR_HAMIL_PROPFAIL
         END IF
 
-        hamil%prop_eigs(iion) = SUM(hamil%pop_t(:, iion) * hamil%eig_t(:, rtime))
 
         CONTAINS
 
@@ -311,9 +317,6 @@ MODULE hamiltonian_mod
         !> In each electronic step, the |psi_c'> = H_ele * |psi_c> are performed,
         !>  where H_ele are linear interpolated, thus this method requires NELM = ~1000 to preserve the norm of psi_c
         SUBROUTINE propagate_finite_difference_
-            hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
-            hamil%psi_t(:, iion) = hamil%psi_c
-
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)
                 hamil%psi_h = MATMUL(hamil%hamil, hamil%psi_c)
@@ -371,9 +374,6 @@ MODULE hamiltonian_mod
             IF (.NOT. ALLOCATED(RWORK_))ALLOCATE(RWORK_(rworkl))
             IF (.NOT. ALLOCATED(EXPH))  ALLOCATE(EXPH(nbasis, nbasis))
 
-            hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
-            hamil%psi_t(:, iion) = hamil%psi_c
-
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)
 
@@ -412,9 +412,6 @@ MODULE hamiltonian_mod
                 WRITE(STDERR, '("[ERROR] A real NAC is required to use Liouville-Trotter propagation scheme, please check NAC")')
                 STOP ERROR_HAMIL_PROPFAIL
             END IF
-
-            hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
-            hamil%psi_t(:, iion) = hamil%psi_c
 
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)
