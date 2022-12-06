@@ -26,7 +26,7 @@ MODULE input_mod
         !! we suggest: "FINITE-DIFFERENCE"=>1000, "EXACT"=>1, "LIOUVILLE-TROTTER"=>1
         INTEGER         :: nelm         = 1
         LOGICAL         :: lreal        = .FALSE.   !! Use real NAC or not
-        CHARACTER(256)  :: fname        = "nac.h5"  !! file name for saving NAC data
+        CHARACTER(256)  :: fname        = "NAC.h5"  !! file name for saving NAC data
 
         REAL(q)         :: temperature  = 300.0     !! NAMD temperature, in Kelvin
         REAL(q)         :: scissor      = 0.0       !! Value for scissor operator, inv eV

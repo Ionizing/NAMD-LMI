@@ -22,7 +22,7 @@ hamiltonian.o: string.o nac.o wavecar.o common.o
 
 input.o: string.o
 
-surface_hopping.o: common.o string.o hamiltonian.o
+surface_hopping.o: common.o string.o hamiltonian.o input.o nac.o
 
 clean:
 	rm -f *.x *.o *.mod *.a

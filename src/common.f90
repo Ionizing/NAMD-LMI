@@ -100,6 +100,8 @@ MODULE common_mod
 
     INTEGER,    PARAMETER :: ERROR_SURFHOP_METHOD    = 90
 
+    INTEGER,    PARAMETER :: ERROR_NRANKGTNSAMPLE    = 100
+
     !! MPI related stuff
     INTEGER,    PARAMETER :: MPI_ROOT_NODE           = 0
 

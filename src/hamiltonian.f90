@@ -461,7 +461,7 @@ MODULE hamiltonian_mod
         INTEGER(HID_T)   :: file_id, dspace_id, dset_id
         
         IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Writing calculated Hamiltonian to "' // TRIM(h5fname) // '" ...'
+            IF (llog) WRITE(STDOUT, '(A)') '[INFO] Writing calculated Hamiltonian to "' // TRIM(h5fname) // '" ...'
         ENDIF
 
 
@@ -488,9 +488,6 @@ MODULE hamiltonian_mod
             CALL H5SCLOSE_F(dspace_id, ierr)
         CALL H5FCLOSE_F(file_id, ierr)
         CALL H5CLOSE_F(ierr)
-        IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)') " Done"
-        ENDIF
     END SUBROUTINE hamiltonian_save_to_h5
 
 

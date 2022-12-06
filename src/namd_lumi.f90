@@ -1,4 +1,4 @@
-!> Currently, this file is for test only
+!> For now, this file is for test only
 PROGRAM namd_lumi_x
     USE common_mod
     USE cla
@@ -8,64 +8,71 @@ PROGRAM namd_lumi_x
     IMPLICIT NONE
 
     TYPE(version), PARAMETER :: NAMD_VERSION = &
-        version (       &
-        VER_MAJOR, VER_MINOR, VER_PATCH,        &
-        __DATE__ // " " // __TIME__, &
-        GIT_HASH     &
+        version (                           &
+        VER_MAJOR, VER_MINOR, VER_PATCH,    &
+        __DATE__ // " " // __TIME__,        &
+        GIT_HASH                            &
         )
 
     INTEGER :: irank, ierr
 
     TYPE(input) :: inp
     TYPE(nac)   :: nac_dat
-    TYPE(hamiltonian) :: hamil
-    TYPE(surface_hopping) :: sh
+    INTEGER :: timing_start, timing_end, timing_rate
 
-    INTEGER :: i
-    !INTEGER :: timing_start, timing_end, timing_rate
+#ifdef OPENBLAS
+    CALL OPENBLAS_SET_NUM_THREADS(1)
+#endif
 
     CALL MPI_INIT(ierr)
     CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
 
     IF (irank == MPI_ROOT_NODE) THEN
         CALL version_print(NAMD_VERSION)
-        CALL cli_parse
-    END IF
+        CALL cli_parse                      !! input file loads here
 
-    IF (inp%scissor > 0.0) THEN
-        WRITE(STDOUT, '("[WARN] You have specified SCISSOR > 0, thus no band crossings between VBM and CBM are required.")')
+        IF (inp%scissor > 0.0) THEN
+            WRITE(STDOUT, '("[WARN] You have specified SCISSOR > 0, thus no band crossings between VBM and CBM are required.")')
+        ENDIF
+
+        WRITE(STDOUT, '(A)') "================================================================================"
+        WRITE(STDOUT, '(A)') "                      INPUT FILES READY, START CALCULATING                      "
+        WRITE(STDOUT, '(A)') "================================================================================"
     ENDIF
 
-    CALL input_mpisync(inp)
+    CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
-#ifdef OPENBLAS
-    CALL OPENBLAS_SET_NUM_THREADS(2)
-#endif
+    !! For timing
+    CALL SYSTEM_CLOCK(timing_start, timing_rate)
+
+    CALL input_mpisync(inp)
 
     !! get the NAC
     CALL nac_load_or_calculate(nac_dat, inp)
     CALL nac_mpisync(nac_dat)
 
-    IF (irank == MPI_ROOT_NODE) THEN
-        DO i = 1, inp%nsample
-            CALL hamiltonian_init_with_input(hamil, nac_dat, inp, i)
-            IF (i == 1) CALL hamiltonian_save_to_h5(hamil, "hamil.h5", llog=.TRUE.)
-            WRITE(STDOUT, '("[INFO] Running surface hopping ...")')
-            CALL surface_hopping_init_with_input(sh, hamil, inp)
-
-            CALL surface_hopping_run(sh, hamil)
-            CALL surface_hopping_save_to_h5(sh, hamil, inp%ndigit, llog=.TRUE.)
-
-            CALL surface_hopping_destroy(sh)
-            CALL hamiltonian_destroy(hamil)
-        ENDDO
+    IF (MPI_ROOT_NODE == irank) THEN
+        WRITE(STDOUT, '(A)') "================================================================================"
+        WRITE(STDOUT, '(A)') "                      NACouplings READY, START CALCULATING                      "
+        WRITE(STDOUT, '(A)') "================================================================================"
     ENDIF
+    CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
-
+    CALL surface_hopping_run_mpi(nac_dat, inp)
     CALL nac_destroy(nac_dat)
 
     CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+
+    CALL SYSTEM_CLOCK(timing_end, timing_rate)
+    IF (irank == MPI_ROOT_NODE) THEN
+        WRITE(STDOUT, '(A)') "================================================================================"
+        WRITE(STDOUT, '(A, F10.3, A)') "    CONGRATULATIONS, ALL CALCULATIONS DONE IN ", DBLE(timing_end - timing_start) / timing_rate, " SECS."
+        WRITE(STDOUT, '(A)') "================================================================================"
+    ENDIF
+
     CALL MPI_FINALIZE(ierr)
+
+    !! End of NAMD_lumi
 
     CONTAINS
         SUBROUTINE cli_parse

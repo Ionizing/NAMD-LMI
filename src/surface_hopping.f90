@@ -64,19 +64,15 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_destroy
 
 
-    SUBROUTINE surface_hopping_run(sh, hamil)
-        USE mpi
-
+    SUBROUTINE surface_hopping_run(sh, hamil, irank)
         TYPE(surface_hopping), INTENT(inout) :: sh
-        TYPE(hamiltonian), INTENT(inout) :: hamil
+        TYPE(hamiltonian), INTENT(inout)     :: hamil
+        INTEGER, INTENT(in) :: irank
 
         !! local variables
         INTEGER :: timing_start, timing_end, timing_rate
-        INTEGER :: irank, ierr
         REAL(q) :: time
         INTEGER :: iion, rtime
-
-        CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
 
         CALL SYSTEM_CLOCK(timing_start, timing_rate)
         SELECT CASE (sh%shmethod)
@@ -99,6 +95,66 @@ MODULE surface_hopping_mod
             sh%sh_eigs(iion) = SUM(sh%sh_pops(:, iion) * hamil%eig_t(:, rtime))
         ENDDO
     END SUBROUTINE surface_hopping_run
+
+
+    SUBROUTINE surface_hopping_run_mpi(nac_dat, inp)
+        USE mpi
+        USE input_mod
+        USE nac_mod
+
+        TYPE(nac), INTENT(in)   :: nac_dat
+        TYPE(input), INTENT(in) :: inp
+
+        !! local variables
+        TYPE(hamiltonian)     :: hamil
+        TYPE(surface_hopping) :: sh
+
+        INTEGER, ALLOCATABLE  :: sendcounts(:)
+        INTEGER, ALLOCATABLE  :: displs(:)
+        INTEGER :: nsample
+        INTEGER :: irank, nrank
+        INTEGER :: i
+        INTEGER :: local_start, local_end
+        INTEGER :: ierr
+
+        CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)
+        CALL MPI_COMM_SIZE(MPI_COMM_WORLD, nrank, ierr)
+
+        nsample = inp%nsample
+
+        IF (nrank > nsample) THEN
+            WRITE(STDERR, '("[ERROR] Number of MPI processes larger than NSAMPLE (", I4, ">", I4, "), please consider reduce the MPI processes")') &
+                nrank, nsample
+            STOP ERROR_NRANKGTNSAMPLE
+        ENDIF
+
+        ALLOCATE(sendcounts(nrank))
+        ALLOCATE(displs(nrank))
+
+        CALL mpi_partition(nrank, nsample, sendcounts, displs)
+        local_start = displs(irank+1) + 1
+        local_end   = local_start + sendcounts(irank+1) - 1
+
+        WRITE(STDOUT, '(A, I4, A)') "[NODE", irank, "] This node will run surface hopping for INICON from " // &
+            TINT2STR(inp%inisteps(local_start)) // " to " // TINT2STR(inp%inisteps(local_end))
+
+        DO i = local_start, local_end
+            WRITE(STDOUT, '(A, I4, A, I5, A)') "[NODE", irank ,"] Running INICOM = ", inp%inisteps(i), " ..."
+            CALL hamiltonian_init_with_input(hamil, nac_dat, inp, i)
+            IF (i == 1) CALL hamiltonian_save_to_h5(hamil, "HAMIL.h5", llog=.TRUE.)
+
+            CALL surface_hopping_init_with_input(sh, hamil, inp)
+            CALL surface_hopping_run(sh, hamil, irank)
+            CALL surface_hopping_save_to_h5(sh, hamil, inp%ndigit, irank, llog=.TRUE.)
+
+            CALL surface_hopping_destroy(sh)
+            CALL hamiltonian_destroy(hamil)
+
+        ENDDO
+
+        DEALLOCATE(displs)
+        DEALLOCATE(sendcounts)
+    END SUBROUTINE surface_hopping_run_mpi
 
     
     FUNCTION surface_hopping_hopping_destination(sh_prob_cum) RESULT(des)
@@ -147,7 +203,7 @@ MODULE surface_hopping_mod
         rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime))  !< Re(rho_jk * d_jk)
 
         !< Boltzmann factor only works for upward hoppings, i.e. dE < 0
-        FORALL (i=1:hamil%nbasis) dE(i) = MIN(0.0, hamil%eig_t(istate, rtime) - hamil%eig_t(i, rtime))
+        FORALL (i=1:hamil%nbasis) dE(i) = MIN(0.0_q, hamil%eig_t(istate, rtime) - hamil%eig_t(i, rtime))
         thermal_factor = EXP(dE / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
         prob = 2 * rhod_jk * hamil%dt / rho_jj                  !< P_jk_ = 2 * Re(rho_jk * d_jk) * dt / rho_jj
         prob = prob * thermal_factor
@@ -158,12 +214,13 @@ MODULE surface_hopping_mod
     END SUBROUTINE surface_hopping_calc_hop_prob
 
 
-    SUBROUTINE surface_hopping_save_to_h5(sh, hamil, ndigit, llog)
+    SUBROUTINE surface_hopping_save_to_h5(sh, hamil, ndigit, irank, llog)
         USE hdf5
 
         TYPE(surface_hopping), INTENT(in) :: sh
         TYPE(hamiltonian), INTENT(in)     :: hamil
         INTEGER, INTENT(in) :: ndigit
+        INTEGER, INTENT(in) :: irank
         LOGICAL, OPTIONAL   :: llog
 
         !! local variables
@@ -182,7 +239,7 @@ MODULE surface_hopping_mod
         !! propagation
         h5fname = "propagation_" // TRIM(int2str(hamil%namdinit, ndigit=ndigit)) // ".h5"
         IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Writing propagation info to "' // TRIM(h5fname) // '" ...'
+            IF (llog) WRITE(STDOUT, '(A, I4, A)') '[NODE', irank,'] Writing propagation info to "' // TRIM(h5fname) // '" ...'
         ENDIF
         CALL H5OPEN_F(ierr)
         CALL H5FCREATE_F(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
@@ -211,15 +268,12 @@ MODULE surface_hopping_mod
             CALL H5SCLOSE_F(dspace_id, ierr)
         CALL H5FCLOSE_F(file_id, ierr)
         CALL H5CLOSE_F(ierr)
-        IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)') " Done"
-        ENDIF
 
 
         !! surface hopping
         h5fname = "shpop_" // TRIM(int2str(hamil%namdinit, ndigit=ndigit)) // ".h5"
         IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Writing surface hopping info to "' // TRIM(h5fname) // '" ...'
+            IF (llog) WRITE(STDOUT, '(A, I4, A)') '[INFO', irank, '] Writing surface hopping info to "' // TRIM(h5fname) // '" ...'
         ENDIF
         CALL H5OPEN_F(ierr)
         CALL H5FCREATE_F(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
@@ -243,9 +297,6 @@ MODULE surface_hopping_mod
             CALL H5SCLOSE_F(dspace_id, ierr)
         CALL H5FCLOSE_F(file_id, ierr)
         CALL H5CLOSE_F(ierr)
-        IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)') " Done"
-        ENDIF
 
         DEALLOCATE(time_idx)
     END SUBROUTINE surface_hopping_save_to_h5
@@ -257,7 +308,7 @@ MODULE surface_hopping_mod
         REAL(q), INTENT(in) :: time
 
         WRITE(STDOUT, 100) irank, hamil%namdinit, time
-        100 FORMAT(/, "[NODE", I4, "] NAMDINIT = ", I5, " Time used: ", F10.3, " secs", /)
+        100 FORMAT("[NODE", I4, "] NAMDINIT = ", I5, " Time used: ", F10.3, " secs")
     END SUBROUTINE surface_hopping_print_stat
 
 

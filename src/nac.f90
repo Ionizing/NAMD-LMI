@@ -278,7 +278,7 @@ MODULE nac_mod
         INTEGER(HID_T)   :: file_id, dspace_id, dset_id
 
         IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Writing calculated NAC to "' // TRIM(h5fname) // '" ...'
+            IF (llog) WRITE(STDOUT, '(A)') '[INFO] Writing calculated NAC to "' // TRIM(h5fname) // '" ...'
         END IF
 
         !! logic starts
@@ -365,10 +365,6 @@ MODULE nac_mod
 
         CALL H5FCLOSE_F(file_id, ierr)
         CALL H5CLOSE_F(ierr)
-
-        IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)') " Done"
-        END IF
     END SUBROUTINE nac_save_to_h5
 
 
@@ -388,7 +384,7 @@ MODULE nac_mod
 
         !! logic starts
         IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)', ADVANCE='no') '[INFO] Loading NAC from "' // TRIM(h5fname) // '" ...'
+            IF (llog) WRITE(STDOUT, '(A)') '[INFO] Loading NAC from "' // TRIM(h5fname) // '" ...'
         END IF
 
         CALL H5OPEN_F(Ierr)
@@ -471,10 +467,6 @@ MODULE nac_mod
 
         CALL H5FCLOSE_F(file_id, ierr)
         CALL H5CLOSE_F(ierr)
-
-        IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A)') " Done"
-        END IF
     END SUBROUTINE nac_load_from_h5
 
 
