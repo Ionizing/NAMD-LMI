@@ -45,6 +45,12 @@ MODULE test_input
         inp%inispins = [  1,   1,   2,   1,   2]
         inp%inisteps = [  1, 200, 500, 100, 114]
 
+        ALLOCATE(inp%efield(3, inp%namdtime))
+        inp%efield = 0.0
+        inp%efield(:, 1)   = [0.0, 1.0, 2.0]
+        inp%efield(:, 514) = [19.0, 19.0, 810.0]
+        inp%efield(:, 900) = [3.0, 6.0, 4.0]
+
         CALL input_to_file(inp, fname="test_input.nml")
         CALL input_from_file(inp_read, fname="test_input.nml")
 
@@ -70,5 +76,6 @@ MODULE test_input
         CALL assert_equals(inp%fname,     inp_read%fname,     AT)
         CALL assert_equals(inp%temperature, inp_read%temperature, AT)
         CALL assert_equals(inp%scissor,   inp_read%scissor, AT)
+        CALL assert_equals(inp%efield,    inp_read%efield, 3, inp%namdtime, AT)
     END SUBROUTINE test_input_nml
 END MODULE test_input

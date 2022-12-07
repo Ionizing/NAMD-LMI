@@ -37,6 +37,9 @@ MODULE input_mod
         INTEGER, ALLOCATABLE :: inibands(:)
         INTEGER, ALLOCATABLE :: inispins(:)
         INTEGER, ALLOCATABLE :: inisteps(:)
+
+        !! For EFIELD
+        REAL(q), ALLOCATABLE :: efield(:, :)        !! External electric field, [3, namdtime]
     END TYPE
 
     PRIVATE     :: input_from_iu_
@@ -108,6 +111,7 @@ MODULE input_mod
         IF (ALLOCATED(inp%inibands)) DEALLOCATE(inp%inibands)
         IF (ALLOCATED(inp%inispins)) DEALLOCATE(inp%inispins)
         IF (ALLOCATED(inp%inisteps)) DEALLOCATE(inp%inisteps)
+        IF (ALLOCATED(inp%efield))   DEALLOCATE(inp%efield)
     END SUBROUTINE input_destroy
 
 
@@ -136,6 +140,7 @@ MODULE input_mod
         ALLOCATE(inp%inibands(nsample))
         ALLOCATE(inp%inispins(nsample))
         ALLOCATE(inp%inisteps(nsample))
+        ALLOCATE(inp%efield(3, inp%namdtime))
 
         inp%inibands = 0
         inp%inispins = 1
@@ -153,6 +158,7 @@ MODULE input_mod
 
         WRITE(STDOUT, '("[INFO] The example input file saved to ", A)') '"' // fname // '"'
 
+        DEALLOCATE(inp%efield)
         DEALLOCATE(inp%inisteps)
         DEALLOCATE(inp%inispins)
         DEALLOCATE(inp%inibands)
@@ -188,10 +194,12 @@ MODULE input_mod
         IF (.NOT. ALLOCATED(inp%inibands)) ALLOCATE(inp%inibands(inp%nsample))
         IF (.NOT. ALLOCATED(inp%inispins)) ALLOCATE(inp%inispins(inp%nsample))
         IF (.NOT. ALLOCATED(inp%inisteps)) ALLOCATE(inp%inisteps(inp%nsample))
+        IF (.NOT. ALLOCATED(inp%efield))   ALLOCATE(inp%efield(3, inp%namdtime))
 
         CALL MPI_BCAST(inp%inibands, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%inispins, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%inisteps, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%efield,   3*inp%namdtime, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
     END SUBROUTINE
 
 
@@ -223,6 +231,7 @@ MODULE input_mod
         INTEGER, ALLOCATABLE :: inibands(:)
         INTEGER, ALLOCATABLE :: inispins(:)
         INTEGER, ALLOCATABLE :: inisteps(:)
+        REAL(q), ALLOCATABLE :: efield(:, :)
 
         NAMELIST /namdparams/ rundir,   &
                               wavetype, &
@@ -247,6 +256,8 @@ MODULE input_mod
         NAMELIST /inicon/ inibands, &
                           inispins, &
                           inisteps
+
+        NAMELIST /extfield/ efield
 
         INTEGER :: nb(2)
         INTEGER :: nbrange
@@ -410,6 +421,16 @@ MODULE input_mod
         DEALLOCATE(inisteps)
         DEALLOCATE(inispins)
         DEALLOCATE(inibands)
+
+        !! efield stuff
+        ALLOCATE(inp%efield(3, namdtime))
+        ALLOCATE(efield(3, namdtime))
+
+        efield = 0.0
+        READ(iu, NML=extfield)
+        inp%efield = efield
+
+        DEALLOCATE(efield)
     END SUBROUTINE input_from_iu_
 
 
@@ -417,8 +438,9 @@ MODULE input_mod
         INTEGER, INTENT(in)     :: iu
         TYPE(input), INTENT(in) :: inp
 
-        !INTEGER :: i
+        INTEGER :: i
 
+        !! namdparams stuff
         WRITE(iu, '(A)') "&NAMDPARAMS"   ! Start
         WRITE(iu, '(1X, A12, " = ",    A, ", ! ", A)') 'RUNDIR',   '"' // TRIM(inp%rundir) // '"', &
             'Directory that contains "????/WAVECAR"'
@@ -459,6 +481,8 @@ MODULE input_mod
 
 
         WRITE(iu, '(/,/)', ADVANCE='no') ! Two empty lines
+
+        !! inicon stuff
         WRITE(iu, '(A)') "&INICON"       ! Start
         WRITE(iu, '(4X, "!! Initial step indices for each sample, must be within [1, NSW-NAMDTIME-1].")')
         WRITE(iu, '(4X, "INISTEPS(:) = ", *(I5))') inp%inisteps(:)
@@ -473,5 +497,17 @@ MODULE input_mod
         WRITE(iu, '(4X, "!! If all the inispins are same, INISPINS(:) = 8*1 is also ok, where 8 is NSAMPLE and 1 is INISPIN")')
         WRITE(iu, '(4X, "INISPINS(:) = ", *(I5))') inp%inispins(:)
         WRITE(iu, '(A)') "/"             ! End
+
+        WRITE(iu, '(/,/)', ADVANCE='no') ! Two empty lines
+
+        !! external field stuff
+        WRITE(iu, '(A)') "&EXTFIELD"
+        WRITE(iu, '(4X, A)') "!! Time-dependent electric field appllied to current system, in "
+        WRITE(iu, '(4X, "!!", 3(4X, A7), A9)') "X", "Y", "Z", "TIMESTEP"
+        WRITE(iu, '(4X, A)') "EFIELD(:,:) ="
+        DO i = 1, inp%namdtime
+            WRITE(iu, '(2X, 3(1X, F10.3), " !", I7)') inp%efield(:, i), i
+        ENDDO
+        WRITE(iu, '(A)') "/"
     END SUBROUTINE input_to_iu_
 END MODULE
