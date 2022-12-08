@@ -29,7 +29,7 @@ MODULE input_mod
         CHARACTER(256)  :: fname        = "NAC.h5"  !! file name for saving NAC data
 
         REAL(q)         :: temperature  = 300.0     !! NAMD temperature, in Kelvin
-        REAL(q)         :: scissor      = 0.0       !! Value for scissor operator, inv eV
+        REAL(q)         :: scissor      = 0.0       !! Value for scissor operator, in eV
 
         !! TODO
         !INTEGER         :: ncarrier     = 1         !! number of carriers
@@ -39,7 +39,7 @@ MODULE input_mod
         INTEGER, ALLOCATABLE :: inisteps(:)
 
         !! For EFIELD
-        REAL(q), ALLOCATABLE :: efield(:, :)        !! External electric field, [3, namdtime]
+        REAL(q), ALLOCATABLE :: efield(:, :)        !! External electric field, [3, namdtime], in V/Angstrom
     END TYPE
 
     PRIVATE     :: input_from_iu_
@@ -148,6 +148,8 @@ MODULE input_mod
             inp%inisteps(i) = randint_range(1, nsw-1)
         ENDDO
         CALL qsort_i(inp%inisteps)
+
+        inp%efield = 0.0
 
         INQUIRE(FILE=fname, EXIST=lexist)
         IF (lexist) THEN
@@ -502,7 +504,7 @@ MODULE input_mod
 
         !! external field stuff
         WRITE(iu, '(A)') "&EXTFIELD"
-        WRITE(iu, '(4X, A)') "!! Time-dependent electric field appllied to current system, in "
+        WRITE(iu, '(4X, A)') "!! Time-dependent electric field appllied to current system, in V/Angstrom"
         WRITE(iu, '(4X, "!!", 3(4X, A7), A9)') "X", "Y", "Z", "TIMESTEP"
         WRITE(iu, '(4X, A)') "EFIELD(:,:) ="
         DO i = 1, inp%namdtime

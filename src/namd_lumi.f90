@@ -20,9 +20,9 @@ PROGRAM namd_lumi_x
     TYPE(nac)   :: nac_dat
     INTEGER :: timing_start, timing_end, timing_rate
 
-#ifdef OPENBLAS
-    CALL OPENBLAS_SET_NUM_THREADS(1)
-#endif
+!#ifdef OPENBLAS
+    !CALL OPENBLAS_SET_NUM_THREADS(1)
+!#endif
 
     CALL MPI_INIT(ierr)
     CALL MPI_COMM_RANK(MPI_COMM_WORLD, irank, ierr)

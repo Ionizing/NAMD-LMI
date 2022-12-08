@@ -30,6 +30,7 @@ MODULE hamiltonian_mod
         REAL(q),    ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
         REAL(q),    ALLOCATABLE :: prop_eigs(:) !> time-dependent energy of system due to propagation
         COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian, [nbasis, nbasis, nsw-1]
+        !COMPLEX(q), ALLOCATABLE :: tdm_t(:, :, :) !> time-dependent transition dipole moment data, [nbasis, nbasis, nsw-1]
     END TYPE hamiltonian
 
     CONTAINS

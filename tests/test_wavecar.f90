@@ -100,19 +100,22 @@ MODULE test_wavecar
 
         ikpoint = 1
         CALL wavecar_init(wav, "WAVECAR_gamx", "gamx", lgvecs=.TRUE.)
-
         ngvec = wav%nplws(ikpoint)
-        CALL assert_equals(wav%gvecs(:, ngvec, ikpoint), (/ 5, -1, -1 /), 3, AT)
-
+        CALL assert_equals(wav%gvecs(:, ngvec, ikpoint), [5, -1, -1], 3, AT)
         CALL wavecar_destroy(wav)
 
 
         ikpoint = 2
         CALL wavecar_init(wav, "WAVECAR_std", "std", lgvecs=.TRUE.)
-
         ngvec = wav%nplws(ikpoint)
-        CALL assert_equals(wav%gvecs(:, ngvec, ikpoint), (/ -1, -1, -1 /), 3, AT)
-        
+        CALL assert_equals(wav%gvecs(:, ngvec, ikpoint), [-1, -1, -1], 3, AT)
+        CALL wavecar_destroy(wav)
+
+
+        ikpoint = 1
+        CALL wavecar_init(wav, "WAVECAR_ncl", "std", lgvecs=.TRUE.)
+        ngvec = wav%nplws(ikpoint) / 2
+        CALL assert_equals(wav%gvecs(:, ngvec, ikpoint), [-1, -1, -1], 3, AT)
         CALL wavecar_destroy(wav)
     END SUBROUTINE test_wavecar_gen_gvecs
 

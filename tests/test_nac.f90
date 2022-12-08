@@ -30,12 +30,16 @@ MODULE test_nac
 
         ALLOCATE(nac_dat%olaps(nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
         ALLOCATE(nac_dat%eigs(nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
+        ALLOCATE(nac_dat%tdms(3, nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
 
         nac_dat%olaps = (0.0, 0.0)
         nac_dat%olaps(1, 1, 1, 1) = (114.0, 514.0)
 
         nac_dat%eigs  = 0.0
         nac_dat%eigs(1, 1, 1)     = 114.514
+
+        nac_dat%tdms = 0.0
+        nac_dat%tdms(:, 3, 3, 1, 3) = [1.14_q, 5.14_q, 1919.810_q]
 
         CALL nac_save_to_h5(nac_dat, "test_nac_save_to_h5.h5")
 
@@ -58,6 +62,7 @@ MODULE test_nac
         CALL assert_equals(nac_dat%olaps(1, 1, 1, 1), (114.0_q, 514.0), AT)
         CALL assert_equals(nac_dat%eigs(1, 1, 1), 114.514_q, 1.0e-5_q, AT)
         CALL assert_false(nac_dat%lreal, AT)
+        CALL assert_equals(nac_dat%tdms(:, 3, 3, 1, 3), [(1.14_q, 0.0_q), (5.14_q, 0.0_q), (1919.810_q, 0.0_q)], 3, AT)
     END SUBROUTINE
 
 END MODULE test_nac

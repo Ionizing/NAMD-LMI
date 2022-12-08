@@ -22,6 +22,8 @@ MODULE nac_mod
         COMPLEX(q), ALLOCATABLE :: olaps(:, :, :, :)
         !! (E_i + E_j) / 2, [nbands, nspin, nsw-1], in eV
         REAL(q),    ALLOCATABLE :: eigs(:, :, :)
+        !! <ψᵢ|d|ψⱼ>, [3, nbands, nbands, nspin, nsw-1], in Debye
+        COMPLEX(q), ALLOCATABLE :: tdms(:, :, :, :, :)
     END TYPE nac
 
     CONTAINS
@@ -128,6 +130,7 @@ MODULE nac_mod
         LOGICAL         :: lready
         COMPLEX(q), ALLOCATABLE :: olaps(:, :, :, :)
         REAL(q), ALLOCATABLE    :: eigs(:, :, :)
+        COMPLEX(q), ALLOCATABLE :: tdms(:, :, :, :, :)
         REAL(q) :: efermis_global, efermis_local
 
         !! MPI related local variables
@@ -168,6 +171,7 @@ MODULE nac_mod
 
             ALLOCATE(nac_dat%olaps(nbrange, nbrange, nspin, nsw-1))
             ALLOCATE(nac_dat%eigs(nbrange, nspin, nsw-1))
+            ALLOCATE(nac_dat%tdms(3, nbrange, nbrange, nspin, nsw-1))
 
             nac_dat%ikpoint = ikpoint
             nac_dat%nspin   = nspin
@@ -199,6 +203,7 @@ MODULE nac_mod
 
         ALLOCATE(olaps(nbrange, nbrange, nspin, sendcounts(irank+1)))
         ALLOCATE(eigs(nbrange, nspin, sendcounts(irank+1)))
+        ALLOCATE(tdms(3, nbrange, nbrange, nspin, sendcounts(irank+1)))
         
         !! calculate NAC
         DO i = local_start, local_end
@@ -210,12 +215,17 @@ MODULE nac_mod
 
             WRITE(STDOUT, "(A,I4,A)") "[NODE ", irank, "] Reading " // TRIM(fname_i) // " and " // TRIM(fname_j) // " for NAC calculation"
 
-            CALL wavecar_init(wav_i, fname_i, wavetype, iu0=irank+1000)
-            CALL wavecar_init(wav_j, fname_j, wavetype, iu0=irank+2000)
+            IF (i == local_start) THEN
+                CALL wavecar_init(wav_i, fname_i, wavetype, iu0=irank+1000, lgvecs=.TRUE.)
+                CALL wavecar_init(wav_j, fname_j, wavetype, iu0=irank+2000, lgvecs=.TRUE.)
+            ELSE
+                CALL wavecar_init(wav_i, fname_i, wavetype, iu0=irank+1000)
+                CALL wavecar_init(wav_j, fname_j, wavetype, iu0=irank+2000)
+            ENDIF
 
             i0 = i - local_start + 1    ! starts from 1
             j0 = i0 + 1
-            CALL nac_ij_(wav_j, wav_i, ikpoint, brange, olaps(:, :, :, i0), eigs(:, :, i0))
+            CALL nac_ij_(wav_j, wav_i, ikpoint, brange, olaps(:, :, :, i0), eigs(:, :, i0), tdms(:, :, :, :, i0))
 
             efermis_local = efermis_local + wav_i%efermi
 
@@ -245,10 +255,16 @@ MODULE nac_mod
             nac_dat%olaps = SIGN(ABS(nac_dat%olaps), REALPART(nac_dat%olaps))
         END IF
 
+        sendcounts = sendcounts * 3
+        displs     = displs     * 3
+        CALL MPI_GATHERV(tdms, SIZE(tdms), MPI_DOUBLE_COMPLEX, nac_dat%tdms, sendcounts, displs, MPI_DOUBLE_COMPLEX, &
+                         MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+
         CALL MPI_REDUCE(efermis_local, efermis_global, 1, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
         IF (MPI_ROOT_NODE == irank) nac_dat%efermi = efermis_global / (nac_dat%nsw-1)
 
+        DEALLOCATE(tdms)
         DEALLOCATE(eigs)
         DEALLOCATE(olaps)
         DEALLOCATE(displs)
@@ -261,6 +277,7 @@ MODULE nac_mod
 
         IF (ALLOCATED(nac_dat%olaps)) DEALLOCATE(nac_dat%olaps)
         IF (ALLOCATED(nac_dat%eigs))  DEALLOCATE(nac_dat%eigs)
+        IF (ALLOCATED(nac_dat%tdms))  DEALLOCATE(nac_dat%tdms)
     END SUBROUTINE nac_destroy
 
 
@@ -274,7 +291,7 @@ MODULE nac_mod
         !! local variables
         INTEGER :: ierr
         INTEGER :: ireal
-        INTEGER(HSIZE_T) :: olaps_dims(4), eigs_dims(3), dummy_dims(1) = [1]
+        INTEGER(HSIZE_T) :: olaps_dims(4), eigs_dims(3), tdms_dims(5), dummy_dims(1) = [1]
         INTEGER(HID_T)   :: file_id, dspace_id, dset_id
 
         IF (PRESENT(llog)) THEN
@@ -361,8 +378,20 @@ MODULE nac_mod
                 CALL H5DCREATE_F(file_id, "eigs", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%eigs, eigs_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
-            CALL h5sclose_f(dspace_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
 
+            !! tdms
+            tdms_dims = SHAPE(nac_dat%tdms)
+            CALL H5SCREATE_SIMPLE_F(5, tdms_dims, dspace_id, ierr)
+                !! real part
+                CALL H5DCREATE_F(file_id, "tdms_r", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, REALPART(nac_dat%tdms), tdms_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+                !! imag part
+                CALL H5DCREATE_F(file_id, "tdms_i", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(nac_dat%tdms), tdms_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
         CALL H5FCLOSE_F(file_id, ierr)
         CALL H5CLOSE_F(ierr)
     END SUBROUTINE nac_save_to_h5
@@ -378,9 +407,10 @@ MODULE nac_mod
         !! local variables
         INTEGER          :: ierr
         INTEGER          :: ireal
-        INTEGER(HSIZE_T) :: olaps_dims(4), eigs_dims(3), dummy_dims(1) = [1]
+        INTEGER(HSIZE_T) :: olaps_dims(4), eigs_dims(3), tdms_dims(5), dummy_dims(1) = [1]
         INTEGER(HID_T)   :: file_id, dset_id
         REAL(q), ALLOCATABLE :: olaps_reim(:, :, :, :)
+        REAL(q), ALLOCATABLE :: tdms_reim(:, :, :, :, :)
 
         !! logic starts
         IF (PRESENT(llog)) THEN
@@ -465,6 +495,22 @@ MODULE nac_mod
                 CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, nac_dat%eigs, eigs_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
 
+            !! tdms
+            ALLOCATE(nac_dat%tdms(3, nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
+            ALLOCATE(tdms_reim(3, nac_dat%nbrange, nac_dat%nbrange, nac_dat%nspin, nac_dat%nsw-1))
+            tdms_dims = SHAPE(nac_dat%tdms)
+                !! real part
+                CALL H5DOPEN_F(file_id, "tdms_r", dset_id, ierr)
+                CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, tdms_reim, tdms_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+                nac_dat%tdms = tdms_reim
+
+                !! imag part
+                CALL H5DOPEN_F(file_id, "tdms_i", dset_id, ierr)
+                CALL H5DREAD_F(dset_id, H5T_NATIVE_DOUBLE, tdms_reim, tdms_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+                nac_dat%tdms = nac_dat%tdms + tdms_reim * IMGUNIT
+            DEALLOCATE(tdms_reim)
         CALL H5FCLOSE_F(file_id, ierr)
         CALL H5CLOSE_F(ierr)
     END SUBROUTINE nac_load_from_h5
@@ -494,38 +540,67 @@ MODULE nac_mod
 
         IF (.NOT. ALLOCATED(nac_dat%olaps)) ALLOCATE(nac_dat%olaps(nbrange, nbrange, nspin, nsw-1))
         IF (.NOT. ALLOCATED(nac_dat%eigs)) ALLOCATE(nac_dat%eigs(nbrange, nspin, nsw-1))
+        IF (.NOT. ALLOCATED(nac_dat%tdms)) ALLOCATE(nac_dat%tdms(3, nbrange, nbrange, nspin, nsw-1))
 
         length = nbrange * nbrange * nspin * (nsw-1)
         CALL MPI_BCAST(nac_dat%olaps, length, MPI_DOUBLE_COMPLEX, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         length = nbrange * nspin * (nsw-1)
         CALL MPI_BCAST(nac_dat%eigs,  length, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        length = 3 * nbrange * nbrange * nspin * (nsw-1)
+        CALL MPI_BCAST(nac_dat%tdms,  length, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
     END SUBROUTINE nac_mpisync
 
 
     !! private subroutines
 
 
-    SUBROUTINE nac_ij_(wav_i, wav_j, ikpoint, brange, c_ij, e_ij)
+    SUBROUTINE nac_ij_(wav_i, wav_j, ikpoint, brange, c_ij, e_ij, tdm_ij)
+        USE tdm_mod
+
         TYPE (wavecar), INTENT(in)  :: wav_i, wav_j
         INTEGER, INTENT(in)         :: ikpoint
         INTEGER, INTENT(in)         :: brange(2)
         COMPLEX(q), INTENT(out)     :: c_ij(:, :, :)
         REAL(q), INTENT(out)        :: e_ij(:, :)
+        COMPLEX(q), INTENT(out)     :: tdm_ij(:, :, :, :)
 
         !! local variables
-        COMPLEX(qs), ALLOCATABLE :: psi_i(:, :), psi_j(:, :)
+        COMPLEX(qs), ALLOCATABLE, SAVE :: psi_i(:, :), psi_j(:, :)
+        REAL(q), ALLOCATABLE, SAVE     :: gvecs_cart(:, :)
+        COMPLEX(q), ALLOCATABLE, SAVE  :: psi_times_gvecs(:, :)
+        REAL(q), ALLOCATABLE, SAVE     :: invde(:, :)
         INTEGER :: nspin
         INTEGER :: nbrange
-        INTEGER :: ispin, iband
-        INTEGER :: nplws
+        INTEGER :: ispin, iband, idirect
+        INTEGER :: nplws, ngvec
+        INTEGER :: i, j
+        INTEGER :: i0, j0
 
         !! logic starts
         nspin    = wav_i%nspin
         nbrange  = brange(2) - brange(1) + 1
         nplws    = wav_i%nplws(ikpoint)
 
-        ALLOCATE(psi_i(nplws, nbrange))
-        ALLOCATE(psi_j(nplws, nbrange))
+        IF (wav_i%wavetype == "ncl") THEN
+            ngvec = nplws / 2
+        ELSE
+            ngvec = nplws
+        ENDIF
+
+        IF (.NOT. ALLOCATED(psi_i)) ALLOCATE(psi_i(nplws, nbrange))
+        IF (.NOT. ALLOCATED(psi_j)) ALLOCATE(psi_j(nplws, nbrange))
+        IF (.NOT. ALLOCATED(gvecs_cart)) THEN
+            ALLOCATE(gvecs_cart(3, nplws))
+            IF (wav_i%wavetype == "ncl") THEN
+                CALL wavecar_get_gvecs_cart(wav_i, ikpoint, gvecs_cart(:, 1:ngvec))
+                gvecs_cart(:, ngvec+1:) = gvecs_cart(:, 1:ngvec)
+            ELSE
+                CALL wavecar_get_gvecs_cart(wav_i, ikpoint, gvecs_cart)
+            ENDIF
+        ENDIF
+        IF (.NOT. ALLOCATED(psi_times_gvecs)) ALLOCATE(psi_times_gvecs(nplws, nbrange))
+        IF (.NOT. ALLOCATED(invde))           ALLOCATE(invde(nbrange, nbrange))             !< 1 / ABS(E2-E1)
+        invde = 0.0_q
 
         DO ispin = 1, nspin
             DO iband = brange(1), brange(2)
@@ -537,14 +612,34 @@ MODULE nac_mod
             !! pji = psi_j' * psi_i, p_ij = psi_i' * psi_j
             c_ij(:, :, ispin) =   MATMUL(CONJG(TRANSPOSE(psi_i)), psi_j) &  !! p_ji = <psi_i(t)|psi_j(t+dt)>
                                 - MATMUL(CONJG(TRANSPOSE(psi_j)), psi_i)    !! p_ij = <psi_j(t)|psi_i(t+dt)>
+
+            !! invde = 1 / ABS(E_i - E_j)
+            DO j = 1, nbrange
+                j0 = j + brange(1) - 1
+                DO i = 1, nbrange
+                    i0 = i + brange(1) - 1
+                    IF (i /= j) invde(i, j) = 1.0/(wav_i%eigs(i0, ikpoint, ispin) - wav_i%eigs(j0, ikpoint, ispin))
+                ENDDO
+            ENDDO
+
+            DO idirect = 1, 3
+                FORALL(i=1:nbrange) psi_times_gvecs(:, i) = psi_i(:, i) * gvecs_cart(idirect, :)
+
+                !! <phi_i | k | phi_j>
+                IF (wav_i%wavetype(1:3) == "gam") THEN
+                    tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_i)), psi_times_gvecs) &
+                                                 - MATMUL(CONJG(TRANSPOSE(psi_times_gvecs)), psi_i)
+                ELSE
+                    tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_i)), psi_times_gvecs)
+                ENDIF
+
+                tdm_ij(idirect, :, :, ispin) = tdm_ij(idirect, :, :, ispin) * invde * (IMGUNIT * (AUTOA * AUTODEBYE * 2 * RYTOEV))
+            ENDDO
         ENDDO
 
         IF (wav_i%wavetype(1:3) == "gam") c_ij = REALPART(c_ij)
 
         e_ij(:, :) = (wav_i%eigs(brange(1):brange(2), ikpoint, :) + wav_j%eigs(brange(1):brange(2), ikpoint, :)) / 2.0
-
-        DEALLOCATE(psi_i)
-        DEALLOCATE(psi_j)
     END SUBROUTINE nac_ij_
 
 
