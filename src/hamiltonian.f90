@@ -30,7 +30,7 @@ MODULE hamiltonian_mod
         REAL(q),    ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
         REAL(q),    ALLOCATABLE :: prop_eigs(:) !> time-dependent energy of system due to propagation
         COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian, [nbasis, nbasis, nsw-1]
-        !COMPLEX(q), ALLOCATABLE :: tdm_t(:, :, :) !> time-dependent transition dipole moment data, [nbasis, nbasis, nsw-1]
+        COMPLEX(q), ALLOCATABLE :: tdm_t(:, :, :, :) !> time-dependent transition dipole moment data, [nbasis, nbasis, nsw-1]
     END TYPE hamiltonian
 
     CONTAINS
@@ -147,6 +147,7 @@ MODULE hamiltonian_mod
         ALLOCATE(hamil%eig_t(nbasis, hamil%nsw-1))
         ALLOCATE(hamil%prop_eigs(hamil%namdtime))
         ALLOCATE(hamil%nac_t(nbasis, nbasis, hamil%nsw-1))
+        ALLOCATE(hamil%tdm_t(3, nbasis, nbasis, hamil%nsw-1))
 
         !! initialize
         hamil%psi_p = 0
@@ -173,15 +174,20 @@ MODULE hamiltonian_mod
         IF (nb(2) == 0) THEN        !> spin up only
             hamil%eig_t = nac_dat%eigs( bup(1):bup(2),                1, :)
             hamil%nac_t = nac_dat%olaps(bup(1):bup(2), bup(1):bup(2), 1, :)
+            hamil%tdm_t = nac_dat%tdms(:, bup(1):bup(2), bup(1):bup(2), 1, :)
         ELSE IF (nb(1) == 0) THEN   !> spin down only
             hamil%eig_t = nac_dat%eigs( bdn(1):bdn(2),                2, :)
             hamil%nac_t = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
+            hamil%tdm_t = nac_dat%tdms(:, bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
         ELSE                        !> both spin up and spin down, where spin up in the lower part
             hamil%eig_t(      1:nb(1)      , :) = nac_dat%eigs(bup(1):bup(2), 1, :)
             hamil%eig_t(nb(1)+1:nb(1)+nb(2), :) = nac_dat%eigs(bdn(1):bdn(2), 2, :)
 
             hamil%nac_t(      1:nb(1)      ,       1:nb(1)      , :) = nac_dat%olaps(bup(1):bup(2), bup(1):bup(2), 1, :)
             hamil%nac_t(nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
+
+            hamil%tdm_t(:,       1:nb(1)      ,       1:nb(1)      , :) = nac_dat%tdms(:, bup(1):bup(2), bup(1):bup(2), 1, :)
+            hamil%tdm_t(:, nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%tdms(:, bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
         END IF
 
         hamil%nac_t = hamil%nac_t * (-IMGUNIT * HBAR / (2.0 * hamil%dt))
@@ -222,19 +228,32 @@ MODULE hamiltonian_mod
         IF (ALLOCATED(hamil%eig_t)) DEALLOCATE(hamil%eig_t)
         IF (ALLOCATED(hamil%prop_eigs)) DEALLOCATE(hamil%prop_eigs)
         IF (ALLOCATED(hamil%nac_t)) DEALLOCATE(hamil%nac_t)
+        IF (ALLOCATED(hamil%tdm_t)) DEALLOCATE(hamil%tdm_t)
     END SUBROUTINE hamiltonian_destroy
 
 
-    SUBROUTINE hamiltonian_make_hamil(hamil, iion, iele)
+    SUBROUTINE hamiltonian_make_hamil(hamil, iion, iele, efield)
         TYPE(hamiltonian), INTENT(inout) :: hamil
         INTEGER, INTENT(in) :: iion
         INTEGER, INTENT(in) :: iele
+        REAL(q), INTENT(in), ALLOCATABLE :: efield(:, :)
 
         !! local variable
+        COMPLEX(q), ALLOCATABLE, SAVE :: hamil_tdm_curr(:, :), hamil_tdm_next(:, :)
         INTEGER :: nelm
         INTEGER :: rtime, xtime
         INTEGER :: nsw
-        INTEGER :: i
+        INTEGER :: i, j
+
+        IF (.NOT. ALLOCATED(hamil_tdm_curr)) THEN
+            ALLOCATE(hamil_tdm_curr(hamil%nbasis, hamil%nbasis))
+            hamil_tdm_curr = 0
+        ENDIF
+
+        IF (.NOT. ALLOCATED(hamil_tdm_next)) THEN
+            ALLOCATE(hamil_tdm_next(hamil%nbasis, hamil%nbasis))
+            hamil_tdm_next = 0
+        ENDIF
         
         nelm  = hamil%nelm
         nsw   = hamil%nsw - 1
@@ -242,28 +261,42 @@ MODULE hamiltonian_mod
         xtime = rtime + 1
 
         !! off diagonal part
-        !IF (rtime == 1) THEN
-            !IF (iele <= hamil%nelm/2) THEN
-                !hamil%hamil = hamil%nac_t(:, :, rtime) - &
-                    !(hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (nelm/2 - iele - 0.5_q) / nelm
-            !ELSE
-                !hamil%hamil = hamil%nac_t(:, :, rtime) + &
-                    !(hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
-            !END IF
-        !ELSE    ! rimt /= 1
-            !IF (iele <= hamil%nelm/2) THEN
-                !hamil%hamil = hamil%nac_t(:, :, rtime-1) + &
-                    !(hamil%nac_t(:, :, rtime) - hamil%nac_t(:, :, rtime-1)) * (iele + nelm/2 - 0.5_q) / nelm
-            !ELSE
-                !hamil%hamil = hamil%nac_t(:, :, rtime) + &
-                    !(hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
-            !END IF
-        !END IF  ! rtime
+        IF (rtime == 1) THEN
+            IF (iele <= hamil%nelm/2) THEN
+                hamil%hamil = hamil%nac_t(:, :, rtime) - &
+                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (nelm/2 - iele - 0.5_q) / nelm
+            ELSE
+                hamil%hamil = hamil%nac_t(:, :, rtime) + &
+                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
+            END IF
+        ELSE    ! rimt /= 1
+            IF (iele <= hamil%nelm/2) THEN
+                hamil%hamil = hamil%nac_t(:, :, rtime-1) + &
+                    (hamil%nac_t(:, :, rtime) - hamil%nac_t(:, :, rtime-1)) * (iele + nelm/2 - 0.5_q) / nelm
+            ELSE
+                hamil%hamil = hamil%nac_t(:, :, rtime) + &
+                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
+            END IF
+        END IF  ! rtime
 
-        hamil%hamil(:, :) = hamil%nac_t(:, :, rtime) + &
-                            (hamil%nac_t(:, :, xtime) - hamil%nac_t(:, :, rtime)) * (DBLE(iele) / nelm)
+        !! tdm part, use linear interpolation
+        IF (iion == 1) THEN
+            FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
+                hamil_tdm_curr(i, j) = SUM(hamil%tdm_t(:, i, j, rtime) * efield(:, iion))
+            ENDFORALL
+        ELSE
+            hamil_tdm_curr = hamil_tdm_next
+        ENDIF
 
-        !hamil%hamil = -IMGUNIT * HBAR * hamil%hamil
+        IF (iion == hamil%namdtime) THEN        !! avoid subscript overflow when
+            hamil_tdm_next = 0
+        ELSE
+            FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
+                hamil_tdm_next(i, j) = SUM(hamil%tdm_t(:, i, j, xtime) * efield(:, iion+1))
+            ENDFORALL
+        ENDIF
+        hamil%hamil = hamil%hamil + (hamil_tdm_next - hamil_tdm_curr) * (iele - 0.5_q) / nelm
+        hamil_tdm_curr = hamil_tdm_next
 
         !! diagonal part, equals to eigen value
         FORALL(i=1:hamil%nbasis) &
@@ -272,10 +305,11 @@ MODULE hamiltonian_mod
     END SUBROUTINE hamiltonian_make_hamil
 
 
-    SUBROUTINE hamiltonian_propagate(hamil, iion, method)
+    SUBROUTINE hamiltonian_propagate(hamil, iion, method, efield)
         TYPE(hamiltonian), INTENT(inout)    :: hamil
         INTEGER, INTENT(in)                 :: iion     !< ionic step index
         CHARACTER(*), INTENT(in)            :: method
+        REAL(q), ALLOCATABLE, INTENT(in)    :: efield(:, :)
 
         !! local variables
         INTEGER :: iele     !< electronic step index
@@ -319,7 +353,7 @@ MODULE hamiltonian_mod
         !>  where H_ele are linear interpolated, thus this method requires NELM = ~1000 to preserve the norm of psi_c
         SUBROUTINE propagate_finite_difference_
             DO iele = 1, hamil%nelm
-                CALL hamiltonian_make_hamil(hamil, iion, iele)
+                CALL hamiltonian_make_hamil(hamil, iion, iele, efield)
                 hamil%psi_h = MATMUL(hamil%hamil, hamil%psi_c)
                 IF (iion == 1 .AND. iele == 1) THEN
                     hamil%psi_n = hamil%psi_c - IMGUNIT * edt * hamil%psi_h / HBAR
@@ -376,7 +410,7 @@ MODULE hamiltonian_mod
             IF (.NOT. ALLOCATED(EXPH))  ALLOCATE(EXPH(nbasis, nbasis))
 
             DO iele = 1, hamil%nelm
-                CALL hamiltonian_make_hamil(hamil, iion, iele)
+                CALL hamiltonian_make_hamil(hamil, iion, iele, efield)
 
                 H = hamil%hamil * (edt/HBAR)   ! -iHt/hbar
                 E = 0
@@ -415,7 +449,7 @@ MODULE hamiltonian_mod
             END IF
 
             DO iele = 1, hamil%nelm
-                CALL hamiltonian_make_hamil(hamil, iion, iele)
+                CALL hamiltonian_make_hamil(hamil, iion, iele, efield)
                 DO jj = 1, hamil%nbasis
                     DO kk = jj+1, hamil%nbasis
                         phi = -IMGUNIT * edt * 0.5 * hamil%hamil(kk, jj) / HBAR
@@ -458,7 +492,7 @@ MODULE hamiltonian_mod
 
         !! local variables
         INTEGER :: ierr
-        INTEGER(HSIZE_T) :: nac_dims(3), eigs_dims(2) !, dummy_dims(1) = [1]
+        INTEGER(HSIZE_T) :: nac_dims(3), eigs_dims(2), tdm_dims(4)
         INTEGER(HID_T)   :: file_id, dspace_id, dset_id
         
         IF (PRESENT(llog)) THEN
@@ -485,6 +519,18 @@ MODULE hamiltonian_mod
             CALL H5SCREATE_SIMPLE_F(2, eigs_dims, dspace_id, ierr)
                 CALL H5DCREATE_F(file_id, "eigs_t", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, hamil%eig_t, eigs_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+            CALL H5SCLOSE_F(dspace_id, ierr)
+
+            tdm_dims = SHAPE(hamil%tdm_t)
+            CALL H5SCREATE_SIMPLE_F(4, tdm_dims, dspace_id, ierr)
+                !! real part
+                CALL H5DCREATE_F(file_id, "tdm_t_r", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, REALPART(hamil%tdm_t), tdm_dims, ierr)
+                CALL H5DCLOSE_F(dset_id, ierr)
+                !! imag part
+                CALL H5DCREATE_F(file_id, "tdm_t_i", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(hamil%tdm_t), tdm_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
             CALL H5SCLOSE_F(dspace_id, ierr)
         CALL H5FCLOSE_F(file_id, ierr)
