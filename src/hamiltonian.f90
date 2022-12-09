@@ -31,13 +31,15 @@ MODULE hamiltonian_mod
         REAL(q),    ALLOCATABLE :: prop_eigs(:) !> time-dependent energy of system due to propagation
         COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian, [nbasis, nbasis, nsw-1]
         COMPLEX(q), ALLOCATABLE :: tdm_t(:, :, :, :) !> time-dependent transition dipole moment data, [nbasis, nbasis, nsw-1]
+        REAL(q),    ALLOCATABLE :: efield(:, :) !> time-dependent electric field from user input, [3, namdtime]
     END TYPE hamiltonian
 
     CONTAINS
 
 
-    SUBROUTINE hamiltonian_init(hamil, nac_dat, basis_up, basis_dn, dt, namdinit, iniband, inispin, namdtime, nelm, temperature, scissor)
+    SUBROUTINE hamiltonian_init(hamil, nac_dat, efield, basis_up, basis_dn, dt, namdinit, iniband, inispin, namdtime, nelm, temperature, scissor)
         TYPE(nac), INTENT(in)   :: nac_dat      !> NAC object
+        REAL(q), INTENT(in), ALLOCATABLE :: efield(:, :) !> electric field from user input
         INTEGER, INTENT(in)     :: basis_up(2)  !> basis range for spin up
         INTEGER, INTENT(in)     :: basis_dn(2)  !> basis range for spin down
         REAL(q), INTENT(in)     :: dt           !> time step, in fs
@@ -148,6 +150,7 @@ MODULE hamiltonian_mod
         ALLOCATE(hamil%prop_eigs(hamil%namdtime))
         ALLOCATE(hamil%nac_t(nbasis, nbasis, hamil%nsw-1))
         ALLOCATE(hamil%tdm_t(3, nbasis, nbasis, hamil%nsw-1))
+        ALLOCATE(hamil%efield(3, hamil%namdtime))
 
         !! initialize
         hamil%psi_p = 0
@@ -199,6 +202,8 @@ MODULE hamiltonian_mod
         !! Applying scissor operator
         FORALL(iband=1:hamil%nbasis, istep=1:(hamil%nsw-1), hamil%eig_t(iband, istep)>0) &
                 hamil%eig_t(iband, istep) = hamil%eig_t(iband, istep) + scissor
+
+        hamil%efield = efield
     END SUBROUTINE hamiltonian_init
 
 
@@ -208,7 +213,7 @@ MODULE hamiltonian_mod
         TYPE(input), INTENT(in) :: inp
         INTEGER, INTENT(in)     :: inicon_idx
 
-        CALL hamiltonian_init(hamil, nac_dat, inp%basis_up, inp%basis_dn, inp%dt, &
+        CALL hamiltonian_init(hamil, nac_dat, inp%efield, inp%basis_up, inp%basis_dn, inp%dt, &
             inp%inisteps(inicon_idx), inp%inibands(inicon_idx), inp%inispins(inicon_idx), &
             inp%namdtime, inp%nelm, inp%temperature, inp%scissor)
     END SUBROUTINE hamiltonian_init_with_input
@@ -229,14 +234,14 @@ MODULE hamiltonian_mod
         IF (ALLOCATED(hamil%prop_eigs)) DEALLOCATE(hamil%prop_eigs)
         IF (ALLOCATED(hamil%nac_t)) DEALLOCATE(hamil%nac_t)
         IF (ALLOCATED(hamil%tdm_t)) DEALLOCATE(hamil%tdm_t)
+        IF (ALLOCATED(hamil%efield)) DEALLOCATE(hamil%efield)
     END SUBROUTINE hamiltonian_destroy
 
 
-    SUBROUTINE hamiltonian_make_hamil(hamil, iion, iele, efield)
+    SUBROUTINE hamiltonian_make_hamil(hamil, iion, iele)
         TYPE(hamiltonian), INTENT(inout) :: hamil
         INTEGER, INTENT(in) :: iion
         INTEGER, INTENT(in) :: iele
-        REAL(q), INTENT(in), ALLOCATABLE :: efield(:, :)
 
         !! local variable
         COMPLEX(q), ALLOCATABLE, SAVE :: hamil_tdm_curr(:, :), hamil_tdm_next(:, :)
@@ -282,7 +287,7 @@ MODULE hamiltonian_mod
         !! tdm part, use linear interpolation
         IF (iion == 1) THEN
             FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
-                hamil_tdm_curr(i, j) = SUM(hamil%tdm_t(:, i, j, rtime) * efield(:, iion))
+                hamil_tdm_curr(i, j) = SUM(hamil%tdm_t(:, i, j, rtime) * hamil%efield(:, iion))
             ENDFORALL
         ELSE
             hamil_tdm_curr = hamil_tdm_next
@@ -292,7 +297,7 @@ MODULE hamiltonian_mod
             hamil_tdm_next = 0
         ELSE
             FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
-                hamil_tdm_next(i, j) = SUM(hamil%tdm_t(:, i, j, xtime) * efield(:, iion+1))
+                hamil_tdm_next(i, j) = SUM(hamil%tdm_t(:, i, j, xtime) * hamil%efield(:, iion+1))
             ENDFORALL
         ENDIF
         hamil%hamil = hamil%hamil + (hamil_tdm_next - hamil_tdm_curr) * (iele - 0.5_q) / nelm
@@ -305,11 +310,10 @@ MODULE hamiltonian_mod
     END SUBROUTINE hamiltonian_make_hamil
 
 
-    SUBROUTINE hamiltonian_propagate(hamil, iion, method, efield)
+    SUBROUTINE hamiltonian_propagate(hamil, iion, method)
         TYPE(hamiltonian), INTENT(inout)    :: hamil
         INTEGER, INTENT(in)                 :: iion     !< ionic step index
         CHARACTER(*), INTENT(in)            :: method
-        REAL(q), ALLOCATABLE, INTENT(in)    :: efield(:, :)
 
         !! local variables
         INTEGER :: iele     !< electronic step index
@@ -353,7 +357,7 @@ MODULE hamiltonian_mod
         !>  where H_ele are linear interpolated, thus this method requires NELM = ~1000 to preserve the norm of psi_c
         SUBROUTINE propagate_finite_difference_
             DO iele = 1, hamil%nelm
-                CALL hamiltonian_make_hamil(hamil, iion, iele, efield)
+                CALL hamiltonian_make_hamil(hamil, iion, iele)
                 hamil%psi_h = MATMUL(hamil%hamil, hamil%psi_c)
                 IF (iion == 1 .AND. iele == 1) THEN
                     hamil%psi_n = hamil%psi_c - IMGUNIT * edt * hamil%psi_h / HBAR
@@ -410,7 +414,7 @@ MODULE hamiltonian_mod
             IF (.NOT. ALLOCATED(EXPH))  ALLOCATE(EXPH(nbasis, nbasis))
 
             DO iele = 1, hamil%nelm
-                CALL hamiltonian_make_hamil(hamil, iion, iele, efield)
+                CALL hamiltonian_make_hamil(hamil, iion, iele)
 
                 H = hamil%hamil * (edt/HBAR)   ! -iHt/hbar
                 E = 0
@@ -449,7 +453,7 @@ MODULE hamiltonian_mod
             END IF
 
             DO iele = 1, hamil%nelm
-                CALL hamiltonian_make_hamil(hamil, iion, iele, efield)
+                CALL hamiltonian_make_hamil(hamil, iion, iele)
                 DO jj = 1, hamil%nbasis
                     DO kk = jj+1, hamil%nbasis
                         phi = -IMGUNIT * edt * 0.5 * hamil%hamil(kk, jj) / HBAR
