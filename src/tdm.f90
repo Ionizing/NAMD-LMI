@@ -116,7 +116,7 @@ MODULE tdm_mod
             ret = MATMUL(k, overlap)
         END IF
 
-        ret = ret * (0, 1) * AUTOA * AUTODEBYE * (2*RYTOEV) / de
+        ret = ret * IMGUNIT * AUTOA * AUTODEBYE * (2*RYTOEV) / de
 
         DEALLOCATE(overlap)
 

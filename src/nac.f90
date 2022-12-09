@@ -565,7 +565,8 @@ MODULE nac_mod
         COMPLEX(q), INTENT(out)     :: tdm_ij(:, :, :, :)
 
         !! local variables
-        COMPLEX(qs), ALLOCATABLE, SAVE :: psi_i(:, :), psi_j(:, :)
+        COMPLEX(q),  ALLOCATABLE, SAVE :: psi_i(:, :), psi_j(:, :)
+        COMPLEX(qs), ALLOCATABLE, SAVE :: psi_iqs(:), psi_jqs(:)
         REAL(q), ALLOCATABLE, SAVE     :: gvecs_cart(:, :)
         COMPLEX(q), ALLOCATABLE, SAVE  :: psi_times_gvecs(:, :)
         REAL(q), ALLOCATABLE, SAVE     :: invde(:, :)
@@ -574,7 +575,6 @@ MODULE nac_mod
         INTEGER :: ispin, iband, idirect
         INTEGER :: nplws, ngvec
         INTEGER :: i, j
-        INTEGER :: i0, j0
 
         !! logic starts
         nspin    = wav_i%nspin
@@ -589,6 +589,8 @@ MODULE nac_mod
 
         IF (.NOT. ALLOCATED(psi_i)) ALLOCATE(psi_i(nplws, nbrange))
         IF (.NOT. ALLOCATED(psi_j)) ALLOCATE(psi_j(nplws, nbrange))
+        IF (.NOT. ALLOCATED(psi_iqs)) ALLOCATE(psi_iqs(nplws))
+        IF (.NOT. ALLOCATED(psi_jqs)) ALLOCATE(psi_jqs(nplws))
         IF (.NOT. ALLOCATED(gvecs_cart)) THEN
             ALLOCATE(gvecs_cart(3, nplws))
             IF (wav_i%wavetype == "ncl") THEN
@@ -604,8 +606,10 @@ MODULE nac_mod
 
         DO ispin = 1, nspin
             DO iband = brange(1), brange(2)
-                CALL wavecar_read_wavefunction(wav_i, ispin, ikpoint, iband, psi_i(:, iband-brange(1)+1), lnorm=.TRUE.)
-                CALL wavecar_read_wavefunction(wav_j, ispin, ikpoint, iband, psi_j(:, iband-brange(1)+1), lnorm=.TRUE.)
+                CALL wavecar_read_wavefunction(wav_i, ispin, ikpoint, iband, psi_iqs, lnorm=.TRUE.)
+                CALL wavecar_read_wavefunction(wav_j, ispin, ikpoint, iband, psi_jqs, lnorm=.TRUE.)
+                psi_i(:, iband-brange(1)+1) = psi_iqs
+                psi_j(:, iband-brange(1)+1) = psi_jqs
             ENDDO
 
             !! psi_i,j = [nplws, nbrange]
@@ -613,24 +617,21 @@ MODULE nac_mod
             c_ij(:, :, ispin) =   MATMUL(CONJG(TRANSPOSE(psi_i)), psi_j) &  !! p_ji = <psi_i(t)|psi_j(t+dt)>
                                 - MATMUL(CONJG(TRANSPOSE(psi_j)), psi_i)    !! p_ij = <psi_j(t)|psi_i(t+dt)>
 
-            !! invde = 1 / ABS(E_i - E_j)
-            DO j = 1, nbrange
-                j0 = j + brange(1) - 1
-                DO i = 1, nbrange
-                    i0 = i + brange(1) - 1
-                    IF (i /= j) invde(i, j) = 1.0/(wav_i%eigs(i0, ikpoint, ispin) - wav_i%eigs(j0, ikpoint, ispin))
-                ENDDO
-            ENDDO
+            !! de = Ei - Ej
+            invde = - SPREAD(wav_i%eigs(brange(1):brange(2), ikpoint, ispin), 2, nbrange) + &
+                    TRANSPOSE(SPREAD(wav_i%eigs(brange(1):brange(2), ikpoint, ispin), 2, nbrange))
+            FORALL (i=1:nbrange, j=1:nbrange, ABS(invde(i, j)) >= 1E-5_q) invde(i, j) = 1.0_q / invde(i, j)
+            FORALL (i=1:nbrange, j=1:nbrange, ABS(invde(i, j))  < 1E-5_q) invde(i, j) = 0.0_q
 
             DO idirect = 1, 3
-                FORALL(i=1:nbrange) psi_times_gvecs(:, i) = psi_i(:, i) * gvecs_cart(idirect, :)
+                FORALL(i=1:nbrange) psi_times_gvecs(:, i) = psi_j(:, i) * gvecs_cart(idirect, :)
 
                 !! <phi_i | k | phi_j>
                 IF (wav_i%wavetype(1:3) == "gam") THEN
-                    tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_i)), psi_times_gvecs) &
-                                                 - MATMUL(CONJG(TRANSPOSE(psi_times_gvecs)), psi_i)
+                    tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs) &
+                                                 - MATMUL(CONJG(TRANSPOSE(psi_times_gvecs)), psi_j)
                 ELSE
-                    tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_i)), psi_times_gvecs)
+                    tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs)
                 ENDIF
 
                 tdm_ij(idirect, :, :, ispin) = tdm_ij(idirect, :, :, ispin) * invde * (IMGUNIT * (AUTOA * AUTODEBYE * 2 * RYTOEV))
