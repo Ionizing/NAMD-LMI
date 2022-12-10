@@ -203,7 +203,7 @@ MODULE hamiltonian_mod
         FORALL(iband=1:hamil%nbasis, istep=1:(hamil%nsw-1), hamil%eig_t(iband, istep)>0) &
                 hamil%eig_t(iband, istep) = hamil%eig_t(iband, istep) + scissor
 
-        hamil%efield = efield
+        hamil%efield = efield * 1E-9
     END SUBROUTINE hamiltonian_init
 
 
@@ -266,23 +266,8 @@ MODULE hamiltonian_mod
         xtime = rtime + 1
 
         !! off diagonal part
-        IF (rtime == 1) THEN
-            IF (iele <= hamil%nelm/2) THEN
-                hamil%hamil = hamil%nac_t(:, :, rtime) - &
-                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (nelm/2 - iele - 0.5_q) / nelm
-            ELSE
-                hamil%hamil = hamil%nac_t(:, :, rtime) + &
-                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
-            END IF
-        ELSE    ! rimt /= 1
-            IF (iele <= hamil%nelm/2) THEN
-                hamil%hamil = hamil%nac_t(:, :, rtime-1) + &
-                    (hamil%nac_t(:, :, rtime) - hamil%nac_t(:, :, rtime-1)) * (iele + nelm/2 - 0.5_q) / nelm
-            ELSE
-                hamil%hamil = hamil%nac_t(:, :, rtime) + &
-                    (hamil%nac_t(:, :, rtime+1) - hamil%nac_t(:, :, rtime)) * (iele - nelm/2 - 0.5_q) / nelm
-            END IF
-        END IF  ! rtime
+        hamil%hamil(:, :) = hamil%nac_t(:, :, rtime) + &
+                            (hamil%nac_t(:, :, xtime) - hamil%nac_t(:, :, rtime)) * (DBLE(iele) / nelm)
 
         !! tdm part, use linear interpolation
         IF (iion == 1) THEN
@@ -300,13 +285,13 @@ MODULE hamiltonian_mod
                 hamil_tdm_next(i, j) = SUM(hamil%tdm_t(:, i, j, xtime) * hamil%efield(:, iion+1))
             ENDFORALL
         ENDIF
-        hamil%hamil = hamil%hamil + (hamil_tdm_next - hamil_tdm_curr) * (iele - 0.5_q) / nelm
+        hamil%hamil = hamil%hamil + (hamil_tdm_next - hamil_tdm_curr) * DBLE(iele) / nelm
         hamil_tdm_curr = hamil_tdm_next
 
         !! diagonal part, equals to eigen value
         FORALL(i=1:hamil%nbasis) &
             hamil%hamil(i,i) = hamil%eig_t(i, rtime) + &
-                              (hamil%eig_t(i, rtime+1) - hamil%eig_t(i, rtime)) * (iele - 0.5_q) / nelm
+                              (hamil%eig_t(i, rtime+1) - hamil%eig_t(i, rtime)) * (DBLE(iele) / nelm)
     END SUBROUTINE hamiltonian_make_hamil
 
 

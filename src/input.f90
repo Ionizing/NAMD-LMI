@@ -504,11 +504,11 @@ MODULE input_mod
 
         !! external field stuff
         WRITE(iu, '(A)') "&EXTFIELD"
-        WRITE(iu, '(4X, A)') "!! Time-dependent electric field appllied to current system, in V/Angstrom"
+        WRITE(iu, '(4X, A)') "!! Time-dependent electric field appllied to current system, in 1E-9 V/Angstrom"
         WRITE(iu, '(4X, "!!", 3(4X, A7), A9)') "X", "Y", "Z", "TIMESTEP"
         WRITE(iu, '(4X, A)') "EFIELD(:,:) ="
         DO i = 1, inp%namdtime
-            WRITE(iu, '(2X, 3(1X, F10.3), " !", I7)') inp%efield(:, i), i
+            WRITE(iu, '(2X, 3(1X, E12.5), " !", I7)') inp%efield(:, i), i
         ENDDO
         WRITE(iu, '(A)') "/"
     END SUBROUTINE input_to_iu_

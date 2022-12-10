@@ -1,9 +1,9 @@
 MPIF90      ?= mpif90
 INCLUDE     ?=
 F90FLAGS    ?=
-F90FLAGS    += -g -O3 -fPIC -Wall -Wextra -pedantic -fbounds-check -Wuninitialized \
+F90FLAGS    += -g -O2 -fPIC -Wall -Wextra -pedantic -fbounds-check -Wuninitialized \
                -Wno-unused-parameter -cpp -ffree-form  -ffree-line-length-none \
-               -frecord-gcc-switches -O3 -funroll-all-loops
+               -frecord-gcc-switches -funroll-all-loops
 
 # OPENBLAS stuff
 OPENBLAS    ?= #/public/apps/openblas/gcc-4.8.5
