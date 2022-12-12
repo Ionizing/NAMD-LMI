@@ -634,7 +634,8 @@ MODULE nac_mod
                     tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs)
                 ENDIF
 
-                tdm_ij(idirect, :, :, ispin) = tdm_ij(idirect, :, :, ispin) * invde * (IMGUNIT * (AUTOA * AUTODEBYE * 2 * RYTOEV))
+                tdm_ij(idirect, :, :, ispin) = tdm_ij(idirect, :, :, ispin) * &
+                    invde * (IMGUNIT * (AUTOA * AUTODEBYE * 2 * RYTOEV)) * DEBYE2VPA
             ENDDO
         ENDDO
 

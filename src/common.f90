@@ -53,6 +53,7 @@ MODULE common_mod
     REAL(q),    PARAMETER :: AUTOA5         = AUTOA2 * AUTOA3   !< AUTOA^5
 
     REAL(q),    PARAMETER :: AUTODEBYE      = 2.541746          !< Dipole moment in atomic units to Debye
+    REAL(q),    PARAMETER :: DEBYE2VPA      = 0.2081943         !< 1 Debye = 0.2081943 e*Å
 
     INTEGER,    PARAMETER :: FNAMELEN       = 256               !< Maximum length of file name
 
