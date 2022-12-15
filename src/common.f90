@@ -335,4 +335,58 @@ MODULE common_mod
 #undef SWAP
     END SUBROUTINE qsort_partition_
 
+
+    !! Simple Fast Fourier Transform. Only calc_dephase_time uses FFT, and it
+    !! is not the hot point, thus I don't use the too huge FFT.
+    !! from https://rosettacode.org/wiki/Fast_Fourier_transform#Fortran
+    RECURSIVE SUBROUTINE fft(x)
+        COMPLEX(q), INTENT(inout) :: x(:)
+
+        COMPLEX(q), ALLOCATABLE :: even(:), odd(:)
+        COMPLEX(q) :: t, omega, omegak, omegat
+        INTEGER    :: N
+        INTEGER    :: i, j, k
+
+        N = SIZE(x)
+        IF (N <= 1) return
+        IF (MOD(N, 2) == 1) THEN
+            ALLOCATE(odd(N))
+            omega = EXP(CMPLX(0.0_q, -2*PI/DBLE(N), KIND=q))
+            omegak = 1.0_q
+            DO k = 1, N
+                t = (0.0_q, 0.0_q)
+                omegat = 1.0_q
+                DO j = 1, N
+                    t = t + omegat * x(j)
+                    omegat = omegat * omegak
+                ENDDO
+                odd(k) = t
+                omegak = omegak * omega
+            ENDDO
+            x = odd
+            DEALLOCATE(odd)
+            RETURN
+        END IF
+
+        ALLOCATE(odd((N+1)/2))
+        ALLOCATE(even(N/2))
+
+        ! divide
+        odd  = x(1:N:2)
+        even = x(2:N:2)
+
+        ! conquer
+        CALL fft(odd)
+        CALL fft(even)
+
+        ! combine
+        DO i = 1, N/2
+            t = EXP( CMPLX(0.0_q, -2.0_q*PI*DBLE(i-1)/DBLE(N), KIND=q) ) * even(i)
+            x(i)     = odd(i) + t
+            x(i+N/2) = odd(i) - t
+        ENDDO
+
+        DEALLOCATE(odd)
+        DEALLOCATE(even)
+    END SUBROUTINE fft
 END MODULE common_mod

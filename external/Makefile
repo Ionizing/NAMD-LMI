@@ -10,5 +10,7 @@ $(LIB): $(OBJS)
 clean:
 	rm -f *.o *.mod *.a
 
+fitpack.o: fitpack_core.o
+
 %.o: %.f90
 	$(MPIF90) $(F90FLAGS) -c $<

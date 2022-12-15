@@ -508,7 +508,7 @@ MODULE input_mod
         WRITE(iu, '(4X, "!!", 3(4X, A7), A9)') "X", "Y", "Z", "TIMESTEP"
         WRITE(iu, '(4X, A)') "EFIELD(:,:) ="
         DO i = 1, inp%namdtime
-            WRITE(iu, '(2X, 3(1X, E12.5), " !", I7)') inp%efield(:, i), i
+            WRITE(iu, '(2X, 3(1X, D13.5), " !", I7)') inp%efield(:, i), i
         ENDDO
         WRITE(iu, '(A)') "/"
     END SUBROUTINE input_to_iu_
