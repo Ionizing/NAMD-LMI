@@ -369,4 +369,12 @@ MODULE surface_hopping_mod
         WRITE(STDERR, *) "This SHMETHOD not implemented yet: " // AT
         STOP 1
     END SUBROUTINE sh_dish_
+
+
+    SUBROUTINE sh_dish_dephasetime_
+    END SUBROUTINE sh_dish_dephasetime_
+
+
+    SUBROUTINE sh_dish_decoherence_rate_
+    END SUBROUTINE sh_dish_decoherence_rate_
 END MODULE surface_hopping_mod

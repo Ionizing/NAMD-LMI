@@ -1,7 +1,7 @@
 MPIF90      ?= mpif90
 INCLUDE     ?=
 F90FLAGS    ?=
-F90FLAGS    += -g -O2 -fPIC -Wall -Wextra -pedantic -fbounds-check -Wuninitialized \
+F90FLAGS    += -g -O2 -fPIC -Wall -Wextra -pedantic -fcheck=all -Wuninitialized \
                -Wno-unused-parameter -cpp -ffree-form  -ffree-line-length-none \
                -frecord-gcc-switches -funroll-all-loops
 
