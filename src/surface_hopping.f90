@@ -139,7 +139,7 @@ MODULE surface_hopping_mod
             TINT2STR(inp%inisteps(local_start)) // " to " // TINT2STR(inp%inisteps(local_end))
 
         DO i = local_start, local_end
-            WRITE(STDOUT, '(A, I4, A, I5, A)') "[NODE", irank ,"] Running INICOM = ", inp%inisteps(i), " ..."
+            WRITE(STDOUT, '(A, I4, A, I5, A)') "[NODE", irank ,"] Running INICON = ", inp%inisteps(i), " ..."
             CALL hamiltonian_init_with_input(hamil, nac_dat, inp, i)
             IF (i == 1) CALL hamiltonian_save_to_h5(hamil, "HAMIL.h5", llog=.TRUE.)
 
