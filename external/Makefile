@@ -10,8 +10,6 @@ $(LIB): $(OBJS)
 clean:
 	rm -f *.o *.mod *.a
 
-fitpack.o: fitpack_core.o
-
 fftpack5.o: fftpack5.f90
 	$(MPIF90) $(filter-out -pedantic,$(F90FLAGS)) -c $<
 
