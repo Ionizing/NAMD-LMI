@@ -28,7 +28,7 @@ clean:
 	rm -f *.x *.o *.mod *.a
 
 %.o: %.f90
-	$(MPIF90) $(F90FLAGS) -c $<
+	$(MPIF90) $(F90FLAGS) -c $< -I../external
 
 $(LIBEXTERNAL):
 	$(MAKE) -C ../external

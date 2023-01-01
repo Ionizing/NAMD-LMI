@@ -9,7 +9,8 @@ MODULE test_common
         cumsum,        &
         lower_bound,   &
         qsort_i,       &
-        fft
+        cumtrapz,      &
+        self_correlate_function
     USE string_mod,     ONLY: int2str
     IMPLICIT NONE
 
@@ -23,6 +24,7 @@ MODULE test_common
         CALL test_lower_bound
         CALL test_qsort_i
         CALL test_fft
+        CALL test_cumtrapz
     END SUBROUTINE test_common_fn
 
 
@@ -142,13 +144,37 @@ MODULE test_common
 
 
     SUBROUTINE test_fft
+        USE fftpack, ONLY: fft
+
         COMPLEX(q) :: A(6) = [COMPLEX(q) :: 1.0, 1.0, 4.0, 5.0, 1.0, 4.0]
         COMPLEX(q) :: B(6) = [COMPLEX(q) :: (16.0, 0.0), (-4.0, 0.0), (1.0, 5.196152422706632), &
                                             (-4.0, 0.0), (1.0, -5.196152422706632), (-4.0, 0.0)]
         INTEGER :: i
-        CALL fft(A)
+        A = fft(A, 6)
         DO i = 1, 6
             CALL assert_true(ABS(A(i)-B(i)) < 1D-6, AT)
         ENDDO
     END SUBROUTINE test_fft
+
+
+    SUBROUTINE test_cumtrapz
+        REAL(q) :: ys(6) = [REAL(q) :: 0, 1, 2, 3, 4, 5]
+        REAL(q) :: ret(6), expected(6)
+        REAL(q) :: dx = 0.2_q
+
+        expected = [0.0_q, 0.1_q, 0.4_q, 0.9_q, 1.6_q, 2.5_q]
+
+        CALL cumtrapz(ys, dx, ret)
+        CALL assert_equals(ret, expected, 6, AT)
+    END SUBROUTINE
+
+    
+    SUBROUTINE test_self_correlate_function
+        REAL(q) :: a(6) = [0, 1, 2, 3, 4, 5]
+        REAL(q) :: ret(5), expected(5)
+
+        expected = [40_q, 26_q, 14_q, 5_q, 0_q]
+        CALL self_correlate_function(a, ret)
+        CALL assert_equals(ret, expected, 5, AT)
+    END SUBROUTINE test_self_correlate_function
 END MODULE test_common

@@ -103,6 +103,8 @@ MODULE common_mod
 
     INTEGER,    PARAMETER :: ERROR_NRANKGTNSAMPLE    = 100
 
+    INTEGER,    PARAMETER :: ERROR_FIT_FAILED        = 110
+
     !! MPI related stuff
     INTEGER,    PARAMETER :: MPI_ROOT_NODE           = 0
 
@@ -336,57 +338,40 @@ MODULE common_mod
     END SUBROUTINE qsort_partition_
 
 
-    !! Simple Fast Fourier Transform. Only calc_dephase_time uses FFT, and it
-    !! is not the hot point, thus I don't use the too huge FFT.
-    !! from https://rosettacode.org/wiki/Fast_Fourier_transform#Fortran
-    RECURSIVE SUBROUTINE fft(x)
-        COMPLEX(q), INTENT(inout) :: x(:)
+    SUBROUTINE cumtrapz(ys, dx, ret)
+        REAL(q), INTENT(in)  :: ys(:)   ! size(ys) = n
+        REAL(q), INTENT(in)  :: dx
+        REAL(q), INTENT(out) :: ret(:)  ! size(ret) = n
 
-        COMPLEX(q), ALLOCATABLE :: even(:), odd(:)
-        COMPLEX(q) :: t, omega, omegak, omegat
-        INTEGER    :: N
-        INTEGER    :: i, j, k
+        INTEGER :: n
+        INTEGER :: i
+        REAL(q) :: s
 
-        N = SIZE(x)
-        IF (N <= 1) return
-        IF (MOD(N, 2) == 1) THEN
-            ALLOCATE(odd(N))
-            omega = EXP(CMPLX(0.0_q, -2*PI/DBLE(N), KIND=q))
-            omegak = 1.0_q
-            DO k = 1, N
-                t = (0.0_q, 0.0_q)
-                omegat = 1.0_q
-                DO j = 1, N
-                    t = t + omegat * x(j)
-                    omegat = omegat * omegak
-                ENDDO
-                odd(k) = t
-                omegak = omegak * omega
-            ENDDO
-            x = odd
-            DEALLOCATE(odd)
-            RETURN
-        END IF
+        n = SIZE(ys)
 
-        ALLOCATE(odd((N+1)/2))
-        ALLOCATE(even(N/2))
-
-        ! divide
-        odd  = x(1:N:2)
-        even = x(2:N:2)
-
-        ! conquer
-        CALL fft(odd)
-        CALL fft(even)
-
-        ! combine
-        DO i = 1, N/2
-            t = EXP( CMPLX(0.0_q, -2.0_q*PI*DBLE(i-1)/DBLE(N), KIND=q) ) * even(i)
-            x(i)     = odd(i) + t
-            x(i+N/2) = odd(i) - t
+        s = 0.0_q
+        ret = s
+        DO i = 2, n
+            s = s + ys(i-1) + ys(i)
+            ret(i) = s
         ENDDO
 
-        DEALLOCATE(odd)
-        DEALLOCATE(even)
-    END SUBROUTINE fft
+        ret = ret * dx / 2.0_q
+    END SUBROUTINE cumtrapz
+
+
+    SUBROUTINE self_correlate_function(a, ret)
+        REAL(q), INTENT(in)  :: a(:)    !! size(a) = n
+        REAL(q), INTENT(out) :: ret(:)  !! size(ret) = n-1
+
+        INTEGER :: i
+        INTEGER :: n
+
+        !! This result is same with `np.correlate(a, a, mode='full')[a.size:]`
+        n = SIZE(a)
+        
+        DO i = 1, n-1
+            ret(i) = SUM(a(1:n-i) * a(1+i:n))
+        ENDDO
+    END SUBROUTINE self_correlate_function
 END MODULE common_mod

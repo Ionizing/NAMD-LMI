@@ -544,4 +544,102 @@ MODULE hamiltonian_mod
     END FUNCTION iniband_index_convert_
 
 
+    !! Calculate the autocorrelation function (ACF), dephasing function, and FT of
+    !! ACF.
+
+    !! The dephasing function was calculated according to the following formula
+
+    !! G(t) = (1 / hbar**2) \int_0^{t_1} dt_1 \int_0^{t_2} dt_2 <E(t_2)E(0)>
+    !! D(t) = exp(-G(t))
+
+    !! where Et is the difference of two KS energies in unit of eV, <...> is the
+    !! ACF of the energy difference and the brackets denote canonical averaging.
+
+    !! Fourier Transform (FT) of the normalized ACF gives the phonon influence
+    !! spectrum, also known as the phonon spectral density.
+
+    !! I(\omega) \propto | FT(Ct / Ct[0]) |**2
+
+    !! Jaeger, Heather M., Sean Fischer, and Oleg V. Prezhdo. "Decoherence-induced
+    !! surface hopping." JCP 137.22 (2012): 22A545.
+    SUBROUTINE dephase_time_(et, dt, time)
+        REAL(q), INTENT(inout) :: et(:)
+        REAL(q), INTENT(in)    :: dt
+        REAL(q), INTENT(out)   :: time
+
+        REAL(q), ALLOCATABLE :: acf(:)
+        REAL(q), ALLOCATABLE :: iacf(:), iiacf(:)
+        REAL(q), ALLOCATABLE :: t(:)
+        INTEGER :: n
+        INTEGER :: i
+
+        n = SIZE(et)
+        et = et - SUM(et)/n     !! shift to average
+
+        ALLOCATE(acf(n-1))
+        ALLOCATE(iacf(n-1), iiacf(n-1))
+        ALLOCATE(t(n-1))
+
+        CALL self_correlate_function(et, acf)   !! Ct = acf
+        CALL cumtrapz(acf, dt, iacf)            !! \int acf dx
+        CALL cumtrapz(iacf, dt, iiacf)          !! \int \int acf dx^2
+        iiacf = iiacf / HBAR**2                 !! Gt = iiacf
+
+        FORALL(i=1:n-1) iiacf(i) = EXP(-iiacf(i))   !! Dt = exp(-Gt)
+        FORALL(i=1:n-1) t(i) = (i-1)*dt             !! t is time
+
+        CALL gausfit_(n-1, t, iiacf, time)
+
+        DEALLOCATE(t)
+        DEALLOCATE(iacf, iiacf)
+        DEALLOCATE(acf)
+    END SUBROUTINE
+
+
+    SUBROUTINE gaussian1d_(xs, n, sigma, ret)
+        INTEGER, INTENT(in)  :: n
+        REAL(q), INTENT(in)  :: xs(n)
+        REAL(q), INTENT(in)  :: sigma
+        REAL(q), INTENT(out) :: ret(n)
+
+        ret = -xs**2 / (2*sigma**2)
+    END SUBROUTINE gaussian1d_
+
+
+    SUBROUTINE gausfit_(ns, xs, ys, sigma)
+        USE lmdif_module, ONLY: lmdif0
+
+        INTEGER, INTENT(in)  :: ns
+        REAL(q), INTENT(in)  :: xs(ns)
+        REAL(q), INTENT(in)  :: ys(ns)
+        REAL(q), INTENT(out) :: sigma
+
+        REAL(q) :: solution(1)
+        REAL(q) :: fvec0(ns)
+        INTEGER :: info
+
+        solution = [1.0_q]   !! [sigma] to be fitted
+
+        CALL lmdif0(fit_func, ns, 1, solution, fvec0, 1.0d-9, info)
+
+        sigma = solution(1)
+
+        IF (info /= 1) THEN
+            WRITE(STDERR, '(A, I2, A, F10.4, A, F10.4, A)') "[ERROR] Fit failed in gausfit function, with info = ", &
+                info, " sigma = ", sigma, " " // AT
+            STOP ERROR_FIT_FAILED
+        ENDIF
+
+    CONTAINS
+        SUBROUTINE fit_func(m, n, x, fvec, iflag)
+            INTEGER, INTENT(in)     :: m, n
+            INTEGER, INTENT(inout)  :: iflag
+            REAL(q), INTENT(in)     :: x(n)
+            REAL(q), INTENT(inout)  :: fvec(m)
+
+            iflag = iflag       ! iflag is unused, designed to make compiler happy
+            CALL gaussian1d_(xs, m, x(1), fvec)
+            fvec = fvec - ys
+        END SUBROUTINE fit_func
+    END SUBROUTINE gausfit_
 END MODULE hamiltonian_mod
