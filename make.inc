@@ -3,7 +3,7 @@ INCLUDE     ?=
 F90FLAGS    ?=
 F90FLAGS    += -g -O2 -fPIC -Wall -Wextra -pedantic -fcheck=bounds -Wuninitialized \
                -Wno-unused-parameter -cpp -ffree-form  -ffree-line-length-none \
-               -frecord-gcc-switches -funroll-all-loops
+               -funroll-all-loops -fbacktrace
 
 # OPENBLAS stuff
 OPENBLAS    ?= #/public/apps/openblas/gcc-4.8.5

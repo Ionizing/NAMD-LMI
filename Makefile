@@ -32,3 +32,5 @@ cleanexternal:
 c: clean
 clean: cleansrc cleantests cleandocs
 	@rm -f *.x
+
+cleanall: clean cleanexternal

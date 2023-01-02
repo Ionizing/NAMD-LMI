@@ -10,8 +10,5 @@ $(LIB): $(OBJS)
 clean:
 	rm -f *.o *.mod *.a
 
-fftpack5.o: fftpack5.f90
-	$(MPIF90) $(filter-out -pedantic,$(F90FLAGS)) -c $<
-
 %.o: %.f90
 	$(MPIF90) $(F90FLAGS) -c $<

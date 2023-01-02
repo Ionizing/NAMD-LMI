@@ -602,12 +602,12 @@ MODULE hamiltonian_mod
         REAL(q), INTENT(in)  :: sigma
         REAL(q), INTENT(out) :: ret(n)
 
-        ret = -xs**2 / (2*sigma**2)
+        ret = EXP(-xs**2 / (2*sigma**2))
     END SUBROUTINE gaussian1d_
 
 
     SUBROUTINE gausfit_(ns, xs, ys, sigma)
-        USE lmdif_module, ONLY: lmdif0
+        USE lmdif_module
 
         INTEGER, INTENT(in)  :: ns
         REAL(q), INTENT(in)  :: xs(ns)
@@ -624,7 +624,7 @@ MODULE hamiltonian_mod
 
         sigma = solution(1)
 
-        IF (info /= 1) THEN
+        IF (info <=0 .OR. info >=5) THEN
             WRITE(STDERR, '(A, I2, A, F10.4, A, F10.4, A)') "[ERROR] Fit failed in gausfit function, with info = ", &
                 info, " sigma = ", sigma, " " // AT
             STOP ERROR_FIT_FAILED
@@ -637,7 +637,9 @@ MODULE hamiltonian_mod
             REAL(q), INTENT(in)     :: x(n)
             REAL(q), INTENT(inout)  :: fvec(m)
 
-            iflag = iflag       ! iflag is unused, designed to make compiler happy
+            INTEGER :: dummy
+
+            dummy = iflag       ! iflag is unused, designed to make compiler happy
             CALL gaussian1d_(xs, m, x(1), fvec)
             fvec = fvec - ys
         END SUBROUTINE fit_func

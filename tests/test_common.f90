@@ -23,7 +23,6 @@ MODULE test_common
         CALL test_cumsum
         CALL test_lower_bound
         CALL test_qsort_i
-        CALL test_fft
         CALL test_cumtrapz
     END SUBROUTINE test_common_fn
 
@@ -141,20 +140,6 @@ MODULE test_common
         CALL qsort_i(A)
         CALL assert_equals(A, [1, 2, 3, 4, 5, 6], 6, AT)
     END SUBROUTINE test_qsort_i
-
-
-    SUBROUTINE test_fft
-        USE fftpack, ONLY: fft
-
-        COMPLEX(q) :: A(6) = [COMPLEX(q) :: 1.0, 1.0, 4.0, 5.0, 1.0, 4.0]
-        COMPLEX(q) :: B(6) = [COMPLEX(q) :: (16.0, 0.0), (-4.0, 0.0), (1.0, 5.196152422706632), &
-                                            (-4.0, 0.0), (1.0, -5.196152422706632), (-4.0, 0.0)]
-        INTEGER :: i
-        A = fft(A, 6)
-        DO i = 1, 6
-            CALL assert_true(ABS(A(i)-B(i)) < 1D-6, AT)
-        ENDDO
-    END SUBROUTINE test_fft
 
 
     SUBROUTINE test_cumtrapz
