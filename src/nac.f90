@@ -181,6 +181,10 @@ MODULE nac_mod
             nac_dat%nsw     = nsw
             nac_dat%dt      = dt
             nac_dat%lreal = lreal
+        ELSE
+            ALLOCATE(nac_dat%olaps(1,1,1,1))    !! dummy allocations, avoid access to illegal address in MPI_GATHERV
+            ALLOCATE(nac_dat%eigs(1,1,1))
+            ALLOCATE(nac_dat%tdms(1,1,1,1,1))
         END IF
 
         !! broadcast nspin, nkpoints and nbands to all nodes
@@ -269,6 +273,12 @@ MODULE nac_mod
         DEALLOCATE(olaps)
         DEALLOCATE(displs)
         DEALLOCATE(sendcounts)
+
+        IF (MPI_ROOT_NODE /= irank) THEN
+            DEALLOCATE(nac_dat%olaps)       !! dummy allocations, avoid access to illegal address in MPI_GATHERV
+            DEALLOCATE(nac_dat%eigs)
+            DEALLOCATE(nac_dat%tdms)
+        ENDIF
     END SUBROUTINE nac_calculate_mpi
 
 
