@@ -7,4 +7,4 @@
 *.h5
 *.nml
 .DS_Store
-doc/html
+doc

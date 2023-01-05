@@ -7,6 +7,7 @@ PROGRAM TEST_MAIN
     USE test_nac,       ONLY: test_nac_fn
     USE test_input,     ONLY: test_input_fn
     USE test_hamiltonian,   ONLY: test_hamiltonian_fn
+    USE test_surface_hopping, ONLY: test_surface_hopping_fn
 
     IMPLICIT NONE
 
@@ -32,6 +33,9 @@ PROGRAM TEST_MAIN
 
     !! test_hamiltonian
     CALL test_hamiltonian_fn
+
+    !! test_surface_hopping
+    CALL test_surface_hopping_fn
 
     CALL fruit_summary
     CALL fruit_finalize

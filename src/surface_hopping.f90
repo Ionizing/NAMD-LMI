@@ -377,4 +377,150 @@ MODULE surface_hopping_mod
 
     SUBROUTINE sh_dish_decoherence_rate_
     END SUBROUTINE sh_dish_decoherence_rate_
+
+!===============================================================================
+!=                          DISH related stuff                                 =
+!===============================================================================
+
+    !! Calculate the autocorrelation function (ACF), dephasing function, and FT of
+    !! ACF.
+    !!
+    !! The dephasing function was calculated according to the following formula
+    !!
+    !! G(t) = (1 / hbar**2) \int_0^{t_1} dt_1 \int_0^{t_2} dt_2 <E(t_2)E(0)>
+    !! D(t) = exp(-G(t))
+    !!
+    !! where Et is the difference of two KS energies in unit of eV, <...> is the
+    !! ACF of the energy difference and the brackets denote canonical averaging.
+    !!
+    !! Fourier Transform (FT) of the normalized ACF gives the phonon influence
+    !! spectrum, also known as the phonon spectral density.
+    !!
+    !! I(\omega) \propto | FT(Ct / Ct[0]) |**2
+    !!
+    !! Jaeger, Heather M., Sean Fischer, and Oleg V. Prezhdo. "Decoherence-induced
+    !! surface hopping." JCP 137.22 (2012): 22A545.
+    SUBROUTINE dish_dephase_time_(et, dt, time)
+        REAL(q), INTENT(in)  :: et(:)
+        REAL(q), INTENT(in)  :: dt
+        REAL(q), INTENT(out) :: time
+
+        REAL(q), ALLOCATABLE :: et_shifted(:)
+        REAL(q), ALLOCATABLE :: acf(:)
+        REAL(q), ALLOCATABLE :: iacf(:), iiacf(:)
+        REAL(q), ALLOCATABLE, SAVE :: t(:)
+        INTEGER :: n
+        INTEGER :: i
+
+        n = SIZE(et)
+
+        ALLOCATE(et_shifted(n))
+        ALLOCATE(acf(n-1))
+        ALLOCATE(iacf(n-1), iiacf(n-1))
+
+        IF (.NOT. ALLOCATED(t)) THEN
+            ALLOCATE(t(n-1))
+            FORALL(i=1:n-1) t(i) = (i-1)*dt     !! t is time
+        ENDIF
+        
+        et_shifted = et - SUM(et)/n             !! shift to average
+
+        CALL self_correlate_function(et_shifted, acf)       !! Ct = acf
+        acf = acf / n
+        CALL cumtrapz(acf, dt, iacf)            !! \int acf dx
+        CALL cumtrapz(iacf, dt, iiacf)          !! \int \int acf dx^2
+        iiacf = iiacf / HBAR**2                 !! Gt = iiacf
+
+        FORALL(i=1:n-1) iiacf(i) = EXP(-iiacf(i))   !! Dt = exp(-Gt)
+        CALL dish_gausfit_(n-1, t, iiacf, time)
+
+        DEALLOCATE(t)
+        DEALLOCATE(iacf, iiacf)
+        DEALLOCATE(acf)
+        DEALLOCATE(et_shifted)
+    END SUBROUTINE dish_dephase_time_
+
+
+    SUBROUTINE dish_dephase_time_matrix_(eig_t, dt, nsw, nbasis, dephmat)
+        INTEGER, INTENT(in)  :: nsw
+        INTEGER, INTENT(in)  :: nbasis
+        REAL(q), INTENT(in)  :: eig_t(nbasis, nsw-1)
+        REAL(q), INTENT(in)  :: dt
+        REAL(q), INTENT(out) :: dephmat(nbasis, nbasis)
+
+        !! local variables
+        INTEGER :: i, j
+
+        dephmat = 0.0_q
+
+        DO i = 1, nbasis
+            DO j = 1, i-1
+                CALL dish_dephase_time_(eig_t(i,:)-eig_t(j,:), dt, dephmat(i, j))
+                dephmat(j, i) = dephmat(i, j)
+            ENDDO
+        ENDDO
+    END SUBROUTINE
+
+
+    SUBROUTINE dish_gaussian1d_(xs, n, sigma, ret)
+        INTEGER, INTENT(in)  :: n
+        REAL(q), INTENT(in)  :: xs(n)
+        REAL(q), INTENT(in)  :: sigma
+        REAL(q), INTENT(out) :: ret(n)
+
+        ret = EXP(-xs**2 / (2*sigma**2))
+    END SUBROUTINE dish_gaussian1d_
+
+
+    SUBROUTINE dish_gausfit_(ns, xs, ys, sigma)
+        USE lmdif_module
+
+        INTEGER, INTENT(in)  :: ns
+        REAL(q), INTENT(in)  :: xs(ns)
+        REAL(q), INTENT(in)  :: ys(ns)
+        REAL(q), INTENT(out) :: sigma
+
+        REAL(q) :: solution(1)
+        REAL(q) :: fvec0(ns)
+        INTEGER :: info
+
+        solution = [1.0_q]   !! [sigma] to be fitted
+
+        CALL lmdif0(fit_func, ns, 1, solution, fvec0, 1.0d-9, info)
+
+        sigma = solution(1)
+
+        IF (info <= 0 .OR. info >= 5) THEN
+            WRITE(STDERR, '(A, I2, A, F10.4, A, F10.4, A)') "[ERROR] Fit failed in gausfit function, with info = ", &
+                info, " sigma = ", sigma, " " // AT
+            STOP ERROR_FIT_FAILED
+        ENDIF
+
+    CONTAINS
+        SUBROUTINE fit_func(m, n, x, fvec, iflag)
+            INTEGER, INTENT(in)     :: m, n
+            INTEGER, INTENT(inout)  :: iflag
+            REAL(q), INTENT(in)     :: x(n)
+            REAL(q), INTENT(inout)  :: fvec(m)
+
+            INTEGER :: dummy
+
+            dummy = iflag       ! iflag is unused, designed to make compiler happy
+            CALL dish_gaussian1d_(xs, m, x(1), fvec)
+            fvec = fvec - ys
+        END SUBROUTINE fit_func
+    END SUBROUTINE dish_gausfit_
+
+
+    SUBROUTINE dish_decoherence_time_
+    END SUBROUTINE dish_decoherence_time_
+
+    
+    SUBROUTINE dish_
+    END SUBROUTINE dish_
+
+
+!===============================================================================
+!=                          DCSH related stuff                                ==
+!===============================================================================
 END MODULE surface_hopping_mod

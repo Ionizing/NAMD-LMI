@@ -30,7 +30,7 @@ cleanexternal:
 	$(MAKE) clean -C external
 
 c: clean
-clean: cleansrc cleantests cleandocs
+clean: cleansrc cleantests
 	@rm -f *.x
 
-cleanall: clean cleanexternal
+cleanall: clean cleanexternal cleandocs
