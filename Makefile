@@ -18,10 +18,10 @@ cleantests:
 	$(MAKE) clean -C tests
 
 d: docs
-docs: doc/Doxygenfile
-	$(MAKE) -C doc
+docs: README.md
+	ford $<
 cleandocs:
-	$(MAKE) clean -C doc
+	rm -rf doc
 
 e: libexternal
 libexternal:

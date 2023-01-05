@@ -546,53 +546,81 @@ MODULE hamiltonian_mod
 
     !! Calculate the autocorrelation function (ACF), dephasing function, and FT of
     !! ACF.
-
+    !!
     !! The dephasing function was calculated according to the following formula
-
+    !!
     !! G(t) = (1 / hbar**2) \int_0^{t_1} dt_1 \int_0^{t_2} dt_2 <E(t_2)E(0)>
     !! D(t) = exp(-G(t))
-
+    !!
     !! where Et is the difference of two KS energies in unit of eV, <...> is the
     !! ACF of the energy difference and the brackets denote canonical averaging.
-
+    !!
     !! Fourier Transform (FT) of the normalized ACF gives the phonon influence
     !! spectrum, also known as the phonon spectral density.
-
+    !!
     !! I(\omega) \propto | FT(Ct / Ct[0]) |**2
-
+    !!
     !! Jaeger, Heather M., Sean Fischer, and Oleg V. Prezhdo. "Decoherence-induced
     !! surface hopping." JCP 137.22 (2012): 22A545.
     SUBROUTINE dephase_time_(et, dt, time)
-        REAL(q), INTENT(inout) :: et(:)
-        REAL(q), INTENT(in)    :: dt
-        REAL(q), INTENT(out)   :: time
+        REAL(q), INTENT(in)  :: et(:)
+        REAL(q), INTENT(in)  :: dt
+        REAL(q), INTENT(out) :: time
 
+        REAL(q), ALLOCATABLE :: et_shifted(:)
         REAL(q), ALLOCATABLE :: acf(:)
         REAL(q), ALLOCATABLE :: iacf(:), iiacf(:)
-        REAL(q), ALLOCATABLE :: t(:)
+        REAL(q), ALLOCATABLE, SAVE :: t(:)
         INTEGER :: n
         INTEGER :: i
 
         n = SIZE(et)
-        et = et - SUM(et)/n     !! shift to average
 
+        ALLOCATE(et_shifted(n))
         ALLOCATE(acf(n-1))
         ALLOCATE(iacf(n-1), iiacf(n-1))
-        ALLOCATE(t(n-1))
 
-        CALL self_correlate_function(et, acf)   !! Ct = acf
+        IF (.NOT. ALLOCATED(t)) THEN
+            ALLOCATE(t(n-1))
+            FORALL(i=1:n-1) t(i) = (i-1)*dt     !! t is time
+        ENDIF
+        
+        et_shifted = et - SUM(et)/n             !! shift to average
+
+        CALL self_correlate_function(et_shifted, acf)       !! Ct = acf
+        acf = acf / n
         CALL cumtrapz(acf, dt, iacf)            !! \int acf dx
         CALL cumtrapz(iacf, dt, iiacf)          !! \int \int acf dx^2
         iiacf = iiacf / HBAR**2                 !! Gt = iiacf
 
         FORALL(i=1:n-1) iiacf(i) = EXP(-iiacf(i))   !! Dt = exp(-Gt)
-        FORALL(i=1:n-1) t(i) = (i-1)*dt             !! t is time
-
         CALL gausfit_(n-1, t, iiacf, time)
 
         DEALLOCATE(t)
         DEALLOCATE(iacf, iiacf)
         DEALLOCATE(acf)
+        DEALLOCATE(et_shifted)
+    END SUBROUTINE
+
+
+    SUBROUTINE dish_dephase_time_matrix_(eig_t, dt, nsw, nbasis, dephmat)
+        INTEGER, INTENT(in)  :: nsw
+        INTEGER, INTENT(in)  :: nbasis
+        REAL(q), INTENT(in)  :: eig_t(nbasis, nsw-1)
+        REAL(q), INTENT(in)  :: dt
+        REAL(q), INTENT(out) :: dephmat(nbasis, nbasis)
+
+        !! local variables
+        INTEGER :: i, j
+
+        dephmat = 0.0_q
+
+        DO i = 1, nbasis
+            DO j = 1, i-1
+                CALL dephase_time_(eig_t(i,:)-eig_t(j,:), dt, dephmat(i, j))
+                dephmat(j, i) = dephmat(i, j)
+            ENDDO
+        ENDDO
     END SUBROUTINE
 
 
@@ -624,7 +652,7 @@ MODULE hamiltonian_mod
 
         sigma = solution(1)
 
-        IF (info <=0 .OR. info >=5) THEN
+        IF (info <= 0 .OR. info >= 5) THEN
             WRITE(STDERR, '(A, I2, A, F10.4, A, F10.4, A)') "[ERROR] Fit failed in gausfit function, with info = ", &
                 info, " sigma = ", sigma, " " // AT
             STOP ERROR_FIT_FAILED
