@@ -14,7 +14,8 @@ MODULE surface_hopping_mod
         REAL(q), ALLOCATABLE :: sh_prob(:, :, :)   !< cumulated surface hopping probability, 
                                                    !< sh_prob[i]-sh_prob[i-1] is the real probability, [nbasis, nbasis, namdtime]
         REAL(q), ALLOCATABLE :: sh_pops(:, :)      !< population after surface hopping, [nbasis, namdtime]
-        REAL(q), ALLOCATABLE :: sh_eigs(:)         !< Total energy of system
+        REAL(q), ALLOCATABLE :: dish_recomb(:, :)  !< last state before recombination at some time, [nbasis, namdtime]
+        REAL(q), ALLOCATABLE :: sh_eigs(:)         !< Total energy of system, [nbasis]
     END TYPE surface_hopping
 
     PRIVATE :: sh_fssh_
@@ -371,10 +372,6 @@ MODULE surface_hopping_mod
     END SUBROUTINE sh_dish_
 
 
-    SUBROUTINE sh_dish_dephasetime_
-    END SUBROUTINE sh_dish_dephasetime_
-
-
     SUBROUTINE sh_dish_decoherence_rate_
     END SUBROUTINE sh_dish_decoherence_rate_
 
@@ -450,6 +447,7 @@ MODULE surface_hopping_mod
 
         !! local variables
         INTEGER :: i, j
+        INTEGER, PARAMETER :: iu = 514
 
         dephmat = 0.0_q
 
@@ -459,6 +457,12 @@ MODULE surface_hopping_mod
                 dephmat(j, i) = dephmat(i, j)
             ENDDO
         ENDDO
+
+        OPEN(iu, FILE="DEPHTIME.txt")
+        DO i = 1, nbasis
+            WRITE(iu, '(*(1X, F9.3))') (dephmat(i, j), j=1, nbasis)
+        ENDDO
+        CLOSE(iu)
     END SUBROUTINE
 
 
@@ -512,12 +516,73 @@ MODULE surface_hopping_mod
     END SUBROUTINE dish_gausfit_
 
 
-    SUBROUTINE dish_decoherence_time_
-    END SUBROUTINE dish_decoherence_time_
+    !! Calculate decoherent time
+    !!     1 / \tau_alpha = SUM_{i!=alpha} |Ci(t)|^2 * r_{alpha,i}
+    !!     where `alpha`: the current state
+    !!           `Ci(t)`: NAMD wavefunction at `t` time
+    SUBROUTINE dish_decoherent_time_(psi, dephmat, nbasis, decotime)
+        COMPLEX(q), INTENT(in)  :: psi(:)
+        REAL(q),    INTENT(in)  :: dephmat(:, :)
+        INTEGER,    INTENT(in)  :: nbasis
+        REAL(q),    INTENT(out) :: decotime(:, :)
+
+        !! local variables
+        INTEGER :: i
+
+        !! logic starts
+        DO i = 1, nbasis
+            decotime = 1.0_q / SUM( REALPART(CONJG(psi) * psi) * dephmat(:, i) )
+        ENDDO
+    END SUBROUTINE dish_decoherent_time_
+
+
+    SUBROUTINE dish_shuffle_(n, a)
+        INTEGER, INTENT(in)    :: n
+        INTEGER, INTENT(inout) :: a(n)
+
+        REAL    :: r
+        INTEGER :: i, randpos
+        INTEGER :: temp
+
+        DO i = n, 2, -1
+            CALL RANDOM_NUMBER(r)
+            randpos = INT(r * i) + 1
+            temp = a(randpos)
+            a(randpos) = a(i)
+            a(i) = temp
+        ENDDO
+    END SUBROUTINE dish_shuffle_
 
     
-    SUBROUTINE dish_
-    END SUBROUTINE dish_
+    SUBROUTINE dish_collapse_destination_(nbasis, decotime, dest, decomoment, shuffle)
+        INTEGER, INTENT(in)    :: nbasis
+        REAL(q), INTENT(in)    :: decotime(nbasis)
+        INTEGER, INTENT(inout) :: dest
+        REAL(q), INTENT(inout) :: decomoment(nbasis)
+        INTEGER, INTENT(inout) :: shuffle(nbasis)
+
+        !! local variables
+        INTEGER :: i, j
+
+        CALL dish_shuffle_(nbasis, shuffle)
+
+        DO j = 1, nbasis
+            i = shuffle(j)
+            IF (decotime(i) <= decomoment(i)) THEN
+                dest = i
+                decomoment(i) = 0.0_q       ! update the decoherence moment
+                EXIT
+            ENDIF
+        ENDDO
+    END SUBROUTINE dish_collapse_destination_
+
+
+    !SUBROUTINE dish_projector_(hamil, iion, cstat, )
+    !END SUBROUTINE dish_projector_
+
+
+    SUBROUTINE dish_run_
+    END SUBROUTINE dish_run_
 
 
 !===============================================================================
