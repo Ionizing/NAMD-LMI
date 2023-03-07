@@ -200,8 +200,8 @@ MODULE surface_hopping_mod
         IF (.NOT. ALLOCATED(prob))              ALLOCATE(prob(hamil%nbasis))
         IF (.NOT. ALLOCATED(dE))                ALLOCATE(dE(hamil%nbasis))
 
-        rho_jj  = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(istate, iion))
-        rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime))  !< Re(rho_jk * d_jk)
+        rho_jj  = REALPART(DCONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(istate, iion))
+        rhod_jk = REALPART(DCONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime))  !< Re(rho_jk * d_jk)
 
         !< Boltzmann factor only works for upward hoppings, i.e. dE < 0
         FORALL (i=1:hamil%nbasis) dE(i) = MIN(0.0_q, hamil%eig_t(istate, rtime) - hamil%eig_t(i, rtime))
@@ -531,7 +531,7 @@ MODULE surface_hopping_mod
 
         !! logic starts
         DO i = 1, nbasis
-            decotime = 1.0_q / SUM( REALPART(CONJG(psi) * psi) * dephmat(:, i) )
+            decotime = 1.0_q / SUM( REALPART(DCONJG(psi) * psi) * dephmat(:, i) )
         ENDDO
     END SUBROUTINE dish_decoherent_time_
 
@@ -577,8 +577,57 @@ MODULE surface_hopping_mod
     END SUBROUTINE dish_collapse_destination_
 
 
-    !SUBROUTINE dish_projector_(hamil, iion, cstat, )
-    !END SUBROUTINE dish_projector_
+    SUBROUTINE dish_projector_(hamil, sh, psi, which, iion, cstat, iend, fgend)
+        TYPE(hamiltonian), INTENT(inout) :: hamil
+        TYPE(surface_hopping), INTENT(inout) :: sh
+        REAL(q), INTENT(in)              :: psi
+        INTEGER, INTENT(in)              :: which
+        INTEGER, INTENT(in)              :: iion
+        INTEGER, INTENT(in)              :: iend
+        INTEGER, INTENT(inout)           :: cstat
+        INTEGER, INTENT(inout)           :: fgend
+
+        !! local variables
+        INTEGER :: i, j
+        REAL(q) :: rand, dE, kbT, popmax, lower, upper
+        REAL(q) :: popBoltz(hamil%nbasis)
+        REAL(q) :: normq
+        INTEGER :: rtime
+
+        !! logic starts
+        rtime = MOD(iion + hamil%namdinit-2, hamil%nsw - 1) + 1
+
+        kbT = hamil%temperature * BOLKEV
+        CALL RANDOM_NUMBER(rand)
+
+        popBoltz(which) = REALPART( DCONJG(hamil%psi_c(which)) * hamil%psi_c(which) )
+
+        dE = ((hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, rtime+1)) - &
+              (hamil%eig_t(which, rtime) + hamil%eig_t(which, rtime+1))) / 2.0_q
+
+        IF (dE > 0.0_q) THEN
+            popBoltz(which) = popBoltz(which) * EXP(-dE / kbT)
+        ENDIF
+
+
+        IF (rand <= popBoltz(which)) THEN
+        !! project in
+            hamil%psi_c(:) = 0.0_q
+            hamil%psi_c(which) = (1.0_q, 0.0)
+
+            IF ( 0 == fgend .AND. iend == which) THEN
+                sh%dish_recomb(cstat, iion+1:hamil%namdtime) = sh%dish_recomb(cstat, iion+1:hamil%namdtime) + 1.0_q
+                fgend = -1
+            ENDIF
+            cstat = which
+        ELSE
+        !! project out
+            hamil%psi_c(which) = 0.0_q
+            normq = DSQRT(REALPART( SUM(DCONJG(hamil%psi_c) * hamil%psi_c) ))
+            hamil%psi_c(:) = hamil%psi_c(:) / normq
+        ENDIF
+
+    END SUBROUTINE dish_projector_
 
 
     SUBROUTINE dish_run_

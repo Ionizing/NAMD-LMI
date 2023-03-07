@@ -311,7 +311,7 @@ MODULE hamiltonian_mod
         rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
         !! We require users to initialize hamil%psi_c manually
 
-        hamil%pop_t(:, iion) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+        hamil%pop_t(:, iion) = REALPART(DCONJG(hamil%psi_c) * hamil%psi_c)
         hamil%prop_eigs(iion) = SUM(hamil%pop_t(:, iion) * hamil%eig_t(:, rtime))
         hamil%psi_t(:, iion) = hamil%psi_c
 
@@ -328,7 +328,7 @@ MODULE hamiltonian_mod
                 STOP ERROR_HAMIL_PROPMETHOD
         END SELECT
 
-        norm = REALPART(SUM(CONJG(hamil%psi_c) * hamil%psi_c))
+        norm = REALPART(SUM(DCONJG(hamil%psi_c) * hamil%psi_c))
         IF (ABS(norm-1) > 1E-3) THEN
             WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved: ", F9.6)') norm
             STOP ERROR_HAMIL_PROPFAIL
@@ -419,7 +419,7 @@ MODULE hamiltonian_mod
 
                 !! H(:,i) are the eigen vectorss, E contains the eigen values
                 FORALL(i=1:nbasis) EXPH(:,i) = H(:,i) * EXP(E(i) * IMGUNIT)     !< EXPH = P*\Lambda
-                EXPH = MATMUL(EXPH, TRANSPOSE(CONJG(H)))                        !< EXPH = P*\Lambda*P' = e^(-iHt/hbar)
+                EXPH = MATMUL(EXPH, TRANSPOSE(DCONJG(H)))                        !< EXPH = P*\Lambda*P' = e^(-iHt/hbar)
 
                 hamil%psi_c = MATMUL(EXPH, hamil%psi_c)
             ENDDO   !! iele

@@ -624,8 +624,8 @@ MODULE nac_mod
 
             !! psi_i,j = [nplws, nbrange]
             !! pji = psi_j' * psi_i, p_ij = psi_i' * psi_j
-            c_ij(:, :, ispin) =   MATMUL(CONJG(TRANSPOSE(psi_i)), psi_j) &  !! p_ji = <psi_i(t)|psi_j(t+dt)>
-                                - MATMUL(CONJG(TRANSPOSE(psi_j)), psi_i)    !! p_ij = <psi_j(t)|psi_i(t+dt)>
+            c_ij(:, :, ispin) =   MATMUL(DCONJG(TRANSPOSE(psi_i)), psi_j) &  !! p_ji = <psi_i(t)|psi_j(t+dt)>
+                                - MATMUL(DCONJG(TRANSPOSE(psi_j)), psi_i)    !! p_ij = <psi_j(t)|psi_i(t+dt)>
 
             !! de = Ei - Ej
             invde = - SPREAD(wav_i%eigs(brange(1):brange(2), ikpoint, ispin), 2, nbrange) + &
@@ -638,10 +638,10 @@ MODULE nac_mod
 
                 !! <phi_i | k | phi_j>
                 IF (wav_i%wavetype(1:3) == "gam") THEN
-                    tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs) &
-                                                 - MATMUL(CONJG(TRANSPOSE(psi_times_gvecs)), psi_j)
+                    tdm_ij(idirect, :, :, ispin) = MATMUL(DCONJG(TRANSPOSE(psi_j)), psi_times_gvecs) &
+                                                 - MATMUL(DCONJG(TRANSPOSE(psi_times_gvecs)), psi_j)
                 ELSE
-                    tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs)
+                    tdm_ij(idirect, :, :, ispin) = MATMUL(DCONJG(TRANSPOSE(psi_j)), psi_times_gvecs)
                 ENDIF
 
                 tdm_ij(idirect, :, :, ispin) = tdm_ij(idirect, :, :, ispin) * &
