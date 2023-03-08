@@ -331,7 +331,7 @@ MODULE surface_hopping_mod
         inistate = MAXLOC(ABS(hamil%psi_c), DIM=1)
 
         !! propagate
-        DO iion = 1, hamil%namdtime
+        DO iion = 1, hamil%namdtime - 1
             CALL hamiltonian_propagate(hamil, iion, sh%propmethod)
         ENDDO
 
@@ -520,19 +520,17 @@ MODULE surface_hopping_mod
     !!     1 / \tau_alpha = SUM_{i!=alpha} |Ci(t)|^2 * r_{alpha,i}
     !!     where `alpha`: the current state
     !!           `Ci(t)`: NAMD wavefunction at `t` time
-    SUBROUTINE dish_decoherent_time_(psi, dephmat, nbasis, decotime)
+    SUBROUTINE dish_decoherent_time_(psi, dephmatr, nbasis, decotime)
         COMPLEX(q), INTENT(in)  :: psi(:)
-        REAL(q),    INTENT(in)  :: dephmat(:, :)
+        REAL(q),    INTENT(in)  :: dephmatr(:, :)
         INTEGER,    INTENT(in)  :: nbasis
-        REAL(q),    INTENT(out) :: decotime(:, :)
+        REAL(q),    INTENT(out) :: decotime(:)
 
         !! local variables
         INTEGER :: i
 
         !! logic starts
-        DO i = 1, nbasis
-            decotime = 1.0_q / SUM( REALPART(DCONJG(psi) * psi) * dephmat(:, i) )
-        ENDDO
+        FORALL(i=1:nbasis) decotime(i) = 1.0_q / SUM( REALPART(DCONJG(psi) * psi) * dephmatr(:, i) )
     END SUBROUTINE dish_decoherent_time_
 
 
@@ -565,6 +563,7 @@ MODULE surface_hopping_mod
         INTEGER :: i, j
 
         CALL dish_shuffle_(nbasis, shuffle)
+        dest = 0
 
         DO j = 1, nbasis
             i = shuffle(j)
@@ -577,10 +576,13 @@ MODULE surface_hopping_mod
     END SUBROUTINE dish_collapse_destination_
 
 
-    SUBROUTINE dish_projector_(hamil, sh, psi, which, iion, cstat, iend, fgend)
-        TYPE(hamiltonian), INTENT(inout) :: hamil
+    !! which: hopping destination
+    !! cstat: current state
+    !! iion: ionic step
+    !! iend: ditermine if which == nbasis
+    SUBROUTINE dish_projector_(sh, hamil, which, iion, cstat, iend, fgend)
         TYPE(surface_hopping), INTENT(inout) :: sh
-        REAL(q), INTENT(in)              :: psi
+        TYPE(hamiltonian), INTENT(inout) :: hamil
         INTEGER, INTENT(in)              :: which
         INTEGER, INTENT(in)              :: iion
         INTEGER, INTENT(in)              :: iend
@@ -588,8 +590,7 @@ MODULE surface_hopping_mod
         INTEGER, INTENT(inout)           :: fgend
 
         !! local variables
-        INTEGER :: i, j
-        REAL(q) :: rand, dE, kbT, popmax, lower, upper
+        REAL(q) :: rand, dE, kbT
         REAL(q) :: popBoltz(hamil%nbasis)
         REAL(q) :: normq
         INTEGER :: rtime
@@ -602,20 +603,19 @@ MODULE surface_hopping_mod
 
         popBoltz(which) = REALPART( DCONJG(hamil%psi_c(which)) * hamil%psi_c(which) )
 
-        dE = ((hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, rtime+1)) - &
-              (hamil%eig_t(which, rtime) + hamil%eig_t(which, rtime+1))) / 2.0_q
+        dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, rtime+1)) - &
+              (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, rtime+1))) / 2.0_q
 
         IF (dE > 0.0_q) THEN
             popBoltz(which) = popBoltz(which) * EXP(-dE / kbT)
         ENDIF
-
 
         IF (rand <= popBoltz(which)) THEN
         !! project in
             hamil%psi_c(:) = 0.0_q
             hamil%psi_c(which) = (1.0_q, 0.0)
 
-            IF ( 0 == fgend .AND. iend == which) THEN
+            IF (0 == fgend .AND. iend == which) THEN
                 sh%dish_recomb(cstat, iion+1:hamil%namdtime) = sh%dish_recomb(cstat, iion+1:hamil%namdtime) + 1.0_q
                 fgend = -1
             ENDIF
@@ -630,7 +630,39 @@ MODULE surface_hopping_mod
     END SUBROUTINE dish_projector_
 
 
-    SUBROUTINE dish_run_
+    SUBROUTINE dish_run_(sh, hamil, ibeg, iend, fgend, dephmatr)
+        TYPE(surface_hopping), INTENT(inout) :: sh
+        TYPE(hamiltonian), INTENT(inout)     :: hamil
+        INTEGER, INTENT(in)                  :: ibeg
+        INTEGER, INTENT(in)                  :: iend
+        INTEGER, INTENT(inout)               :: fgend
+        REAL(q), INTENT(in)                  :: dephmatr(:, :)
+        
+        !! local variables
+        REAL(q) :: decotime(hamil%nbasis)
+        INTEGER :: shuffle(hamil%nbasis)
+        INTEGER :: dest
+        REAL(q) :: decomoment(hamil%nbasis)
+        INTEGER :: iion
+        INTEGER :: j
+
+        !! logic starts
+        shuffle(:) = [(j, j=1, hamil%nbasis)]
+        decomoment(:) = 0.0_q
+        
+        DO iion = 1, hamil%namdtime - 1
+            CALL hamiltonian_propagate(hamil, iion, sh%propmethod)
+            CALL dish_decoherent_time_(hamil%psi_c(:), dephmatr(:,:), hamil%nbasis, decotime(:))
+            CALL dish_collapse_destination_(hamil%nbasis, decotime, dest, decomoment(:), shuffle(:))
+            decomoment(:) = decomoment(:) + hamil%dt
+            
+            IF (dest > 0) THEN
+                CALL dish_projector_(sh, hamil, dest, iion, )
+            ENDIF
+        ENDDO
+
+
+
     END SUBROUTINE dish_run_
 
 
