@@ -13,6 +13,7 @@ MODULE hamiltonian_mod
         INTEGER :: basis_dn(2)                  !> basis index for spin down
         INTEGER :: nbasis                       !> number of basis
         REAL(q) :: dt                           !> time step, in fs
+        INTEGER :: basisini                     !> initial band index of basis
         INTEGER :: namdinit                     !> start index of NAMD in total trajectory
         INTEGER :: namdtime                     !> number of NAMD steps
         INTEGER :: nsw                          !> number of AIMD steps
@@ -166,6 +167,7 @@ MODULE hamiltonian_mod
         hamil%nac_t = 0
 
         !! put the electron or hole on the initial band
+        hamil%basisini = iniband_index_convert_(basis_up, basis_dn, inispin, iniband)
         hamil%psi_c(iniband_index_convert_(basis_up, basis_dn, inispin, iniband)) = 1.0
         !hamil%psi_t(:, 1) = hamil%psi_c
 

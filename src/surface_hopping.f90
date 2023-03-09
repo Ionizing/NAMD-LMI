@@ -41,6 +41,10 @@ MODULE surface_hopping_mod
         ALLOCATE(sh%sh_pops(hamil%nbasis, hamil%namdtime))
         ALLOCATE(sh%sh_eigs(hamil%namdtime))
 
+        IF (sh%shmethod == "DISH") THEN
+            ALLOCATE(sh%dish_recomb(hamil%nbasis, hamil%namdtime))
+        ENDIF
+
         sh%sh_prob = 0
         sh%sh_pops = 0
         sh%sh_eigs = 0
@@ -62,6 +66,7 @@ MODULE surface_hopping_mod
         IF (ALLOCATED(sh%sh_prob)) DEALLOCATE(sh%sh_prob)
         IF (ALLOCATED(sh%sh_pops)) DEALLOCATE(sh%sh_pops)
         IF (ALLOCATED(sh%sh_eigs)) DEALLOCATE(sh%sh_eigs)
+        IF (ALLOCATED(sh%dish_recomb)) DEALLOCATE(sh%dish_recomb)
     END SUBROUTINE surface_hopping_destroy
 
 
@@ -82,7 +87,7 @@ MODULE surface_hopping_mod
             CASE("DCSH")
                 CALL sh_dcsh_(sh, hamil)
             CASE("DISH")
-                CALL sh_dish_(sh, hamil)
+                CALL sh_dish_(sh, hamil, irank)
             CASE DEFAULT
                 WRITE(STDERR, '("[ERROR] Invalid method for surface_hopping_run: ", A, " , available: FSSH, DCSH, DISH.")') sh%shmethod
                 STOP ERROR_SURFHOP_METHOD
@@ -150,7 +155,6 @@ MODULE surface_hopping_mod
 
             CALL surface_hopping_destroy(sh)
             CALL hamiltonian_destroy(hamil)
-
         ENDDO
 
         DEALLOCATE(displs)
@@ -296,6 +300,16 @@ MODULE surface_hopping_mod
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, sh%sh_pops, shpop_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
             CALL H5SCLOSE_F(dspace_id, ierr)
+
+            !! dish_recomb for DISH calculations
+            IF (sh%shmethod == "DISH") THEN
+                shpop_dims = SHAPE(sh%dish_recomb)
+                CALL H5SCREATE_SIMPLE_F(2, shpop_dims, dspace_id, ierr)
+                    CALL H5DCREATE_F(file_id, "dish_recomb", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                    CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, sh%dish_recomb, shpop_dims, ierr)
+                    CALL H5DCLOSE_F(dset_id, ierr)
+                CALL H5SCLOSE_F(dspace_id, ierr)
+            ENDIF
         CALL H5FCLOSE_F(file_id, ierr)
         CALL H5CLOSE_F(ierr)
 
@@ -363,17 +377,40 @@ MODULE surface_hopping_mod
     END SUBROUTINE sh_dcsh_
 
 
-    SUBROUTINE sh_dish_(sh, hamil)
+    SUBROUTINE sh_dish_(sh, hamil, irank)
         TYPE(surface_hopping), INTENT(inout) :: sh
-        TYPE(hamiltonian), INTENT(inout) :: hamil
+        TYPE(hamiltonian), INTENT(inout)     :: hamil
+        INTEGER, INTENT(in)                  :: irank
 
-        WRITE(STDERR, *) "This SHMETHOD not implemented yet: " // AT
-        STOP 1
+        !! local variables
+        !INTEGER :: shuffle(hamil%nbasis)
+        !REAL(q) :: decomoment(hamil%nbasis)
+        REAL(q) :: dephmatr(hamil%nbasis, hamil%nbasis)
+        INTEGER :: ibeg             ! initial state
+        INTEGER :: iend             ! combination destination
+        INTEGER :: curstate         ! current state
+        LOGICAL :: iscombined       ! is combination completed ?
+        INTEGER :: i
+
+        !! logic starts
+        sh%sh_pops(:, :)     = 0.0_q
+        sh%dish_recomb(:, :) = 0.0_q
+        ibeg = hamil%basisini
+        iend = 1
+
+        ! Calculate dephase time matrix
+        CALL dish_dephase_time_matrix_(hamil%eig_t, hamil%dt, hamil%nsw, hamil%nbasis, irank, dephmatr)
+        dephmatr(:, :) = 1.0_q / dephmatr(:, :)
+
+        DO i = 1, sh%ntraj
+            iscombined = .FALSE.
+            CALL dish_run_(sh, hamil, ibeg, iend, iscombined, curstate, dephmatr)
+        ENDDO
+
+        sh%sh_pops(:, :)    = sh%sh_pops(:, :) / sh%ntraj
+        sh%sh_pops(ibeg, 1) = 1.0_q
     END SUBROUTINE sh_dish_
 
-
-    SUBROUTINE sh_dish_decoherence_rate_
-    END SUBROUTINE sh_dish_decoherence_rate_
 
 !===============================================================================
 !=                          DISH related stuff                                 =
@@ -438,12 +475,14 @@ MODULE surface_hopping_mod
     END SUBROUTINE dish_dephase_time_
 
 
-    SUBROUTINE dish_dephase_time_matrix_(eig_t, dt, nsw, nbasis, dephmat)
+    SUBROUTINE dish_dephase_time_matrix_(eig_t, dt, nsw, nbasis, irank, dephmat, llog)
         INTEGER, INTENT(in)  :: nsw
         INTEGER, INTENT(in)  :: nbasis
         REAL(q), INTENT(in)  :: eig_t(nbasis, nsw-1)
         REAL(q), INTENT(in)  :: dt
+        INTEGER, INTENT(in)  :: irank
         REAL(q), INTENT(out) :: dephmat(nbasis, nbasis)
+        LOGICAL, OPTIONAL    :: llog
 
         !! local variables
         INTEGER :: i, j
@@ -458,11 +497,16 @@ MODULE surface_hopping_mod
             ENDDO
         ENDDO
 
-        OPEN(iu, FILE="DEPHTIME.txt")
-        DO i = 1, nbasis
-            WRITE(iu, '(*(1X, F9.3))') (dephmat(i, j), j=1, nbasis)
-        ENDDO
-        CLOSE(iu)
+        IF (irank == MPI_ROOT_NODE) THEN
+            IF (PRESENT(llog)) THEN
+                IF (llog) WRITE(STDOUT, '(A)') "[NODE   0] Writing dephase time to DEPHTIME.txt ..."
+            ENDIF
+            OPEN(iu, FILE="DEPHTIME.txt")
+            DO i = 1, nbasis
+                WRITE(iu, '(*(1X, F9.3))') (dephmat(i, j), j=1, nbasis)
+            ENDDO
+            CLOSE(iu)
+        ENDIF
     END SUBROUTINE
 
 
@@ -580,14 +624,14 @@ MODULE surface_hopping_mod
     !! cstat: current state
     !! iion: ionic step
     !! iend: ditermine if which == nbasis
-    SUBROUTINE dish_projector_(sh, hamil, which, iion, cstat, iend, fgend)
+    SUBROUTINE dish_projector_(sh, hamil, which, iion, cstat, iend, iscombined)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
         INTEGER, INTENT(in)              :: which
         INTEGER, INTENT(in)              :: iion
         INTEGER, INTENT(in)              :: iend
         INTEGER, INTENT(inout)           :: cstat
-        INTEGER, INTENT(inout)           :: fgend
+        LOGICAL, INTENT(inout)           :: iscombined
 
         !! local variables
         REAL(q) :: rand, dE, kbT
@@ -615,9 +659,9 @@ MODULE surface_hopping_mod
             hamil%psi_c(:) = 0.0_q
             hamil%psi_c(which) = (1.0_q, 0.0)
 
-            IF (0 == fgend .AND. iend == which) THEN
+            IF (.NOT. iscombined .AND. iend == which) THEN
                 sh%dish_recomb(cstat, iion+1:hamil%namdtime) = sh%dish_recomb(cstat, iion+1:hamil%namdtime) + 1.0_q
-                fgend = -1
+                iscombined = .TRUE.
             ENDIF
             cstat = which
         ELSE
@@ -630,12 +674,13 @@ MODULE surface_hopping_mod
     END SUBROUTINE dish_projector_
 
 
-    SUBROUTINE dish_run_(sh, hamil, ibeg, iend, fgend, dephmatr)
+    SUBROUTINE dish_run_(sh, hamil, ibeg, iend, iscombined, curstate, dephmatr)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout)     :: hamil
         INTEGER, INTENT(in)                  :: ibeg
         INTEGER, INTENT(in)                  :: iend
-        INTEGER, INTENT(inout)               :: fgend
+        LOGICAL, INTENT(inout)               :: iscombined
+        INTEGER, INTENT(inout)               :: curstate
         REAL(q), INTENT(in)                  :: dephmatr(:, :)
         
         !! local variables
@@ -647,7 +692,8 @@ MODULE surface_hopping_mod
         INTEGER :: j
 
         !! logic starts
-        shuffle(:) = [(j, j=1, hamil%nbasis)]
+        shuffle(:)    = [(j, j=1, hamil%nbasis)]
+        curstate      = ibeg
         decomoment(:) = 0.0_q
         
         DO iion = 1, hamil%namdtime - 1
@@ -657,12 +703,10 @@ MODULE surface_hopping_mod
             decomoment(:) = decomoment(:) + hamil%dt
             
             IF (dest > 0) THEN
-                CALL dish_projector_(sh, hamil, dest, iion, )
+                CALL dish_projector_(sh, hamil, dest, iion, curstate, iend, iscombined)
             ENDIF
+            sh%sh_pops(curstate, iion+1) = sh%sh_pops(curstate, iion+1) + 1.0_q
         ENDDO
-
-
-
     END SUBROUTINE dish_run_
 
 

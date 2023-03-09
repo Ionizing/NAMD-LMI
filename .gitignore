@@ -8,3 +8,5 @@
 *.nml
 .DS_Store
 doc
+
+tests/DEPHTIME.txt

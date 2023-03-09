@@ -53,7 +53,7 @@ MODULE test_surface_hopping
         READ(iu, *) ((Et(i,j), i=1, nbasis), j=1, nsw-1)
         CLOSE(iu)
 
-        CALL dish_dephase_time_matrix_(Et, dt, nsw, nbasis, dephmat)
+        CALL dish_dephase_time_matrix_(Et, dt, nsw, nbasis, 0, dephmat)
 
         OPEN(iu, FILE="DEPHTIME")
         READ(iu, *) ((dephmat_expected(i,j), i=1, nbasis), j=1, nbasis)
