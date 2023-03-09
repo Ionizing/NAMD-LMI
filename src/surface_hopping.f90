@@ -241,20 +241,20 @@ MODULE surface_hopping_mod
         FORALL(i=1:hamil%namdtime) time_idx(i) = i * hamil%dt
         time_dims = [hamil%namdtime]
 
-        !! propagation
-        h5fname = "propagation_" // TRIM(int2str(hamil%namdinit, ndigit=ndigit)) // ".h5"
+        h5fname = "result_" // TRIM(int2str(hamil%namdinit, ndigit=ndigit)) // ".h5"
         IF (PRESENT(llog)) THEN
             IF (llog) WRITE(STDOUT, '(A, I4, A)') '[NODE', irank,'] Writing propagation info to "' // TRIM(h5fname) // '" ...'
         ENDIF
         CALL H5OPEN_F(ierr)
         CALL H5FCREATE_F(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
+            !! propagation
             CALL H5SCREATE_SIMPLE_F(1, time_dims, dspace_id, ierr)
                 !! time indices
                 CALL H5DCREATE_F(file_id, "time", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, time_idx, time_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
                 !! evolution of system's energy
-                CALL H5DCREATE_F(file_id, "energy", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DCREATE_F(file_id, "prop_energy", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, hamil%prop_eigs, time_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
             CALL H5SCLOSE_F(dspace_id, ierr)
@@ -271,24 +271,16 @@ MODULE surface_hopping_mod
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(hamil%psi_t), propagation_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
             CALL H5SCLOSE_F(dspace_id, ierr)
-        CALL H5FCLOSE_F(file_id, ierr)
-        CALL H5CLOSE_F(ierr)
 
 
-        !! surface hopping
-        h5fname = "shpop_" // TRIM(int2str(hamil%namdinit, ndigit=ndigit)) // ".h5"
-        IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A, I4, A)') '[INFO', irank, '] Writing surface hopping info to "' // TRIM(h5fname) // '" ...'
-        ENDIF
-        CALL H5OPEN_F(ierr)
-        CALL H5FCREATE_F(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
+            !! surface hopping
             CALL H5SCREATE_SIMPLE_F(1, time_dims, dspace_id, ierr)
                 !! time indices
-                CALL H5DCREATE_F(file_id, "time", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
-                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, time_idx, time_dims, ierr)
-                CALL H5DCLOSE_F(dset_id, ierr)
+                !CALL H5DCREATE_F(file_id, "time", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                !CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, time_idx, time_dims, ierr)
+                !CALL H5DCLOSE_F(dset_id, ierr)
                 !! evolution of system's energy
-                CALL H5DCREATE_F(file_id, "energy", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DCREATE_F(file_id, "sh_energy", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, sh%sh_eigs, time_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
             CALL H5SCLOSE_F(dspace_id, ierr)
@@ -334,6 +326,7 @@ MODULE surface_hopping_mod
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(inout) :: hamil
 
+        !! local variables
         INTEGER :: i
         INTEGER :: iion
         INTEGER :: inistate, curstate
@@ -392,6 +385,10 @@ MODULE surface_hopping_mod
         LOGICAL :: iscombined       ! is combination completed ?
         INTEGER :: i
 
+        !! for profiling only !!
+        INTEGER :: timing_start, timing_end, timing_rate
+        !!!!!!!!!!!!!!!!!!!!!!!!
+
         !! logic starts
         sh%sh_pops(:, :)     = 0.0_q
         sh%dish_recomb(:, :) = 0.0_q
@@ -403,8 +400,13 @@ MODULE surface_hopping_mod
         dephmatr(:, :) = 1.0_q / dephmatr(:, :)
 
         DO i = 1, sh%ntraj
+            CALL SYSTEM_CLOCK(timing_start, timing_rate)
+
             iscombined = .FALSE.
             CALL dish_run_(sh, hamil, ibeg, iend, iscombined, curstate, dephmatr)
+
+            CALL SYSTEM_CLOCK(timing_end, timing_rate)
+            !PRINT *, "[DEBUG] Each traj costs ", DBLE(timing_end - timing_start) / timing_rate, " secs."
         ENDDO
 
         sh%sh_pops(:, :)    = sh%sh_pops(:, :) / sh%ntraj
@@ -637,18 +639,19 @@ MODULE surface_hopping_mod
         REAL(q) :: rand, dE, kbT
         REAL(q) :: popBoltz(hamil%nbasis)
         REAL(q) :: normq
-        INTEGER :: rtime
+        INTEGER :: rtime, xtime
 
         !! logic starts
-        rtime = MOD(iion + hamil%namdinit-2, hamil%nsw - 1) + 1
+        rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
+        xtime = MOD(iion+hamil%namdinit-1, hamil%nsw-1) + 1
 
         kbT = hamil%temperature * BOLKEV
         CALL RANDOM_NUMBER(rand)
 
         popBoltz(which) = REALPART( DCONJG(hamil%psi_c(which)) * hamil%psi_c(which) )
 
-        dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, rtime+1)) - &
-              (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, rtime+1))) / 2.0_q
+        dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, xtime)) - &
+              (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, xtime))) / 2.0_q
 
         IF (dE > 0.0_q) THEN
             popBoltz(which) = popBoltz(which) * EXP(-dE / kbT)
