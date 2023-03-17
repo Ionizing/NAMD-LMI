@@ -43,6 +43,7 @@ MODULE surface_hopping_mod
 
         IF (sh%shmethod == "DISH") THEN
             ALLOCATE(sh%dish_recomb(hamil%nbasis, hamil%namdtime))
+            sh%dish_recomb(:, :) = 0
         ENDIF
 
         sh%sh_prob = 0
@@ -80,6 +81,7 @@ MODULE surface_hopping_mod
         REAL(q) :: time
         INTEGER :: iion, rtime
 
+        CALL init_random_seed()
         CALL SYSTEM_CLOCK(timing_start, timing_rate)
         SELECT CASE (sh%shmethod)
             CASE("FSSH")
@@ -204,8 +206,8 @@ MODULE surface_hopping_mod
         IF (.NOT. ALLOCATED(prob))              ALLOCATE(prob(hamil%nbasis))
         IF (.NOT. ALLOCATED(dE))                ALLOCATE(dE(hamil%nbasis))
 
-        rho_jj  = REALPART(DCONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(istate, iion))
-        rhod_jk = REALPART(DCONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime))  !< Re(rho_jk * d_jk)
+        rho_jj  = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(istate, iion))
+        rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime))  !< Re(rho_jk * d_jk)
 
         !< Boltzmann factor only works for upward hoppings, i.e. dE < 0
         FORALL (i=1:hamil%nbasis) dE(i) = MIN(0.0_q, hamil%eig_t(istate, rtime) - hamil%eig_t(i, rtime))
@@ -243,7 +245,7 @@ MODULE surface_hopping_mod
 
         h5fname = "result_" // TRIM(int2str(hamil%namdinit, ndigit=ndigit)) // ".h5"
         IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '(A, I4, A)') '[NODE', irank,'] Writing propagation info to "' // TRIM(h5fname) // '" ...'
+            IF (llog) WRITE(STDOUT, '(A, I4, A)') '[NODE', irank,'] Writing surface hopping result to "' // TRIM(h5fname) // '" ...'
         ENDIF
         CALL H5OPEN_F(ierr)
         CALL H5FCREATE_F(TRIM(h5fname), H5F_ACC_TRUNC_F, file_id, ierr)
@@ -398,14 +400,15 @@ MODULE surface_hopping_mod
         ! Calculate dephase time matrix
         CALL dish_dephase_time_matrix_(hamil%eig_t, hamil%dt, hamil%nsw, hamil%nbasis, irank, dephmatr)
         dephmatr(:, :) = 1.0_q / dephmatr(:, :)
+        FORALL(i = 1:hamil%nbasis) dephmatr(i, i) = 0.0_q
 
         DO i = 1, sh%ntraj
-            CALL SYSTEM_CLOCK(timing_start, timing_rate)
+            !CALL SYSTEM_CLOCK(timing_start, timing_rate)
 
             iscombined = .FALSE.
             CALL dish_run_(sh, hamil, ibeg, iend, iscombined, curstate, dephmatr)
 
-            CALL SYSTEM_CLOCK(timing_end, timing_rate)
+            !CALL SYSTEM_CLOCK(timing_end, timing_rate)
             !PRINT *, "[DEBUG] Each traj costs ", DBLE(timing_end - timing_start) / timing_rate, " secs."
         ENDDO
 
@@ -574,9 +577,16 @@ MODULE surface_hopping_mod
 
         !! local variables
         INTEGER :: i
+        REAL(q), ALLOCATABLE, SAVE :: pop(:)
+
+        IF (.NOT. ALLOCATED(pop)) THEN
+            ALLOCATE(pop(nbasis))
+        ENDIF
 
         !! logic starts
-        FORALL(i=1:nbasis) decotime(i) = 1.0_q / SUM( REALPART(DCONJG(psi) * psi) * dephmatr(:, i) )
+        !FORALL(i=1:nbasis) pop(i) = REALPART(CONJG(psi(i)) * psi(i))
+        pop(:) = REALPART(CONJG(psi) * psi)
+        FORALL(i=1:nbasis) decotime(i) = 1.0_q / SUM( pop(:) * dephmatr(:, i) )
     END SUBROUTINE dish_decoherent_time_
 
 
@@ -614,6 +624,7 @@ MODULE surface_hopping_mod
         DO j = 1, nbasis
             i = shuffle(j)
             IF (decotime(i) <= decomoment(i)) THEN
+            !! if current moment is larger than decotime of some state
                 dest = i
                 decomoment(i) = 0.0_q       ! update the decoherence moment
                 EXIT
@@ -637,7 +648,7 @@ MODULE surface_hopping_mod
 
         !! local variables
         REAL(q) :: rand, dE, kbT
-        REAL(q) :: popBoltz(hamil%nbasis)
+        REAL(q) :: popBoltz
         REAL(q) :: normq
         INTEGER :: rtime, xtime
 
@@ -648,16 +659,16 @@ MODULE surface_hopping_mod
         kbT = hamil%temperature * BOLKEV
         CALL RANDOM_NUMBER(rand)
 
-        popBoltz(which) = REALPART( DCONJG(hamil%psi_c(which)) * hamil%psi_c(which) )
+        popBoltz = REALPART( CONJG(hamil%psi_c(which)) * hamil%psi_c(which) )
 
         dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, xtime)) - &
               (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, xtime))) / 2.0_q
 
         IF (dE > 0.0_q) THEN
-            popBoltz(which) = popBoltz(which) * EXP(-dE / kbT)
+            popBoltz = popBoltz * EXP(-dE / kbT)
         ENDIF
 
-        IF (rand <= popBoltz(which)) THEN
+        IF (rand <= popBoltz) THEN
         !! project in
             hamil%psi_c(:) = 0.0_q
             hamil%psi_c(which) = (1.0_q, 0.0)
@@ -670,10 +681,9 @@ MODULE surface_hopping_mod
         ELSE
         !! project out
             hamil%psi_c(which) = 0.0_q
-            normq = DSQRT(REALPART( SUM(DCONJG(hamil%psi_c) * hamil%psi_c) ))
+            normq = DSQRT(REALPART( SUM(CONJG(hamil%psi_c) * hamil%psi_c) ))
             hamil%psi_c(:) = hamil%psi_c(:) / normq
         ENDIF
-
     END SUBROUTINE dish_projector_
 
 
@@ -694,21 +704,33 @@ MODULE surface_hopping_mod
         INTEGER :: iion
         INTEGER :: j
 
+        !! FOR PROFILING ONLY !!
+        INTEGER :: timing_start, timing_end, timing_rate
+        !!!!!!!!!!!!!!!!!!!!!!!!
+
         !! logic starts
-        shuffle(:)    = [(j, j=1, hamil%nbasis)]
-        curstate      = ibeg
-        decomoment(:) = 0.0_q
+        shuffle(:)     = [(j, j=1, hamil%nbasis)]
+        curstate       = ibeg
+        decomoment(:)  = 0.0_q
+        hamil%psi_c(:) = (0.0_q, 0.0_q)
+        hamil%psi_c(hamil%basisini) = (1.0_q, 0.0_q)
         
         DO iion = 1, hamil%namdtime - 1
+            !CALL SYSTEM_CLOCK(timing_start, timing_rate)
+
             CALL hamiltonian_propagate(hamil, iion, sh%propmethod)
             CALL dish_decoherent_time_(hamil%psi_c(:), dephmatr(:,:), hamil%nbasis, decotime(:))
-            CALL dish_collapse_destination_(hamil%nbasis, decotime, dest, decomoment(:), shuffle(:))
+            CALL dish_collapse_destination_(hamil%nbasis, decotime(:), dest, decomoment(:), shuffle(:))
             decomoment(:) = decomoment(:) + hamil%dt
             
             IF (dest > 0) THEN
                 CALL dish_projector_(sh, hamil, dest, iion, curstate, iend, iscombined)
             ENDIF
             sh%sh_pops(curstate, iion+1) = sh%sh_pops(curstate, iion+1) + 1.0_q
+
+            !CALL SYSTEM_CLOCK(timing_end, timing_rate)
+            !PRINT *, "[DEBUG] Time used in ", __FILE__, __LINE__, " iter ", iion, ": ", DBLE(timing_end - timing_start) * hamil%namdtime / timing_rate, " secs."
+
         ENDDO
     END SUBROUTINE dish_run_
 

@@ -264,7 +264,7 @@ MODULE wavecar_mod
 
         IF (PRESENT(lnorm)) THEN
             IF (lnorm) THEN
-                normq = SQRT(REAL(SUM(DCONJG(phi) * phi)))
+                normq = SQRT(REAL(SUM(CONJG(phi) * phi)))
                 phi = phi / normq
             END IF
         END IF

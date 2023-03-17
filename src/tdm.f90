@@ -104,9 +104,9 @@ MODULE tdm_mod
 
         !! phi_j(n)' * phi_i(n)
         IF (wavetype(1:3) == "gam") THEN
-            overlap = (DCONJG(phi_j) * phi_i - DCONJG(phi_i) * phi_j) / 2.0_q
+            overlap = (CONJG(phi_j) * phi_i - CONJG(phi_i) * phi_j) / 2.0_q
         ELSE
-            overlap = DCONJG(phi_j) * phi_i
+            overlap = CONJG(phi_j) * phi_i
         END IF
 
         

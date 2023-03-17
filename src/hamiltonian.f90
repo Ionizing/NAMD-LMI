@@ -168,8 +168,8 @@ MODULE hamiltonian_mod
 
         !! put the electron or hole on the initial band
         hamil%basisini = iniband_index_convert_(basis_up, basis_dn, inispin, iniband)
-        hamil%psi_c(iniband_index_convert_(basis_up, basis_dn, inispin, iniband)) = 1.0
-        !hamil%psi_t(:, 1) = hamil%psi_c
+        hamil%psi_c(hamil%basisini) = 1.0_q
+        hamil%psi_t(:, 1) = hamil%psi_c
 
         !! construct from nac, need to convert the indices
         bup = basis_up - nac_dat%brange(1) + 1  !> band index refer to NAC
@@ -199,7 +199,7 @@ MODULE hamiltonian_mod
         hamil%eig_t = hamil%eig_t - nac_dat%efermi
 
         !! Fill the diagonal with 0
-        FORALL(iband=1:hamil%nbasis) hamil%nac_t(iband, iband, :) = 0.0
+        FORALL(iband=1:hamil%nbasis) hamil%nac_t(iband, iband, :) = 0.0_q
 
         !! Applying scissor operator
         FORALL(iband=1:hamil%nbasis, istep=1:(hamil%nsw-1), hamil%eig_t(iband, istep)>0) &
@@ -313,9 +313,9 @@ MODULE hamiltonian_mod
         rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
         !! We require users to initialize hamil%psi_c manually
 
-        hamil%pop_t(:, iion) = REALPART(DCONJG(hamil%psi_c) * hamil%psi_c)
+        hamil%pop_t(:, iion)  = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
         hamil%prop_eigs(iion) = SUM(hamil%pop_t(:, iion) * hamil%eig_t(:, rtime))
-        hamil%psi_t(:, iion) = hamil%psi_c
+        hamil%psi_t(:, iion)  = hamil%psi_c
 
         SELECT CASE (method)
             CASE("FINITE-DIFFERENCE")
@@ -330,12 +330,16 @@ MODULE hamiltonian_mod
                 STOP ERROR_HAMIL_PROPMETHOD
         END SELECT
 
-        norm = REALPART(SUM(DCONJG(hamil%psi_c) * hamil%psi_c))
+        norm = REALPART(SUM(CONJG(hamil%psi_c) * hamil%psi_c))
         IF (ABS(norm-1) > 1E-3) THEN
             WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved: ", F9.6)') norm
             STOP ERROR_HAMIL_PROPFAIL
         END IF
 
+        IF (iion == hamil%namdtime - 1) THEN
+            hamil%pop_t(:, hamil%namdtime) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+            hamil%psi_t(:, hamil%namdtime) = hamil%psi_c
+        ENDIF
 
         CONTAINS
 
@@ -421,7 +425,7 @@ MODULE hamiltonian_mod
 
                 !! H(:,i) are the eigen vectorss, E contains the eigen values
                 FORALL(i=1:nbasis) EXPH(:,i) = H(:,i) * EXP(E(i) * IMGUNIT)     !< EXPH = P*\Lambda
-                EXPH = MATMUL(EXPH, TRANSPOSE(DCONJG(H)))                        !< EXPH = P*\Lambda*P' = e^(-iHt/hbar)
+                EXPH = MATMUL(EXPH, TRANSPOSE(CONJG(H)))                        !< EXPH = P*\Lambda*P' = e^(-iHt/hbar)
 
                 hamil%psi_c = MATMUL(EXPH, hamil%psi_c)
             ENDDO   !! iele
