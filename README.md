@@ -11,3 +11,4 @@ This is my Fortran project!
 - [ ] Add decoherence - WIP
 - [ ] Test for remove detailed balance factor - TODO
 - [ ] Test for smaller time step - TODO
+- [ ] Optimize `make_hamil` subroutine
