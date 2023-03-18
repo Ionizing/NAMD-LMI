@@ -378,18 +378,12 @@ MODULE surface_hopping_mod
         INTEGER, INTENT(in)                  :: irank
 
         !! local variables
-        !INTEGER :: shuffle(hamil%nbasis)
-        !REAL(q) :: decomoment(hamil%nbasis)
         REAL(q) :: dephmatr(hamil%nbasis, hamil%nbasis)
         INTEGER :: ibeg             ! initial state
         INTEGER :: iend             ! combination destination
         INTEGER :: curstate         ! current state
         LOGICAL :: iscombined       ! is combination completed ?
         INTEGER :: i
-
-        !! for profiling only !!
-        INTEGER :: timing_start, timing_end, timing_rate
-        !!!!!!!!!!!!!!!!!!!!!!!!
 
         !! logic starts
         sh%sh_pops(:, :)     = 0.0_q
@@ -403,13 +397,8 @@ MODULE surface_hopping_mod
         FORALL(i = 1:hamil%nbasis) dephmatr(i, i) = 0.0_q
 
         DO i = 1, sh%ntraj
-            !CALL SYSTEM_CLOCK(timing_start, timing_rate)
-
             iscombined = .FALSE.
             CALL dish_run_(sh, hamil, ibeg, iend, iscombined, curstate, dephmatr)
-
-            !CALL SYSTEM_CLOCK(timing_end, timing_rate)
-            !PRINT *, "[DEBUG] Each traj costs ", DBLE(timing_end - timing_start) / timing_rate, " secs."
         ENDDO
 
         sh%sh_pops(:, :)    = sh%sh_pops(:, :) / sh%ntraj
@@ -704,10 +693,6 @@ MODULE surface_hopping_mod
         INTEGER :: iion
         INTEGER :: j
 
-        !! FOR PROFILING ONLY !!
-        INTEGER :: timing_start, timing_end, timing_rate
-        !!!!!!!!!!!!!!!!!!!!!!!!
-
         !! logic starts
         shuffle(:)     = [(j, j=1, hamil%nbasis)]
         curstate       = ibeg
@@ -716,8 +701,6 @@ MODULE surface_hopping_mod
         hamil%psi_c(hamil%basisini) = (1.0_q, 0.0_q)
         
         DO iion = 1, hamil%namdtime - 1
-            !CALL SYSTEM_CLOCK(timing_start, timing_rate)
-
             CALL hamiltonian_propagate(hamil, iion, sh%propmethod)
             CALL dish_decoherent_time_(hamil%psi_c(:), dephmatr(:,:), hamil%nbasis, decotime(:))
             CALL dish_collapse_destination_(hamil%nbasis, decotime(:), dest, decomoment(:), shuffle(:))
@@ -727,10 +710,6 @@ MODULE surface_hopping_mod
                 CALL dish_projector_(sh, hamil, dest, iion, curstate, iend, iscombined)
             ENDIF
             sh%sh_pops(curstate, iion+1) = sh%sh_pops(curstate, iion+1) + 1.0_q
-
-            !CALL SYSTEM_CLOCK(timing_end, timing_rate)
-            !PRINT *, "[DEBUG] Time used in ", __FILE__, __LINE__, " iter ", iion, ": ", DBLE(timing_end - timing_start) * hamil%namdtime / timing_rate, " secs."
-
         ENDDO
     END SUBROUTINE dish_run_
 
