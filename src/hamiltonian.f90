@@ -306,16 +306,17 @@ MODULE hamiltonian_mod
         INTEGER :: iele     !< electronic step index
         REAL(q) :: edt      !< time step for each electronic step
         REAL(q) :: norm     !< norm of psi_c
-        INTEGER :: rtime
+        INTEGER :: rtime, xtime
 
         !! Preparation
         edt = hamil%dt / hamil%nelm
         rtime = MOD(iion+hamil%namdinit-2, hamil%nsw-1) + 1
+        xtime = MOD(iion+hamil%namdinit-1, hamil%nsw-1) + 1
         !! We require users to initialize hamil%psi_c manually
 
         hamil%pop_t(:, iion)  = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
-        hamil%prop_eigs(iion) = SUM(hamil%pop_t(:, iion) * hamil%eig_t(:, rtime))
         hamil%psi_t(:, iion)  = hamil%psi_c
+        hamil%prop_eigs(iion) = SUM(hamil%pop_t(:, iion) * hamil%eig_t(:, rtime))
 
         SELECT CASE (method)
             CASE("FINITE-DIFFERENCE")
@@ -337,8 +338,9 @@ MODULE hamiltonian_mod
         END IF
 
         IF (iion == hamil%namdtime - 1) THEN
-            hamil%pop_t(:, hamil%namdtime) = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
-            hamil%psi_t(:, hamil%namdtime) = hamil%psi_c
+            hamil%pop_t(:, hamil%namdtime)  = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+            hamil%psi_t(:, hamil%namdtime)  = hamil%psi_c
+            hamil%prop_eigs(hamil%namdtime) = SUM(hamil%pop_t(:, hamil%namdtime) * hamil%eig_t(:, xtime))
         ENDIF
 
         CONTAINS
