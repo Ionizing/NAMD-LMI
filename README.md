@@ -12,5 +12,5 @@ This is my Fortran project!
 - [ ] Test for remove detailed balance factor - TODO
 - [ ] Test for smaller time step - TODO
 - [ ] Optimize `propagate` subroutine
-- [ ] Phase correction for couplings
+- [X] Phase correction for couplings
 - [ ] Optional duration of `EFIELD`
