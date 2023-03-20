@@ -255,6 +255,7 @@ MODULE nac_mod
         CALL MPI_GATHERV(olaps, SIZE(olaps), MPI_DOUBLE_COMPLEX, nac_dat%olaps, sendcounts, displs, MPI_DOUBLE_COMPLEX, &
                          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
+        !! Rotate the overlap to real values
         IF (lreal .AND. MPI_ROOT_NODE == irank) THEN
             nac_dat%olaps = SIGN(ABS(nac_dat%olaps), REALPART(nac_dat%olaps))
         END IF
@@ -577,9 +578,11 @@ MODULE nac_mod
         !! local variables
         COMPLEX(q),  ALLOCATABLE, SAVE :: psi_i(:, :), psi_j(:, :)
         COMPLEX(qs), ALLOCATABLE, SAVE :: psi_iqs(:), psi_jqs(:)
-        REAL(q), ALLOCATABLE, SAVE     :: gvecs_cart(:, :)
-        COMPLEX(q), ALLOCATABLE, SAVE  :: psi_times_gvecs(:, :)
-        REAL(q), ALLOCATABLE, SAVE     :: invde(:, :)
+        COMPLEX(q),  ALLOCATABLE, SAVE :: p_ij(:, :), p_ji(:, :)
+        COMPLEX(q),  ALLOCATABLE, SAVE :: phase(:)
+        REAL(q),     ALLOCATABLE, SAVE :: gvecs_cart(:, :)
+        COMPLEX(q),  ALLOCATABLE, SAVE :: psi_times_gvecs(:, :)
+        REAL(q),     ALLOCATABLE, SAVE :: invde(:, :)
         INTEGER :: nspin
         INTEGER :: nbrange
         INTEGER :: ispin, iband, idirect
@@ -601,6 +604,9 @@ MODULE nac_mod
         IF (.NOT. ALLOCATED(psi_j)) ALLOCATE(psi_j(nplws, nbrange))
         IF (.NOT. ALLOCATED(psi_iqs)) ALLOCATE(psi_iqs(nplws))
         IF (.NOT. ALLOCATED(psi_jqs)) ALLOCATE(psi_jqs(nplws))
+        IF (.NOT. ALLOCATED(p_ij))  ALLOCATE(p_ij(nbrange, nbrange))
+        IF (.NOT. ALLOCATED(p_ji))  ALLOCATE(p_ji(nbrange, nbrange))
+        IF (.NOT. ALLOCATED(phase)) ALLOCATE(phase(nbrange))
         IF (.NOT. ALLOCATED(gvecs_cart)) THEN
             ALLOCATE(gvecs_cart(3, nplws))
             IF (wav_i%wavetype == "ncl") THEN
@@ -622,10 +628,25 @@ MODULE nac_mod
                 psi_j(:, iband-brange(1)+1) = psi_jqs
             ENDDO
 
-            !! psi_i,j = [nplws, nbrange]
-            !! pji = psi_j' * psi_i, p_ij = psi_i' * psi_j
-            c_ij(:, :, ispin) =   MATMUL(CONJG(TRANSPOSE(psi_i)), psi_j) &  !! p_ji = <psi_i(t)|psi_j(t+dt)>
-                                - MATMUL(CONJG(TRANSPOSE(psi_j)), psi_i)    !! p_ij = <psi_j(t)|psi_i(t+dt)>
+            !< psi_i,j = [nplws, nbrange]
+            p_ji = MATMUL(CONJG(TRANSPOSE(psi_i)), psi_j)   !! <psi_i(t) | psi_j(t+dt)>
+            p_ij =        CONJG(TRANSPOSE( p_ji))           !! <psi_j(t) | psi_i(t+dt)>
+
+            !< Phase correction applied here:
+            !<     phase = *DIAGONAL* part of
+            !<                       <psi_i | psi_j> / |<psi_i | psi_j>|     FOR standard WAVECAR
+            !<         SIGN(REALPART(<psi_i | psi_j> / |<psi_i | psi_j>|))   FOR gamonly  WAVECAR
+            FORALL(i=1:nbrange) phase(i) = p_ji(i, i) / ABS(p_ji(i, i))
+            IF (wav_i%wavetype(1:3) == "gam") phase = SIGN(1.0_q, REALPART(phase))
+
+            !< SPREAD(v, 2, m) = [v(:), v(:), ...]
+            !< SPREAD(v, 1, m) = [v(1), v(2), ...;
+            !<                    v(1), v(2), ...;
+            !<                    v(1), v(2), ...;
+            !<                    ...]
+            !<     WHERE V IS A COLUMN KET
+            c_ij(:, :, ispin) =  p_ji * CONJG(SPREAD(phase, 2, nbrange)) &
+                                -p_ij *       SPREAD(phase, 1, nbrange)
 
             !! de = Ei - Ej
             invde = - SPREAD(wav_i%eigs(brange(1):brange(2), ikpoint, ispin), 2, nbrange) + &
