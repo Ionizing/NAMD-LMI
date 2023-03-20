@@ -183,7 +183,7 @@ MODULE surface_hopping_mod
 
     !> Hopping probability
     !> P_{jk} = \max[\frac{2*\int_t^{t+\Delta t} Re(\rho_{jk}*d_{jk}) dt}{\rho_{jj}}, 0]
-    SUBROUTINE surface_hopping_calc_hop_prob(sh, hamil, iion, istate)
+    SUBROUTINE fssh_hop_prob_(sh, hamil, iion, istate)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(in)        :: hamil
         INTEGER, INTENT(in)                  :: iion
@@ -218,7 +218,7 @@ MODULE surface_hopping_mod
         FORALL (i=1:hamil%nbasis, prob(i) < 0) prob(i) = 0.0  !! P_jk = max(P_jk_, 0)
 
         CALL cumsum(prob, sh%sh_prob(istate, :, iion))    !< calculate the accumulated prob
-    END SUBROUTINE surface_hopping_calc_hop_prob
+    END SUBROUTINE fssh_hop_prob_
 
 
     SUBROUTINE surface_hopping_save_to_h5(sh, hamil, ndigit, irank, llog)
@@ -346,7 +346,7 @@ MODULE surface_hopping_mod
 
         DO iion = 1, hamil%namdtime
             DO istate = 1, hamil%nbasis
-                CALL surface_hopping_calc_hop_prob(sh, hamil, iion, istate)
+                CALL fssh_hop_prob_(sh, hamil, iion, istate)
             ENDDO
         ENDDO
 

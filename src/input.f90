@@ -26,6 +26,7 @@ MODULE input_mod
         !! we suggest: "FINITE-DIFFERENCE"=>1000, "EXACT"=>1, "LIOUVILLE-TROTTER"=>1
         INTEGER         :: nelm         = 1
         LOGICAL         :: lreal        = .FALSE.   !! Use real NAC or not
+        LOGICAL         :: lprint_input = .TRUE.    !! Print the input to log or not
         CHARACTER(256)  :: fname        = "NAC.h5"  !! file name for saving NAC data
 
         REAL(q)         :: temperature  = 300.0     !! NAMD temperature, in Kelvin
@@ -75,11 +76,11 @@ MODULE input_mod
             CALL input_from_iu_(STDIN, inp)
         END IF
 
-        IF (PRESENT(llog)) THEN
-            IF (llog) WRITE(STDOUT, '("[INFO] Input file read successfully, with content of", /, /)')
-            IF (llog) CALL input_to_iu_(STDOUT, inp)
-            IF (llog) WRITE(STDOUT, '(/)')
-        END IF
+        IF (inp%lprint_input) THEN
+            WRITE(STDOUT, '("[INFO] Input file read successfully, with content of", /, /)')
+            CALL input_to_iu_(STDOUT, inp)
+            WRITE(STDOUT, '(/)')
+        ENDIF
     END SUBROUTINE input_from_file
 
     
@@ -189,6 +190,7 @@ MODULE input_mod
         CALL MPI_BCAST(inp%shmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%nelm,      1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%lreal,     1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%lprint_input, 1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%fname,   256, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%temperature, 1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%scissor,   1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
@@ -227,6 +229,7 @@ MODULE input_mod
         CHARACTER(32)   :: shmethod
         INTEGER :: nelm
         LOGICAL :: lreal
+        LOGICAL :: lprint_input
         CHARACTER(256)  :: fname
         REAL(q) :: temperature
         REAL(q) :: scissor
@@ -250,6 +253,7 @@ MODULE input_mod
                               propmethod, &
                               shmethod, &
                               lreal,    &
+                              lprint_input, &
                               nelm,     &
                               fname,    &
                               temperature, &
@@ -282,6 +286,7 @@ MODULE input_mod
         shmethod     = "FSSH"
         nelm         = 1
         lreal        = .FALSE.
+        lprint_input = .TRUE.
         fname        = "nac.h5"
         temperature  = 300.0
         scissor      = 0.0
@@ -387,25 +392,26 @@ MODULE input_mod
         ENDIF
 
         !! Continue to construct input data
-        inp%rundir    = rundir
-        inp%wavetype  = wavetype
-        inp%ikpoint   = ikpoint
-        inp%brange    = brange
-        inp%basis_up  = basis_up
-        inp%basis_dn  = basis_dn
-        inp%nsw       = nsw
-        inp%ndigit    = ndigit
-        inp%namdtime  = namdtime
-        inp%dt        = dt
-        inp%nsample   = nsample
-        inp%ntraj     = ntraj
-        inp%propmethod = propmethod
-        inp%shmethod  = shmethod
-        inp%nelm      = nelm
-        inp%lreal     = lreal
-        inp%fname     = fname
-        inp%temperature = temperature
-        inp%scissor   = scissor
+        inp%rundir       = rundir
+        inp%wavetype     = wavetype
+        inp%ikpoint      = ikpoint
+        inp%brange       = brange
+        inp%basis_up     = basis_up
+        inp%basis_dn     = basis_dn
+        inp%nsw          = nsw
+        inp%ndigit       = ndigit
+        inp%namdtime     = namdtime
+        inp%dt           = dt
+        inp%nsample      = nsample
+        inp%ntraj        = ntraj
+        inp%propmethod   = propmethod
+        inp%shmethod     = shmethod
+        inp%nelm         = nelm
+        inp%lreal        = lreal
+        inp%lprint_input = lprint_input
+        inp%fname        = fname
+        inp%temperature  = temperature
+        inp%scissor      = scissor
 
         ALLOCATE(inp%inibands(nsample))
         ALLOCATE(inp%inispins(nsample))
@@ -469,6 +475,7 @@ MODULE input_mod
         WRITE(iu, '(4X, A)') '!! we suggest: "FINITE-DIFFERENCE"=>1000, "EXACT"=>1, "LIOUVILLE-TROTTER"=>1'
         WRITE(iu, '(1X, A12, " = ",  I10, ",")') "NELM", inp%nelm
         WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LREAL",     inp%lreal,  "Use real NAC or not"
+        WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LPRINT_INPUT",  inp%lprint_input,  "Print all input or not"
 
         WRITE(iu, '()')
         WRITE(iu, '(4X, A)') '!! the method used for surface hoppint, available: "FSSH", "DCSH", "DISH"'

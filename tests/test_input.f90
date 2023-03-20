@@ -33,6 +33,7 @@ MODULE test_input
         inp%shmethod    = "DCSH"
         inp%nelm        = 200
         inp%lreal       = .TRUE.
+        inp%lprint_input = .FALSE.
         inp%fname       = "./nac_test.h5"
         inp%temperature = 114.0
         inp%scissor     = 2.0
@@ -73,6 +74,7 @@ MODULE test_input
         CALL assert_equals(inp%shmethod,  inp_read%shmethod,  AT)
         CALL assert_equals(inp%nelm,      inp_read%nelm,      AT)
         CALL assert_equals(inp%lreal,     inp_read%lreal,     AT)
+        CALL assert_equals(inp%lprint_input, inp_read%lprint_input, AT)
         CALL assert_equals(inp%fname,     inp_read%fname,     AT)
         CALL assert_equals(inp%temperature, inp_read%temperature, AT)
         CALL assert_equals(inp%scissor,   inp_read%scissor, AT)

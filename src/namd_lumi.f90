@@ -115,9 +115,9 @@ PROGRAM namd_lumi_x
             ELSE
                 IF (cla_key_present('-i')) THEN
                     CALL cla_get('-i', inpname)
-                    CALL input_from_file(inp, TRIM(inpname), llog=.TRUE.)
+                    CALL input_from_file(inp, TRIM(inpname), llog=.FALSE.)
                 ELSE
-                    CALL input_from_file(inp, llog=.TRUE.)
+                    CALL input_from_file(inp, llog=.FALSE.)
                 END IF
             END IF
         END SUBROUTINE cli_parse
