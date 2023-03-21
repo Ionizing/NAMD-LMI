@@ -331,14 +331,14 @@ MODULE hamiltonian_mod
                 STOP ERROR_HAMIL_PROPMETHOD
         END SELECT
 
-        norm = REALPART(SUM(CONJG(hamil%psi_c) * hamil%psi_c))
+        norm = SUM(normsquare(hamil%psi_c(:)))
         IF (ABS(norm-1) > 1E-3) THEN
             WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved: ", F9.6)') norm
             STOP ERROR_HAMIL_PROPFAIL
         END IF
 
         IF (iion == hamil%namdtime - 1) THEN
-            hamil%pop_t(:, hamil%namdtime)  = REALPART(CONJG(hamil%psi_c) * hamil%psi_c)
+            hamil%pop_t(:, hamil%namdtime)  = normsquare(hamil%psi_c(:))
             hamil%psi_t(:, hamil%namdtime)  = hamil%psi_c
             hamil%prop_eigs(hamil%namdtime) = SUM(hamil%pop_t(:, hamil%namdtime) * hamil%eig_t(:, xtime))
         ENDIF

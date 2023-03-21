@@ -206,7 +206,7 @@ MODULE surface_hopping_mod
         IF (.NOT. ALLOCATED(prob))              ALLOCATE(prob(hamil%nbasis))
         IF (.NOT. ALLOCATED(dE))                ALLOCATE(dE(hamil%nbasis))
 
-        rho_jj  = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(istate, iion))
+        rho_jj  = normsquare(hamil%psi_t(istate, iion))
         rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime))  !< Re(rho_jk * d_jk)
 
         !< Boltzmann factor only works for upward hoppings, i.e. dE < 0
@@ -573,8 +573,7 @@ MODULE surface_hopping_mod
         ENDIF
 
         !! logic starts
-        !FORALL(i=1:nbasis) pop(i) = REALPART(CONJG(psi(i)) * psi(i))
-        pop(:) = REALPART(CONJG(psi) * psi)
+        pop(:) = normsquare(psi(:))
         FORALL(i=1:nbasis) decotime(i) = 1.0_q / SUM( pop(:) * dephmatr(:, i) )
     END SUBROUTINE dish_decoherent_time_
 
@@ -648,7 +647,7 @@ MODULE surface_hopping_mod
         kbT = hamil%temperature * BOLKEV
         CALL RANDOM_NUMBER(rand)
 
-        popBoltz = REALPART( CONJG(hamil%psi_c(which)) * hamil%psi_c(which) )
+        popBoltz = normsquare(hamil%psi_c(which)) ! REALPART( CONJG(hamil%psi_c(which)) * hamil%psi_c(which) )
 
         dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, xtime)) - &
               (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, xtime))) / 2.0_q
@@ -670,7 +669,7 @@ MODULE surface_hopping_mod
         ELSE
         !! project out
             hamil%psi_c(which) = 0.0_q
-            normq = DSQRT(REALPART( SUM(CONJG(hamil%psi_c) * hamil%psi_c) ))
+            normq = DSQRT( SUM(normsquare(hamil%psi_c(:))) )
             hamil%psi_c(:) = hamil%psi_c(:) / normq
         ENDIF
     END SUBROUTINE dish_projector_

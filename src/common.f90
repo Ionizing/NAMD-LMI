@@ -123,6 +123,16 @@ MODULE common_mod
     END INTERFACE lower_bound
     PRIVATE :: lower_bound_f
 
+
+    !! calculate `CONJG(x) * x` for complex x
+    INTERFACE normsquare
+        PROCEDURE normsquare_q_
+        PROCEDURE normsquare_qs_
+    END INTERFACE normsquare
+    PRIVATE :: normsquare_q_
+    PRIVATE :: normsquare_qs_
+
+
     !! version info
     TYPE :: version
         INTEGER         :: major
@@ -153,7 +163,6 @@ MODULE common_mod
     PURE SUBROUTINE cumsum_i(a, b)
         INTEGER, INTENT(in)  :: a(:)
         INTEGER, INTENT(out) :: b(SIZE(a))
-        INTRINSIC :: SIZE
 
         ! local variables
         INTEGER :: s0, s1
@@ -169,7 +178,7 @@ MODULE common_mod
             x1 = a(i+1)
             s0 = s1 + x0
             s1 = s1 + (x1 + x0)
-            b( i )   = s0
+            b( i ) = s0
             b(i+1) = s1
         ENDDO
 
@@ -181,7 +190,6 @@ MODULE common_mod
     PURE SUBROUTINE cumsum_f(a, b)
         REAL(q), INTENT(in)  :: a(:)
         REAL(q), INTENT(out) :: b(SIZE(a))
-        INTRINSIC :: SIZE
 
         ! local variables
         REAL(q) :: s0, s1
@@ -197,7 +205,7 @@ MODULE common_mod
             x1 = a(i+1)
             s0 = s1 + x0
             s1 = s1 + (x1 + x0)
-            b( i )   = s0
+            b( i ) = s0
             b(i+1) = s1
         ENDDO
 
@@ -374,4 +382,20 @@ MODULE common_mod
             ret(i) = SUM(a(1:n-i) * a(1+i:n))
         ENDDO
     END SUBROUTINE self_correlate_function
+
+
+    ELEMENTAL FUNCTION normsquare_q_(x) RESULT(ret)
+        COMPLEX(q), INTENT(in) :: x
+        REAL(q) :: ret
+
+        ret = REALPART(CONJG(x) * x)
+    END FUNCTION normsquare_q_
+
+
+    ELEMENTAL FUNCTION normsquare_qs_(x) RESULT(ret)
+        COMPLEX(qs), INTENT(in) :: x
+        REAL(qs) :: ret
+
+        ret = REALPART(CONJG(x) * x)
+    END FUNCTION normsquare_qs_
 END MODULE common_mod
