@@ -439,14 +439,15 @@ MODULE hamiltonian_mod
         !> This method can be much faster than exact methods, but requires the Hamiltonian off-diagonals to be totally real
         !> This scheme is proposed by Akimov, A. V., & Prezhdo, O. V. J. Chem. Theory Comput. 2014, 10, 2, 789–804
         SUBROUTINE propagate_liouville_trotter_
-            COMPLEX(q)  :: phi, cos_phi, sin_phi, cjj, ckk
+            COMPLEX(q)  :: cjj, ckk
+            REAL(q)     :: phi, cos_phi, sin_phi
             INTEGER     :: jj, kk
 
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)
                 DO jj = 1, hamil%nbasis
                     DO kk = jj+1, hamil%nbasis
-                        phi = -IMGUNIT * edt * 0.5 * hamil%hamil(kk, jj) / HBAR
+                        phi = REALPART(-IMGUNIT * edt * 0.5 * hamil%hamil(kk, jj)) / HBAR
                         cos_phi = COS(phi)
                         sin_phi = SIN(phi)
                         cjj = hamil%psi_c(jj)
@@ -457,13 +458,13 @@ MODULE hamiltonian_mod
                 ENDDO !! jj
 
                 DO jj = 1, hamil%nbasis
-                    phi = -IMGUNIT * edt * 0.5 * hamil%hamil(jj, jj) / HBAR
+                    phi = REALPART(-IMGUNIT * edt * 0.5 * hamil%hamil(jj, jj)) / HBAR
                     hamil%psi_c(jj) = hamil%psi_c(jj) * EXP(phi)
                 ENDDO
 
                 DO jj = hamil%nbasis, 1, -1
                     DO kk = hamil%nbasis, jj+1, -1
-                        phi = -IMGUNIT * edt * 0.5 * hamil%hamil(kk, jj) / HBAR
+                        phi = REALPART(-IMGUNIT * edt * 0.5 * hamil%hamil(kk, jj)) / HBAR
                         cos_phi = COS(phi)
                         sin_phi = SIN(phi)
                         cjj = hamil%psi_c(jj)
