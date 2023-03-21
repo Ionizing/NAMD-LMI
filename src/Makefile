@@ -1,6 +1,7 @@
 include ../make.inc
 
-OBJS = string.o common.o wavecar.o tdm.o nac.o hamiltonian.o input.o surface_hopping.o
+SRCS = $(filter-out namd_lumi.f90,$(wildcard *.f90))
+OBJS = $(SRCS:.f90=.o)
 LIB = libnamd.a
 LIBEXTERNAL = ../external/libexternal.a
 

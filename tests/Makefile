@@ -7,7 +7,8 @@ LIBMOD = ../src/namd_lumi_mod.mod
 LIBEXTERNAL = ../external/libexternal.a
 BIN = test.x
 
-TEST_OBJS = $(patsubst %.f90,%.o,$(wildcard test_*.f90))
+TEST_SRCS = $(wildcard test_*.f90)
+TEST_OBJS = $(TEST_SRCS:.f90=.o)
 
 test: test.x
 	./$<

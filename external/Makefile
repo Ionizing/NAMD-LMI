@@ -1,7 +1,7 @@
 include ../make.inc
 
 SOURCE = $(wildcard *.f90)
-OBJS   = $(patsubst %.f90,%.o,$(SOURCE))
+OBJS   = $(SOURCE:.f90=.o)
 LIB    = libexternal.a
 
 $(LIB): $(OBJS)
