@@ -1,7 +1,7 @@
 include ../make.inc
 
 SRCS = $(filter-out namd_lumi.f90,$(wildcard *.f90))
-OBJS = $(SRCS:.f90=.o)
+OBJS = $(filter-out lib.o,$(SRCS:.f90=.o))
 LIB = libnamd.a
 LIBEXTERNAL = ../external/libexternal.a
 

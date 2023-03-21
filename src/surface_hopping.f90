@@ -1,5 +1,3 @@
-#define PROFILING
-
 #include "common.h"
 
 MODULE surface_hopping_mod
@@ -46,6 +44,11 @@ MODULE surface_hopping_mod
         IF (sh%shmethod == "DISH") THEN
             ALLOCATE(sh%dish_recomb(hamil%nbasis, hamil%namdtime))
             sh%dish_recomb(:, :) = 0
+        ENDIF
+
+        IF (sh%propmethod == "LIOUVILLE-TROTTER" .AND. ANY(ABS(REALPART(hamil%nac_t)) > 1E-9)) THEN
+            WRITE(STDERR, '("[ERROR] A real NAC is required to use Liouville-Trotter propagation scheme, please check NAC or PROPMETHOD.")')
+            STOP ERROR_HAMIL_PROPMETHOD
         ENDIF
 
         sh%sh_prob = 0
@@ -694,8 +697,6 @@ MODULE surface_hopping_mod
         INTEGER :: iion
         INTEGER :: j
 
-        PROFILING_DECLARATIONS
-
         !! logic starts
         shuffle(:)     = [(j, j=1, hamil%nbasis)]
         curstate       = ibeg
@@ -704,9 +705,7 @@ MODULE surface_hopping_mod
         hamil%psi_c(hamil%basisini) = (1.0_q, 0.0_q)
         
         DO iion = 1, hamil%namdtime - 1
-            PROFILING_START
             CALL hamiltonian_propagate(hamil, iion, sh%propmethod)
-            PROFILING_END("hamiltonian_propagate")
             CALL dish_decoherent_time_(hamil%psi_c(:), dephmatr(:,:), hamil%nbasis, decotime(:))
             CALL dish_collapse_destination_(hamil%nbasis, decotime(:), dest, decomoment(:), shuffle(:))
             decomoment(:) = decomoment(:) + hamil%dt

@@ -16,8 +16,8 @@
 #define PROFILING_DECLARATIONS      INTEGER(8) :: profiling_start, profiling_rate, profiling_end
 #define PROFILING_START             CALL SYSTEM_CLOCK(profiling_start)
 #define PROFILING_END(msg)          CALL SYSTEM_CLOCK(profiling_end, profiling_rate); \
-                                    PRINT '("[PROFILING of ", A,", @", A, I0, ":] ", F12.4, " (ms)")', \
-                                        msg, __FILE__, __LINE__, \
+                                    PRINT '("[PROFILING of ", A,", @ line ", I0, " of ", A, ":] ", F12.4, " (ms)")', \
+                                        msg, __LINE__, __FILE__, \
                                         DBLE(profiling_end - profiling_start) * 1E3 / profiling_rate
 #else
 #define PROFILING_DECLARATIONS

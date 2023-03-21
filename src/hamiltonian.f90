@@ -18,6 +18,7 @@ MODULE hamiltonian_mod
         INTEGER :: namdtime                     !> number of NAMD steps
         INTEGER :: nsw                          !> number of AIMD steps
         INTEGER :: nelm                         !> number of electronic steps when performing interpolations
+        LOGICAL :: lreal                        !> hamiltonian is totally real or not
         REAL(q) :: temperature                  !> NAMD temperature, in Kelvin
 
         COMPLEX(q), ALLOCATABLE :: psi_p(:)     !> ket for previous step, [nbasis]
@@ -136,6 +137,7 @@ MODULE hamiltonian_mod
         hamil%namdtime = namdtime
         hamil%nsw      = nac_dat%nsw
         hamil%nelm     = nelm
+        hamil%lreal    = nac_dat%lreal
         hamil%temperature = temperature
 
         !! allocate memory
@@ -439,11 +441,6 @@ MODULE hamiltonian_mod
         SUBROUTINE propagate_liouville_trotter_
             COMPLEX(q)  :: phi, cos_phi, sin_phi, cjj, ckk
             INTEGER     :: jj, kk
-
-            IF (ANY(ABS(REALPART(hamil%nac_t)) > 1E-9)) THEN
-                WRITE(STDERR, '("[ERROR] A real NAC is required to use Liouville-Trotter propagation scheme, please check NAC")')
-                STOP ERROR_HAMIL_PROPFAIL
-            END IF
 
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)
