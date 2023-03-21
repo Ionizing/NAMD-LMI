@@ -65,26 +65,28 @@ MODULE wavecar_mod
         REAL(q) :: rnbands
         REAL(q) :: rnplw
         REAL(q) :: dummy
+        CHARACTER(LEN=8) :: wavetype_
 
         IF (PRESENT(iu0)) iu = iu0
         wav%iu = iu
 
-
-        SELECT CASE (wavetype)
-            CASE("std")
+        wavetype_(:) = toupper(wavetype)
+        !< wavetype is checked in input.f90 already
+        SELECT CASE (wavetype_)
+            CASE("STD")
                 CONTINUE
-            CASE("gamx")
+            CASE("GAMX")
                 CONTINUE
-            CASE("gamz")
+            CASE("GAMZ")
                 CONTINUE
-            CASE("ncl")
+            CASE("NCL")
                 CONTINUE
             CASE DEFAULT
-                WRITE(STDERR, *) 'Invalid wavetype="' // wavetype // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
+                WRITE(STDERR, *) 'Invalid wavetype="' // wavetype_ // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
                 STOP ERROR_WAVE_WAVETYPE
         END SELECT
 
-        wav%wavetype = wavetype
+        wav%wavetype = wavetype_
 
         INQUIRE(iu, OPENED=od)
         IF(od) THEN
@@ -157,10 +159,10 @@ MODULE wavecar_mod
             ENDDO
         ENDDO
 
-        IF (wavetype == "ncl") THEN
+        IF (wavetype_ == "NCL") THEN
             maxnplw = MAXVAL(wav%nplws) / 2
             IF (maxnplw * 2 /= MAXVAL(wav%nplws)) THEN
-                WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype) // ' , nplw=' // TINT2STR(MAXVAL(wav%nplws)) &
+                WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype_) // ' , nplw=' // TINT2STR(MAXVAL(wav%nplws)) &
                                  // ' cannot be devided by 2. ' // AT
                 STOP ERROR_WAVE_WAVETYPE
             END IF
@@ -289,7 +291,7 @@ MODULE wavecar_mod
 
         kvec = wav%kvecs(:, ikpoint)
         ngvec = wav%nplws(ikpoint)
-        IF (wav%wavetype == "ncl") ngvec = ngvec / 2
+        IF (wav%wavetype == "NCL") ngvec = ngvec / 2
 
         IF (ngvec /= SIZE(gvecs_cart, 2) .OR. 3 /= SIZE(gvecs_cart, 1)) THEN
             WRITE(STDERR, *) "Wrong shape of gvecs_cart passed in: (" // TINT2STR(SIZE(gvecs_cart, 1)) // "," // &
@@ -372,7 +374,7 @@ MODULE wavecar_mod
         ALLOCATE(wav%gvecs(3, maxnplw, wav%nkpoints))
 
         DO i = 1, wav%nkpoints
-            IF (wav%wavetype == "ncl") THEN
+            IF (wav%wavetype == "NCL") THEN
                 ngvec = wav%nplws(i) / 2
             ELSE
                 ngvec = wav%nplws(i)
@@ -398,6 +400,7 @@ MODULE wavecar_mod
         REAL(q)                     :: gpk(3)
         REAL(q)                     :: genergy
         LOGICAL                     :: flag
+        CHARACTER(LEN=8)            :: wavetype_
         INTEGER :: cnt
         INTEGER :: ifx, ify, ifz
         INTEGER ::  fx,  fy,  fz
@@ -406,6 +409,8 @@ MODULE wavecar_mod
         ALLOCATE(fxs(ngrid(1)))
         ALLOCATE(fys(ngrid(2)))
         ALLOCATE(fzs(ngrid(3)))
+
+        wavetype_(:) = toupper(wavetype(:))
 
         CALL wavecar_gen_fft_freq_(ngrid(1), fxs)
         CALL wavecar_gen_fft_freq_(ngrid(2), fys)
@@ -420,11 +425,11 @@ MODULE wavecar_mod
                     fx = fxs(ifx)
 
                     !! Filtering the gvectors for gamma-only version
-                    IF (wavetype == "gamx") THEN
+                    IF (wavetype == "GAMX") THEN
                         flag = ((fx  > 0) .OR. &
                                 (fx == 0 .AND. fy  > 0) .OR. &
                                 (fx == 0 .AND. fy == 0 .AND. fz >= 0))
-                    ELSE IF (wavetype == "gamz") THEN
+                    ELSE IF (wavetype == "GAMZ") THEN
                         flag = ((fz  > 0) .OR. &
                                 (fz == 0 .AND. fy  > 0) .OR. &
                                 (fz == 0 .AND. fy == 0 .AND. fx >= 0))
@@ -440,7 +445,7 @@ MODULE wavecar_mod
                     IF (genergy < encut) THEN
                         cnt = cnt + 1
                         IF (cnt > ngvec) THEN
-                            WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype) // ', ngvec=' &
+                            WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype_) // ', ngvec=' &
                                 // TINT2STR(cnt) // ', ngvec_expect=' // TINT2STR(ngvec) // ' ' // AT
                             STOP ERROR_WAVE_WAVETYPE
                         END IF

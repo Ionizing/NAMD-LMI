@@ -271,7 +271,7 @@ MODULE input_mod
 
         !! Default values for namdparams
         rundir       = "../run"
-        wavetype     = "std"
+        wavetype     = "STD"
         ikpoint      = 1
         brange       = [0, 0]
         basis_up     = [0, 0]
@@ -378,6 +378,21 @@ MODULE input_mod
                 CONTINUE
             CASE DEFAULT
                 WRITE(STDERR, '("[ERROR] Invalid SHMETHOD: ", A, ", available: FSSH, DCSH, DISH ", A)') TRIM(shmethod), AT
+                STOP ERROR_INPUT_METHODERR
+        END SELECT
+
+        wavetype = toupper(wavetype)
+        SELECT CASE (wavetype)
+            CASE("STD")
+                CONTINUE
+            CASE("GAMX")
+                CONTINUE
+            CASE("GAMZ")
+                CONTINUE
+            CASE("NCL")
+                CONTINUE
+            CASE DEFAULT
+                WRITE(STDERR, '("[ERROR] Invalid WAVETYPE: ", A, ", available: STD, GAMX, GAMZ, NCL ", A)') TRIM(shmethod), AT
                 STOP ERROR_INPUT_METHODERR
         END SELECT
 

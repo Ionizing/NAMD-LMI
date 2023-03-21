@@ -18,7 +18,7 @@ MODULE test_input
         TYPE(input) :: inp, inp_read
 
         inp%rundir      = "../../run"
-        inp%wavetype    = "ncl"
+        inp%wavetype    = "NCL"
         inp%ikpoint     = 2
         inp%brange      = [100, 200]
         inp%basis_up    = [125, 175]

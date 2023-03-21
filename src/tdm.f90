@@ -24,28 +24,31 @@ MODULE tdm_mod
 
         !! local variables
         INTEGER :: len_i, len_j, len_k
-        COMPLEX(q), ALLOCATABLE     :: phi_i_q(:), phi_j_q(:)
+        CHARACTER(LEN=8)        :: wavetype_
+        COMPLEX(q), ALLOCATABLE :: phi_i_q(:), phi_j_q(:)
 
         !! logic starts
         len_i = SIZE(phi_i)
         len_j = SIZE(phi_j)
         len_k = SIZE(k, 2)
 
-        SELECT CASE (wavetype)
-            CASE ("std", "gamx", "gamz")
+        wavetype_(:) = toupper(wavetype(:))
+
+        SELECT CASE (wavetype_)
+            CASE ("STD", "GAMX", "GAMZ")
                 IF (len_i /= len_j .OR. len_i /= len_k) THEN
                     WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
                         // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
                     STOP ERROR_TDM_LEN_NOT_EQUAL
                 END IF
-            CASE ("ncl")
+            CASE ("NCL")
                 IF (len_i /= len_j .OR. len_i /= len_k*2) THEN
                     WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
                         // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
                     STOP ERROR_TDM_LEN_NOT_EQUAL
                 END IF
             CASE DEFAULT
-                WRITE(STDERR, *) 'Invalid wavetype="' // wavetype // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
+                WRITE(STDERR, *) 'Invalid wavetype="' // wavetype_ // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
                 STOP ERROR_WAVE_WAVETYPE
         END SELECT
 
@@ -73,6 +76,7 @@ MODULE tdm_mod
 
         !! local variables
         INTEGER :: len_i, len_j, len_k
+        CHARACTER(LEN=8)        :: wavetype_
         COMPLEX(q), ALLOCATABLE :: overlap(:)   !<  phi_j(n)' * phi_i(i)
 
         !! logic starts
@@ -80,21 +84,23 @@ MODULE tdm_mod
         len_j = SIZE(phi_j)
         len_k = SIZE(k, 2)
 
-        SELECT CASE (wavetype)
-            CASE ("std", "gamx", "gamz")
+        wavetype_(:) = toupper(wavetype(:))
+
+        SELECT CASE (wavetype_)
+            CASE ("STD", "GAMX", "GAMZ")
                 IF (len_i /= len_j .OR. len_i /= len_k) THEN
                     WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
                         // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
                     STOP ERROR_TDM_LEN_NOT_EQUAL
                 END IF
-            CASE ("ncl")
+            CASE ("NCL")
                 IF (len_i /= len_j .OR. len_i /= len_k*2) THEN
                     WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
                         // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
                     STOP ERROR_TDM_LEN_NOT_EQUAL
                 END IF
             CASE DEFAULT
-                WRITE(STDERR, *) 'Invalid wavetype="' // wavetype // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
+                WRITE(STDERR, *) 'Invalid wavetype="' // wavetype_ // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
                 STOP ERROR_WAVE_WAVETYPE
         END SELECT
 
@@ -103,14 +109,14 @@ MODULE tdm_mod
 
 
         !! phi_j(n)' * phi_i(n)
-        IF (wavetype(1:3) == "gam") THEN
+        IF (wavetype_(1:3) == "GAM") THEN
             overlap = (CONJG(phi_j) * phi_i - CONJG(phi_i) * phi_j) / 2.0_q
         ELSE
             overlap = CONJG(phi_j) * phi_i
         END IF
 
         
-        IF (wavetype == "ncl") THEN
+        IF (wavetype_ == "NCL") THEN
             ret = MATMUL(k, overlap(1:len_k)) + MATMUL(k, overlap(len_k+1:))
         ELSE
             ret = MATMUL(k, overlap)
@@ -121,7 +127,7 @@ MODULE tdm_mod
         DEALLOCATE(overlap)
 
         RETURN
-    END FUNCTION
+    END FUNCTION tdm_get_tdm_pseudo_q
     
 
     FUNCTION tdm_get_tdm_wav(wav, ispin, ikpoint, iniband, finband) RESULT(tdm_ret)
@@ -161,7 +167,7 @@ MODULE tdm_mod
 
         nplw = wav%nplws(ikpoint)
         ngvec = nplw
-        IF (wav%wavetype == "ncl") ngvec = ngvec / 2
+        IF (wav%wavetype == "NCL") ngvec = ngvec / 2
         ALLOCATE(k(3, ngvec))
         CALL wavecar_get_gvecs_cart(wav, ikpoint, k)
 

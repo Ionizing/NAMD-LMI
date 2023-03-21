@@ -594,7 +594,7 @@ MODULE nac_mod
         nbrange  = brange(2) - brange(1) + 1
         nplws    = wav_i%nplws(ikpoint)
 
-        IF (wav_i%wavetype == "ncl") THEN
+        IF (wav_i%wavetype == "NCL") THEN
             ngvec = nplws / 2
         ELSE
             ngvec = nplws
@@ -609,7 +609,7 @@ MODULE nac_mod
         IF (.NOT. ALLOCATED(phase)) ALLOCATE(phase(nbrange))
         IF (.NOT. ALLOCATED(gvecs_cart)) THEN
             ALLOCATE(gvecs_cart(3, nplws))
-            IF (wav_i%wavetype == "ncl") THEN
+            IF (wav_i%wavetype == "NCL") THEN
                 CALL wavecar_get_gvecs_cart(wav_i, ikpoint, gvecs_cart(:, 1:ngvec))
                 gvecs_cart(:, ngvec+1:) = gvecs_cart(:, 1:ngvec)
             ELSE
@@ -637,7 +637,7 @@ MODULE nac_mod
             !<                       <psi_i | psi_j> / |<psi_i | psi_j>|     FOR standard WAVECAR
             !<         SIGN(REALPART(<psi_i | psi_j> / |<psi_i | psi_j>|))   FOR gamonly  WAVECAR
             FORALL(i=1:nbrange) phase(i) = p_ji(i, i) / ABS(p_ji(i, i))
-            IF (wav_i%wavetype(1:3) == "gam") phase = SIGN(1.0_q, REALPART(phase))
+            IF (wav_i%wavetype(1:3) == "GAM") phase = SIGN(1.0_q, REALPART(phase))
 
             !< SPREAD(v, 2, m) = [v(:), v(:), ...]
             !< SPREAD(v, 1, m) = [v(1), v(2), ...;
@@ -658,7 +658,7 @@ MODULE nac_mod
                 FORALL(i=1:nbrange) psi_times_gvecs(:, i) = psi_j(:, i) * gvecs_cart(idirect, :)
 
                 !! <phi_i | k | phi_j>
-                IF (wav_i%wavetype(1:3) == "gam") THEN
+                IF (wav_i%wavetype(1:3) == "GAM") THEN
                     tdm_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs) &
                                                  - MATMUL(CONJG(TRANSPOSE(psi_times_gvecs)), psi_j)
                 ELSE
@@ -670,7 +670,7 @@ MODULE nac_mod
             ENDDO
         ENDDO
 
-        IF (wav_i%wavetype(1:3) == "gam") c_ij = REALPART(c_ij)
+        IF (wav_i%wavetype(1:3) == "GAM") c_ij = REALPART(c_ij)
 
         e_ij(:, :) = (wav_i%eigs(brange(1):brange(2), ikpoint, :) + wav_j%eigs(brange(1):brange(2), ikpoint, :)) / 2.0
     END SUBROUTINE nac_ij_
