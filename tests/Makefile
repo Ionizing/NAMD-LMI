@@ -3,9 +3,9 @@ include ../make.inc
 MOD = -I../src -I../external
 INC = ../src/common.h
 LIB = ../src/libnamd.a
-LIBMOD = ../src/namd_lumi_mod.mod
-LIBEXTERNAL = ../external/libexternal.a
 BIN = test.x
+LIBMOD      = ../src/namd_lumi_mod.mod
+LIBEXTERNAL = ../external/libexternal.a
 
 TEST_SRCS = $(wildcard test_*.f90)
 TEST_OBJS = $(TEST_SRCS:.f90=.o)
