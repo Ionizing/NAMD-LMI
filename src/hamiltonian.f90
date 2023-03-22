@@ -21,6 +21,9 @@ MODULE hamiltonian_mod
         LOGICAL :: lreal                        !> hamiltonian is totally real or not
         REAL(q) :: temperature                  !> NAMD temperature, in Kelvin
 
+        INTEGER :: efield_len                   !> EFIELD data length
+        LOGICAL :: efield_lcycle                !> Apply external field in cycle or not
+
         COMPLEX(q), ALLOCATABLE :: psi_p(:)     !> ket for previous step, [nbasis]
         COMPLEX(q), ALLOCATABLE :: psi_c(:)     !> ket for current step, [nbasis]
         COMPLEX(q), ALLOCATABLE :: psi_n(:)     !> ket for next step, [nbasis]
@@ -39,7 +42,9 @@ MODULE hamiltonian_mod
     CONTAINS
 
 
-    SUBROUTINE hamiltonian_init(hamil, nac_dat, efield, basis_up, basis_dn, dt, namdinit, iniband, inispin, namdtime, nelm, temperature, scissor)
+    SUBROUTINE hamiltonian_init(hamil, nac_dat, efield, &
+            basis_up, basis_dn, dt, namdinit, iniband, inispin, namdtime, nelm, temperature, scissor, &
+            efield_len, efield_lcycle)
         TYPE(nac), INTENT(in)   :: nac_dat      !> NAC object
         REAL(q), INTENT(in), ALLOCATABLE :: efield(:, :) !> electric field from user input
         INTEGER, INTENT(in)     :: basis_up(2)  !> basis range for spin up
@@ -52,6 +57,8 @@ MODULE hamiltonian_mod
         INTEGER, INTENT(in)     :: nelm         !> electronic step during the propagation
         REAL(q), INTENT(in)     :: temperature  !> NAMD temperature, in fs
         REAL(q), INTENT(in)     :: scissor      !> scissor operator, in eV
+        INTEGER, INTENT(in)     :: efield_len   !> data length of efield
+        LOGICAL, INTENT(in)     :: efield_lcycle    !> apply efield in cycle or not
         TYPE(hamiltonian), INTENT(inout)    :: hamil
 
         !! local variables
@@ -139,6 +146,8 @@ MODULE hamiltonian_mod
         hamil%nelm     = nelm
         hamil%lreal    = nac_dat%lreal
         hamil%temperature = temperature
+        hamil%efield_len    = efield_len
+        hamil%efield_lcycle = efield_lcycle
 
         !! allocate memory
         ALLOCATE(hamil%psi_p(nbasis))
@@ -153,7 +162,7 @@ MODULE hamiltonian_mod
         ALLOCATE(hamil%prop_eigs(hamil%namdtime))
         ALLOCATE(hamil%nac_t(nbasis, nbasis, hamil%nsw-1))
         ALLOCATE(hamil%tdm_t(3, nbasis, nbasis, hamil%nsw-1))
-        ALLOCATE(hamil%efield(3, hamil%namdtime))
+        ALLOCATE(hamil%efield(3, efield_len))
 
         !! initialize
         hamil%psi_p = 0
@@ -217,9 +226,20 @@ MODULE hamiltonian_mod
         TYPE(input), INTENT(in) :: inp
         INTEGER, INTENT(in)     :: inicon_idx
 
-        CALL hamiltonian_init(hamil, nac_dat, inp%efield, inp%basis_up, inp%basis_dn, inp%dt, &
-            inp%inisteps(inicon_idx), inp%inibands(inicon_idx), inp%inispins(inicon_idx), &
-            inp%namdtime, inp%nelm, inp%temperature, inp%scissor)
+        CALL hamiltonian_init(hamil, nac_dat, &
+            inp%efield, &
+            inp%basis_up, &
+            inp%basis_dn, &
+            inp%dt, &
+            inp%inisteps(inicon_idx), &
+            inp%inibands(inicon_idx), &
+            inp%inispins(inicon_idx), &
+            inp%namdtime, &
+            inp%nelm, &
+            inp%temperature, &
+            inp%scissor, &
+            inp%efield_len, &
+            inp%efield_lcycle)
     END SUBROUTINE hamiltonian_init_with_input
 
 
@@ -249,6 +269,7 @@ MODULE hamiltonian_mod
 
         !! local variable
         COMPLEX(q), ALLOCATABLE, SAVE :: hamil_tdm_curr(:, :), hamil_tdm_next(:, :)
+        REAL(q) :: efield(3)
         INTEGER :: nelm
         INTEGER :: rtime, xtime
         INTEGER :: nsw
@@ -273,24 +294,28 @@ MODULE hamiltonian_mod
         hamil%hamil(:, :) = hamil%nac_t(:, :, rtime) + &
                             (hamil%nac_t(:, :, xtime) - hamil%nac_t(:, :, rtime)) * (DBLE(iele) / nelm)
 
-        !! tdm part, use linear interpolation
-        IF (iion == 1) THEN
-            FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
-                hamil_tdm_curr(i, j) = SUM(hamil%tdm_t(:, i, j, rtime) * hamil%efield(:, iion))
-            ENDFORALL
-        ELSE
+        IF (0 /= hamil%efield_len) THEN
+            efield = get_efield(hamil, iion)
+
+            !! tdm part, use linear interpolation
+            IF (iion == 1) THEN
+                FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
+                    hamil_tdm_curr(i, j) = SUM(hamil%tdm_t(:, i, j, rtime) * efield)
+                ENDFORALL
+            ELSE
+                hamil_tdm_curr = hamil_tdm_next
+            ENDIF
+
+            IF (iion == hamil%namdtime) THEN        !! avoid subscript overflow when
+                hamil_tdm_next = 0
+            ELSE
+                FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
+                    hamil_tdm_next(i, j) = SUM(hamil%tdm_t(:, i, j, xtime) * efield)
+                ENDFORALL
+            ENDIF
+            hamil%hamil = hamil%hamil + (hamil_tdm_next - hamil_tdm_curr) * DBLE(iele) / nelm
             hamil_tdm_curr = hamil_tdm_next
         ENDIF
-
-        IF (iion == hamil%namdtime) THEN        !! avoid subscript overflow when
-            hamil_tdm_next = 0
-        ELSE
-            FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
-                hamil_tdm_next(i, j) = SUM(hamil%tdm_t(:, i, j, xtime) * hamil%efield(:, iion+1))
-            ENDFORALL
-        ENDIF
-        hamil%hamil = hamil%hamil + (hamil_tdm_next - hamil_tdm_curr) * DBLE(iele) / nelm
-        hamil_tdm_curr = hamil_tdm_next
 
         !! diagonal part, equals to eigen value
         FORALL(i=1:hamil%nbasis) &
@@ -533,11 +558,10 @@ MODULE hamiltonian_mod
     END SUBROUTINE hamiltonian_save_to_h5
 
 
-    FUNCTION iniband_index_convert_(bup, bdn, inispin, iniband) RESULT(ret)
+    PURE INTEGER FUNCTION iniband_index_convert_(bup, bdn, inispin, iniband) RESULT(ret)
         INTEGER, INTENT(in) :: bup(2), bdn(2)
         INTEGER, INTENT(in) :: inispin
         INTEGER, INTENT(in) :: iniband
-        INTEGER :: ret
 
         INTEGER :: nbup
 
@@ -550,4 +574,47 @@ MODULE hamiltonian_mod
     END FUNCTION iniband_index_convert_
 
 
+    PURE FUNCTION get_efield_impl(efield, iion, efield_len, efield_lcycle) RESULT(ret)
+        REAL(q), INTENT(in) :: efield(:, :)
+        INTEGER, INTENT(in) :: iion
+        INTEGER, INTENT(in) :: efield_len
+        LOGICAL, INTENT(in) :: efield_lcycle
+        REAL(q) :: ret(3)
+
+        INTEGER :: rtime
+
+        ret = [0, 0, 0]
+        rtime = MOD(iion-1, efield_len) + 1
+
+        IF (0 == efield_len) THEN
+            RETURN
+        ENDIF
+
+        !< efield_len /= 0
+
+        !< iion < efield_len
+        IF (iion <= efield_len) THEN
+            ret = efield(:, iion)
+            RETURN
+        ENDIF
+
+        !< iion > efield_len
+
+        !< the efield is not periodic
+        IF (.NOT. efield_lcycle) THEN
+            ret = [0, 0, 0]
+        ELSE
+        !< the efield is periodic
+            ret = efield(:, rtime)
+        ENDIF
+    END FUNCTION get_efield_impl
+
+
+    PURE FUNCTION get_efield(hamil, iion) RESULT(ret)
+        TYPE(hamiltonian), INTENT(in) :: hamil
+        INTEGER, INTENT(in) :: iion
+        REAL(q) :: ret(3)
+        ret = get_efield_impl(hamil%efield, iion, hamil%efield_len, hamil%efield_lcycle)
+        RETURN
+    END FUNCTION get_efield
 END MODULE hamiltonian_mod

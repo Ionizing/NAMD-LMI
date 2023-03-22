@@ -39,8 +39,10 @@ MODULE input_mod
         INTEGER, ALLOCATABLE :: inispins(:)
         INTEGER, ALLOCATABLE :: inisteps(:)
 
-        !! For EFIELD
-        REAL(q), ALLOCATABLE :: efield(:, :)        !! External electric field, [3, namdtime], in V/Angstrom
+        !! For external field stuff
+        INTEGER         :: efield_len       = 0         !! Data length of `efield`
+        LOGICAL         :: efield_lcycle    = .FALSE.   !! Apply the external field in cycle or not
+        REAL(q), ALLOCATABLE :: efield(:, :)            !! External electric field, [3, efield_len], in 1E-9 V/Angstrom
     END TYPE
 
     PRIVATE     :: input_from_iu_
@@ -203,7 +205,10 @@ MODULE input_mod
         CALL MPI_BCAST(inp%inibands, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%inispins, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%inisteps, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%efield,   3*inp%namdtime, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+
+        CALL MPI_BCAST(inp%efield_len,         1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%efield_lcycle,      1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%efield,   3*inp%efield_len, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
     END SUBROUTINE
 
 
@@ -233,6 +238,9 @@ MODULE input_mod
         CHARACTER(256)  :: fname
         REAL(q) :: temperature
         REAL(q) :: scissor
+        INTEGER :: efield_len
+        LOGICAL :: efield_lcycle
+
         INTEGER, ALLOCATABLE :: inibands(:)
         INTEGER, ALLOCATABLE :: inispins(:)
         INTEGER, ALLOCATABLE :: inisteps(:)
@@ -257,13 +265,15 @@ MODULE input_mod
                               nelm,     &
                               fname,    &
                               temperature, &
-                              scissor
+                              scissor, &
+                              efield_len !< External field related
 
         NAMELIST /inicon/ inibands, &
                           inispins, &
                           inisteps
 
-        NAMELIST /extfield/ efield
+        NAMELIST /extfield/ efield_lcycle, &
+                            efield
 
         INTEGER :: nb(2)
         INTEGER :: nbrange
@@ -290,6 +300,8 @@ MODULE input_mod
         fname        = "nac.h5"
         temperature  = 300.0
         scissor      = 0.0
+        efield_len   = 0
+        efield_lcycle = .FALSE.
 
         READ(iu, NML=namdparams)
 
@@ -402,7 +414,14 @@ MODULE input_mod
         END IF
 
         IF (scissor < 0.0) THEN
-            WRITE(STDERR, '("[ERROR] Negative SCISSOR from input file: ", F8.2, " eV")') temperature
+            WRITE(STDERR, '("[ERROR] Negative SCISSOR from input file: ", F8.2, " eV")') scissor
+            STOP ERROR_INPUT_RANGEWRONG
+        ENDIF
+
+        IF (efield_len == 0) THEN
+            WRITE(STDOUT, '(4X, A)') "You specified EFIELD_LEN to be 0, thus the &EXTFIELD ... / section would be ignored."
+        ELSEIF (efield_len < 0) THEN
+            WRITE(STDERR, '("[ERROR] Negative EFIELD_LEN from input file: ", I0)') efield_len
             STOP ERROR_INPUT_RANGEWRONG
         ENDIF
 
@@ -427,6 +446,7 @@ MODULE input_mod
         inp%fname        = fname
         inp%temperature  = temperature
         inp%scissor      = scissor
+        inp%efield_len   = efield_len
 
         ALLOCATE(inp%inibands(nsample))
         ALLOCATE(inp%inispins(nsample))
@@ -446,12 +466,15 @@ MODULE input_mod
         DEALLOCATE(inibands)
 
         !! efield stuff
-        ALLOCATE(inp%efield(3, namdtime))
-        ALLOCATE(efield(3, namdtime))
+        ALLOCATE(inp%efield(3, efield_len))
+        ALLOCATE(    efield(3, efield_len))
 
-        efield = 0.0
-        READ(iu, NML=extfield)
-        inp%efield = efield
+        IF (inp%efield_len /= 0) THEN
+            efield = 0.0
+            READ(iu, NML=extfield)
+            inp%efield_lcycle = efield_lcycle
+            inp%efield        = efield
+        ENDIF
 
         DEALLOCATE(efield)
     END SUBROUTINE input_from_iu_
@@ -501,6 +524,7 @@ MODULE input_mod
             "file name for saving NAC data, no more than 256 characters"
         WRITE(iu, '(1X, A12, " = ",F10.2, ", ! ", A)') 'TEMPERATURE',   inp%temperature,    "NAMD temperature, in Kelvin"
         WRITE(iu, '(1X, A12, " = ",F10.2, ", ! ", A)') 'SCISSOR',       inp%scissor,        "Scissor operator, in eV"
+        WRITE(iu, '(1X, A12, " = ",  I10, ", ! ", A)') "EFIELD_LEN",    inp%efield_len,     "Data length of EFIELD"
         WRITE(iu, '(A)') "/"             ! End
 
 
@@ -522,16 +546,23 @@ MODULE input_mod
         WRITE(iu, '(4X, "INISPINS(:) = ", *(I5))') inp%inispins(:)
         WRITE(iu, '(A)') "/"             ! End
 
+
         WRITE(iu, '(/,/)', ADVANCE='no') ! Two empty lines
 
-        !! external field stuff
-        WRITE(iu, '(A)') "&EXTFIELD"
-        WRITE(iu, '(4X, A)') "!! Time-dependent electric field appllied to current system, in 1E-9 V/Angstrom"
-        WRITE(iu, '(4X, "!!", 3(4X, A7), A9)') "X", "Y", "Z", "TIMESTEP"
-        WRITE(iu, '(4X, A)') "EFIELD(:,:) ="
-        DO i = 1, inp%namdtime
-            WRITE(iu, '(2X, 3(1X, D13.5), " !", I7)') inp%efield(:, i), i
-        ENDDO
-        WRITE(iu, '(A)') "/"
+        !! external field stuff, skip output if `efield_len == 0`
+        IF (inp%efield_len /= 0) THEN
+            WRITE(iu, '(A)') "&EXTFIELD"
+            WRITE(iu, '(1X, A15, " = ",  L10, ", ! ", A)') "EFIELD_LCYCLE", inp%efield_lcycle,  "Apply the external field in cycle or not"
+            WRITE(iu, '(4X, A)') "!! Time-dependent electric field applied to current system, in 1E-9 V/Angstrom"
+            WRITE(iu, '(4X, "!!", 3(4X, A7), A9)') "X", "Y", "Z", "TIMESTEP"
+            WRITE(iu, '(4X, A)') "EFIELD(:,:) ="
+            DO i = 1, inp%efield_len
+                WRITE(iu, '(2X, 3(1X, D13.5), " !", I7)') inp%efield(:, i), i
+            ENDDO
+            WRITE(iu, '(A)') "/"
+
+
+            WRITE(iu, '(/,/)', ADVANCE='no') ! Two empty lines
+        ENDIF
     END SUBROUTINE input_to_iu_
 END MODULE
