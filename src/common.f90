@@ -155,7 +155,7 @@ MODULE common_mod
             WRITE(str, 100) ver%major, ver%minor, ver%patch, TRIM(ver%datetime), TRIM(ver%commit)
         ELSE
             WRITE(STDOUT, 100) ver%major, ver%minor, ver%patch, TRIM(ver%datetime), TRIM(ver%commit)
-        END IF
+        ENDIF
         100 FORMAT("NAMD_lumi v", I0, ".", I0, ".", I0, "  BuiltDateTime: ", A, "  GitCommit: ", A)
     END SUBROUTINE version_print
 
@@ -235,7 +235,7 @@ MODULE common_mod
                 l = m
             ELSE
                 r = m
-            END IF
+            ENDIF
         ENDDO
 
         ret = r
@@ -265,13 +265,13 @@ MODULE common_mod
             IF (residue > 0) THEN       !! Deal with indivisible length
                 sendcounts(i) = sendcounts(i) + 1
                 residue = residue - 1
-            END IF
+            ENDIF
         ENDDO
 
         DO i = 2, nrank
             IF (i >= 2) THEN
                 displs(i) = displs(i-1) + sendcounts(i-1)   !! cumulative sum
-            END IF
+            ENDIF
         ENDDO
     END SUBROUTINE mpi_partition
     

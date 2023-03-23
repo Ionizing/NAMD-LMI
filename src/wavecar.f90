@@ -92,14 +92,14 @@ MODULE wavecar_mod
         IF(od) THEN
             WRITE(STDERR, *) 'The WAVECAR is already open with IU= ' // TINT2STR(iu) // ' ' // AT
             STOP ERROR_WAVE_ALREADY_OPEN
-        END IF
+        ENDIF
 
         OPEN(UNIT=iu, FILE=fname, ACCESS='direct', FORM='unformatted', STATUS='unknown', &
              RECL=48, IOSTAT=ierr, ACTION='read')
         IF(ierr /= 0) THEN
             WRITE(STDERR, *) 'Cannot open WAVECAR="' // TRIM(fname) // '" with IU=' // TINT2STR(iu) // ' ' // AT
             STOP ERROR_WAVE_OPEN_FAILED
-        END IF
+        ENDIF
 
         READ(UNIT=iu, REC=1, IOSTAT=ierr) rreclen, rnspin, rprectag
         iprectag = NINT(rprectag)
@@ -121,7 +121,7 @@ MODULE wavecar_mod
         IF (wav%reclen <= 0 .OR. wav%nspin <= 0) THEN
             WRITE(STDERR, *) 'Invliad WAVECAR: RECLEN=' // TINT2STR(wav%reclen) // ' NSPIN=' // TINT2STR(wav%nspin) // ' ' // AT
             STOP ERROR_WAVE_INVALID_FILE
-        END IF
+        ENDIF
 
         CLOSE(iu)
 
@@ -130,7 +130,7 @@ MODULE wavecar_mod
         IF(ierr /= 0) THEN
             WRITE(STDERR, *) 'Cannot open WAVECAR="' // TRIM(fname) // '" with IU=' // TINT2STR(iu) // ' ' // AT
             STOP ERROR_WAVE_OPEN_FAILED
-        END IF
+        ENDIF
 
         READ(iu, rec=2) rnkpoints, rnbands, wav%encut, ((wav%acell(i,j), i=1,3), j=1,3), wav%efermi
         wav%nkpoints = NINT(rnkpoints)
@@ -165,14 +165,14 @@ MODULE wavecar_mod
                 WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype_) // ' , nplw=' // TINT2STR(MAXVAL(wav%nplws)) &
                                  // ' cannot be devided by 2. ' // AT
                 STOP ERROR_WAVE_WAVETYPE
-            END IF
+            ENDIF
         ELSE
             maxnplw = MAXVAL(wav%nplws)
-        END IF
+        ENDIF
 
         IF (PRESENT(lgvecs)) THEN
             IF (lgvecs) CALL wavecar_gen_gvecs_all_k_(wav)
-        END IF
+        ENDIF
     END SUBROUTINE wavecar_init
 
 
@@ -208,13 +208,13 @@ MODULE wavecar_mod
             WRITE(STDERR, *) "Inconsistent precision of WAVECAR=" // TINT2STR(wav%prec) // " and provided phi=" // &
                              TINT2STR(qs) // " " // AT
             STOP ERROR_WAVE_WRONG_PREC
-        END IF
+        ENDIF
 
         INQUIRE(wav%iu, OPENED=od)
         IF (.NOT. od) THEN
             WRITE(STDERR, *) "WAVECAR not open " // AT
             STOP ERROR_WAVE_NOT_OPEN
-        END IF
+        ENDIF
 
         irec = 2 + (ispin - 1) * (wav%nkpoints * (wav%nbands + 1)) + &
                    (ikpoint - 1) * (wav%nbands + 1) + &
@@ -226,8 +226,8 @@ MODULE wavecar_mod
             IF (lnorm) THEN
                 normqs = SQRT(REAL(SUM(CONJG(phi) * phi)))
                 phi = phi / normqs
-            END IF
-        END IF
+            ENDIF
+        ENDIF
     END SUBROUTINE wavecar_read_wavefunction_qs
 
 
@@ -250,13 +250,13 @@ MODULE wavecar_mod
             WRITE(STDERR, *) "Inconsistent precision of WAVECAR=" // TINT2STR(wav%prec) // " and provided phi=" // &
                              TINT2STR(q) // " " // AT
             STOP ERROR_WAVE_WRONG_PREC
-        END IF
+        ENDIF
 
         INQUIRE(wav%iu, OPENED=od)
         IF (.NOT. od) THEN
             WRITE(STDERR, *) "WAVECAR not open " // AT
             STOP ERROR_WAVE_NOT_OPEN
-        END IF
+        ENDIF
 
         irec = 2 + (ispin - 1) * (wav%nkpoints * (wav%nbands + 1)) + &
                    (ikpoint - 1) * (wav%nbands + 1) + &
@@ -268,8 +268,8 @@ MODULE wavecar_mod
             IF (lnorm) THEN
                 normq = DSQRT(SUM(normsquare(phi(:)))) ! SQRT(REAL(SUM(CONJG(phi) * phi)))
                 phi = phi / normq
-            END IF
-        END IF
+            ENDIF
+        ENDIF
     END SUBROUTINE wavecar_read_wavefunction_q
 
 
@@ -287,7 +287,7 @@ MODULE wavecar_mod
         IF (ikpoint > wav%nkpoints .OR. ikpoint <= 0) THEN
             WRITE(STDERR, *) "Kpoint index overflow: ikpoint=" // TINT2STR(ikpoint) // ", nkpoint=" // TINT2STR(wav%nkpoints) // " " // AT
             STOP ERROR_WAVE_WRONG_KPOINT
-        END IF
+        ENDIF
 
         kvec = wav%kvecs(:, ikpoint)
         ngvec = wav%nplws(ikpoint)
@@ -297,7 +297,7 @@ MODULE wavecar_mod
             WRITE(STDERR, *) "Wrong shape of gvecs_cart passed in: (" // TINT2STR(SIZE(gvecs_cart, 1)) // "," // &
                              TINT2STR(SIZE(gvecs_cart, 2)) // "), expected: (3," // TINT2STR(ngvec) // ") " // AT
             STOP ERROR_WAVE_WRONG_SHAPE
-        END IF
+        ENDIF
 
 
         ALLOCATE(gvecs_freq(3, ngvec))
@@ -307,7 +307,7 @@ MODULE wavecar_mod
                                            wav%wavetype, gvecs_freq)
         ELSE
             gvecs_freq = wav%gvecs(:, 1:ngvec, ikpoint)
-        END IF
+        ENDIF
         
         gvecs_cart = TPI * MATMUL(wav%bcell, gvecs_freq+SPREAD(kvec, 2, ngvec))
 
@@ -332,7 +332,7 @@ MODULE wavecar_mod
             WRITE(STDERR, *) "Acell = ", TRANSPOSE(A)
             WRITE(STDERR, *) AT
             STOP ERROR_WAVE_INVALID_FILE
-        END IF
+        ENDIF
 
         B(1,1) = +(A(2,2)*A(3,3)-A(2,3)*A(3,2))
         B(1,2) = -(A(2,1)*A(3,3)-A(2,3)*A(3,1))
@@ -378,7 +378,7 @@ MODULE wavecar_mod
                 ngvec = wav%nplws(i) / 2
             ELSE
                 ngvec = wav%nplws(i)
-            END IF
+            ENDIF
             CALL wavecar_gen_gvecs_single_k_(wav%bcell, wav%kvecs(:, i), wav%ngrid, wav%encut, ngvec, &
                                            wav%wavetype, wav%gvecs(:, 1:ngvec, i))
         ENDDO
@@ -435,7 +435,7 @@ MODULE wavecar_mod
                                 (fz == 0 .AND. fy == 0 .AND. fx >= 0))
                     ELSE
                         flag = .TRUE.
-                    END IF
+                    ENDIF
 
                     IF (.NOT. flag) CYCLE
 
@@ -448,10 +448,10 @@ MODULE wavecar_mod
                             WRITE(STDERR, *) 'Invalid wavetype=' // TRIM(wavetype_) // ', ngvec=' &
                                 // TINT2STR(cnt) // ', ngvec_expect=' // TINT2STR(ngvec) // ' ' // AT
                             STOP ERROR_WAVE_WAVETYPE
-                        END IF
+                        ENDIF
 
                         gvec(:, cnt) = (/fx, fy, fz/)
-                    END IF
+                    ENDIF
                 ENDDO
             ENDDO
         ENDDO

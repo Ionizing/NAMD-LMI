@@ -40,13 +40,13 @@ MODULE tdm_mod
                     WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
                         // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
                     STOP ERROR_TDM_LEN_NOT_EQUAL
-                END IF
+                ENDIF
             CASE ("NCL")
                 IF (len_i /= len_j .OR. len_i /= len_k*2) THEN
                     WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
                         // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
                     STOP ERROR_TDM_LEN_NOT_EQUAL
-                END IF
+                ENDIF
             CASE DEFAULT
                 WRITE(STDERR, *) 'Invalid wavetype="' // wavetype_ // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
                 STOP ERROR_WAVE_WAVETYPE
@@ -92,13 +92,13 @@ MODULE tdm_mod
                     WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
                         // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
                     STOP ERROR_TDM_LEN_NOT_EQUAL
-                END IF
+                ENDIF
             CASE ("NCL")
                 IF (len_i /= len_j .OR. len_i /= len_k*2) THEN
                     WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
                         // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
                     STOP ERROR_TDM_LEN_NOT_EQUAL
-                END IF
+                ENDIF
             CASE DEFAULT
                 WRITE(STDERR, *) 'Invalid wavetype="' // wavetype_ // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
                 STOP ERROR_WAVE_WAVETYPE
@@ -113,14 +113,14 @@ MODULE tdm_mod
             overlap = (CONJG(phi_j) * phi_i - CONJG(phi_i) * phi_j) / 2.0_q
         ELSE
             overlap = CONJG(phi_j) * phi_i
-        END IF
+        ENDIF
 
         
         IF (wavetype_ == "NCL") THEN
             ret = MATMUL(k, overlap(1:len_k)) + MATMUL(k, overlap(len_k+1:))
         ELSE
             ret = MATMUL(k, overlap)
-        END IF
+        ENDIF
 
         ret = ret * IMGUNIT * AUTOA * AUTODEBYE * (2*RYTOEV) / de
 
@@ -149,12 +149,12 @@ MODULE tdm_mod
         IF (ispin <= 0 .OR. ispin > wav%nspin) THEN
             WRITE(STDOUT, *) "Invalid spin index ispin=" // TINT2STR(ispin) // ", expected: 1<=ispin<=" // TINT2STR(wav%nspin) // " " // AT
             STOP ERROR_WAVE_WRONG_INDEX
-        END IF
+        ENDIF
 
         IF (ikpoint <= 0 .OR. ikpoint > wav%nspin) THEN
             WRITE(STDOUT, *) "Invalid kpoint index ikpoint=" // TINT2STR(ikpoint) // ", expected: 1<=ikpoint<=" // TINT2STR(wav%nkpoints) // " " // AT
             STOP ERROR_WAVE_WRONG_INDEX
-        END IF
+        ENDIF
 
         IF (iniband <= 0 .OR. iniband > wav%nbands .OR. &
             finband <= 0 .OR. finband > wav%nbands .OR. &
@@ -162,7 +162,7 @@ MODULE tdm_mod
             WRITE(STDOUT, *) "Invalid band index iniband=" // TINT2STR(iniband) // ", finband=" // TINT2STR(finband) // &
                              ", expected 1<=(ini,fin)<=" // TINT2STR(wav%nbands) // " and iniband < finband " // AT
             STOP ERROR_WAVE_WRONG_INDEX
-        END IF
+        ENDIF
         
 
         nplw = wav%nplws(ikpoint)
@@ -193,7 +193,7 @@ MODULE tdm_mod
 
             DEALLOCATE(phi_j_q)
             DEALLOCATE(phi_i_q)
-        END IF
+        ENDIF
 
         DEALLOCATE(k)
     END FUNCTION

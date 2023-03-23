@@ -49,11 +49,11 @@ MODULE nac_mod
                 WRITE(STDOUT, '("[INFO] ", A, " exists, reading NAC from it ...")') '"' // TRIM(inp%fname) // '"'
                 CALL nac_load_from_h5(TRIM(inp%fname), nac_dat, llog=.TRUE.)
                 CALL nac_check_inp(nac_dat, inp)
-            END IF
+            ENDIF
         ELSE
             IF (MPI_ROOT_NODE == irank) THEN
                 WRITE(STDOUT, '("[INFO] ", A, " not found, calculating from scratch ...")') '"' // TRIM(inp%fname) // '"'
-            END IF
+            ENDIF
 
             CALL SYSTEM_CLOCK(timing_start, timing_rate)
 
@@ -65,8 +65,8 @@ MODULE nac_mod
             IF (MPI_ROOT_NODE == irank) THEN
                 CALL nac_save_to_h5(nac_dat, inp%fname, llog=.TRUE.)
                 WRITE(STDOUT, '("[INFO] Time used for NAC calculation: ", F8.3, " secs")') DBLE(timing_end - timing_start) / timing_rate
-            END IF
-        END IF
+            ENDIF
+        ENDIF
     END SUBROUTINE nac_load_or_calculate
 
 
@@ -79,31 +79,31 @@ MODULE nac_mod
             WRITE(STDERR, '("[ERROR] Inconsistent IKPOINT from INPUT and ", A, " :", I3, " /= ", I3)') &
                 TRIM(inp%fname), nac_dat%ikpoint, inp%ikpoint
             STOP ERROR_NAC_INCONSISTENT
-        END IF
+        ENDIF
 
         IF (ANY(nac_dat%brange /= inp%brange)) THEN
             WRITE(STDERR, '("[ERROR] Inconsistent BRANGE from INPUT and ", A, " :", 2I5, " /= ", 2I5)') &
                 TRIM(inp%fname), nac_dat%brange, inp%brange
             STOP ERROR_NAC_INCONSISTENT
-        END IF
+        ENDIF
 
         IF (nac_dat%nsw /= inp%nsw) THEN
             WRITE(STDERR, '("[ERROR] Inconsistent NSW from INPUT and ", A, " :", I5, " /= ", I5)') &
                 TRIM(inp%fname), nac_dat%nsw, inp%nsw
             STOP ERROR_NAC_INCONSISTENT
-        END IF
+        ENDIF
 
         IF (ABS(nac_dat%dt-inp%dt) > 1E-5) THEN
             WRITE(STDERR, '("[ERROR] Inconsistent DT from INPUT and ", A, " :", F5.3, " /= ", F5.3)') &
                 TRIM(inp%fname), nac_dat%dt, inp%dt
             STOP ERROR_NAC_INCONSISTENT
-        END IF
+        ENDIF
 
         IF (nac_dat%lreal .NEQV. inp%lreal) THEN
             WRITE(STDERR, '("[ERROR] Inconsistent LREAL from INPUT and ", A, " :", L1, " /= ", L1)') &
                 TRIM(inp%fname), nac_dat%lreal, inp%lreal
             STOP ERROR_NAC_INCONSISTENT
-        END IF
+        ENDIF
     END SUBROUTINE nac_check_inp
 
 
@@ -163,10 +163,10 @@ MODULE nac_mod
                 WRITE(STDERR, *) "Selected ikpoint " // TINT2STR(ikpoint) // " larger than present nkpoints " // &
                                  TINT2STR(nkpoints) // ' from WAVECAR "' // TRIM(fname_i) // '" ' // AT
                 lready = .FALSE.
-            END IF
+            ENDIF
             IF (.NOT. lready) THEN
                 CALL MPI_ABORT(MPI_COMM_WORLD, ERROR_NAC_WAVE_NREADY, ierr)
-            END IF
+            ENDIF
             CALL wavecar_destroy(wav_i)
 
             ALLOCATE(nac_dat%olaps(nbrange, nbrange, nspin, nsw-1))
@@ -185,7 +185,7 @@ MODULE nac_mod
             ALLOCATE(nac_dat%olaps(1,1,1,1))    !! dummy allocations, avoid access to illegal address in MPI_GATHERV
             ALLOCATE(nac_dat%eigs(1,1,1))
             ALLOCATE(nac_dat%tdms(1,1,1,1,1))
-        END IF
+        ENDIF
 
         !! broadcast nspin, nkpoints and nbands to all nodes
         CALL MPI_BCAST(nspin,    1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
@@ -258,7 +258,7 @@ MODULE nac_mod
         !! Rotate the overlap to real values
         IF (lreal .AND. MPI_ROOT_NODE == irank) THEN
             nac_dat%olaps = SIGN(ABS(nac_dat%olaps), REALPART(nac_dat%olaps))
-        END IF
+        ENDIF
 
         sendcounts = sendcounts * 3
         displs     = displs     * 3
@@ -307,7 +307,7 @@ MODULE nac_mod
 
         IF (PRESENT(llog)) THEN
             IF (llog) WRITE(STDOUT, '(A)') '[INFO] Writing calculated NAC to "' // TRIM(h5fname) // '" ...'
-        END IF
+        ENDIF
 
         !! logic starts
         CALL H5OPEN_F(ierr)
@@ -355,7 +355,7 @@ MODULE nac_mod
                     ireal = 1
                 ELSE
                     ireal = 0
-                END IF
+                ENDIF
                 CALL H5DCREATE_f(file_id, "lreal", H5T_NATIVE_INTEGER, dspace_id, dset_id, ierr)
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_INTEGER, ireal, dummy_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
@@ -426,7 +426,7 @@ MODULE nac_mod
         !! logic starts
         IF (PRESENT(llog)) THEN
             IF (llog) WRITE(STDOUT, '(A)') '[INFO] Loading NAC from "' // TRIM(h5fname) // '" ...'
-        END IF
+        ENDIF
 
         CALL H5OPEN_F(Ierr)
         CALL H5FOPEN_F(TRIM(h5fname), H5F_ACC_RDONLY_F, file_id, ierr)
@@ -474,7 +474,7 @@ MODULE nac_mod
                 nac_dat%lreal = .TRUE.
             ELSE
                 nac_dat%lreal = .FALSE.
-            END IF
+            ENDIF
             CALL H5DCLOSE_F(dset_id, ierr)
 
             !! brange

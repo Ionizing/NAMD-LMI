@@ -20,7 +20,7 @@ MODULE string_mod
         ELSE
             WRITE(ret, *) x
             ret = TRIM(ADJUSTL(ret))
-        END IF
+        ENDIF
     END FUNCTION int2str
 
     CHARACTER(len=32) FUNCTION real2str(x, fmt)
@@ -31,7 +31,7 @@ MODULE string_mod
             write(real2str, fmt) x
         ELSE
             write(real2str, *) x
-        END IF
+        ENDIF
         real2str = trim(adjustl(real2str))
     END FUNCTION real2str
 
@@ -58,8 +58,8 @@ MODULE string_mod
                 ret(i:i) = ACHAR(IACHAR(str(i:i))-32)
             ELSE
                 ret(i:i) = str(i:i)
-            END IF
-        END DO
+            ENDIF
+        ENDDO
     END FUNCTION toupper
 
     PURE FUNCTION tolower(str) RESULT(ret)
@@ -73,7 +73,7 @@ MODULE string_mod
                 ret(i:i) = ACHAR(IACHAR(str(i:i))+32)
             ELSE
                 ret(i:i) = str(i:i)
-            END IF
-        END DO
+            ENDIF
+        ENDDO
     END FUNCTION tolower
 END MODULE string_mod

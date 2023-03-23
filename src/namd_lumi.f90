@@ -118,7 +118,7 @@ PROGRAM namd_lumi_x
                     CALL input_from_file(inp, TRIM(inpname), llog=.FALSE.)
                 ELSE
                     CALL input_from_file(inp, llog=.FALSE.)
-                END IF
-            END IF
+                ENDIF
+            ENDIF
         END SUBROUTINE cli_parse
 END PROGRAM namd_lumi_x

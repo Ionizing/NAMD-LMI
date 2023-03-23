@@ -74,22 +74,22 @@ MODULE hamiltonian_mod
         IF (namdinit <= 0 .OR. namdtime <= 1) THEN
             WRITE(STDERR, '("[ERROR] Invalid namdinit or namdtime used: ", I5, 2X, I5, 2X, A)') namdinit, namdtime, AT
             STOP ERROR_HAMIL_TINDEXWRONG
-        END IF
+        ENDIF
 
         IF (inispin < 1 .OR. inispin > nac_dat%nspin) THEN
             WRITE(STDERR, '("[ERROR] Invalid inispin used: ", I2, " , expected [1, ", I2, "]", 2X, A)') inispin, nac_dat%nspin, AT
             STOP ERROR_HAMIL_RANGEWRONG
-        END IF
+        ENDIF
 
         IF (dt <= 0.01) THEN
             WRITE(STDERR, '("[ERROR] Invalid dt: ", F6.3, 2X, A)') dt, AT
             STOP ERROR_HAMIL_DTWRONG
-        END IF
+        ENDIF
 
         IF (nelm <= 0) THEN
             WRITE(STDERR, '("[ERROR] Invalid nelm: ", I6, 2X, A)') nelm, AT
             STOP ERROR_HAMIL_NELMWRONG
-        END IF
+        ENDIF
 
 
         !! construct hamiltonian
@@ -99,13 +99,13 @@ MODULE hamiltonian_mod
             nb(1) = 0
         ELSE
             nb(1) = basis_up(2) - basis_up(1) + 1
-        END IF
+        ENDIF
 
         IF (ANY(basis_dn == 0)) THEN
             nb(2) = 0
         ELSE
             nb(2) = basis_dn(2) - basis_dn(1) + 1
-        END IF
+        ENDIF
 
         IF (nb(1) /= 0) THEN
             IF (nb(1) < 0 .OR. nb(1) > nac_dat%nbrange .OR. &
@@ -113,8 +113,8 @@ MODULE hamiltonian_mod
                 WRITE(STDERR, '("[ERROR] Invalid basis range: basis_up = (", 2I5, ")")') basis_up
                 WRITE(STDERR, '(8X, "Valid range should be: (", 2I5, ")", 2X, A)') nac_dat%brange, AT
                 STOP ERROR_INPUT_RANGEWRONG
-            END IF
-        END IF
+            ENDIF
+        ENDIF
 
         IF (nb(2) /= 0) THEN
             IF (nb(2) < 0 .OR. nb(2) > nac_dat%nbrange .OR. &
@@ -122,19 +122,19 @@ MODULE hamiltonian_mod
                 WRITE(STDERR, '("[ERROR] Invalid basis range: basis_dn = (", 2I5, ")")') basis_dn
                 WRITE(STDERR, '(8X, "Valid range should be: (", 2I5, ")", 2X, A)') nac_dat%brange, AT
                 STOP ERROR_INPUT_RANGEWRONG
-            END IF
-        END IF
+            ENDIF
+        ENDIF
 
         nbasis = SUM(nb)
         IF (nbasis <= 1) THEN
             WRITE(STDERR, '("[ERROR] At least two bands are required to construct Hamiltonian, selected: ", I5, 2X, A)') nbasis, AT
             STOP ERROR_HAMIL_BASISSHORT
-        END IF
+        ENDIF
 
         IF (temperature <= 0.0) THEN
             WRITE(STDERR, '("[ERROR] Invalid temperature: ", F8.2, " Kelvin ", A)') temperature, AT
             STOP ERROR_HAMIL_TEMPWRONG
-        END IF
+        ENDIF
 
         hamil%basis_up = basis_up
         hamil%basis_dn = basis_dn
@@ -204,7 +204,7 @@ MODULE hamiltonian_mod
 
             hamil%tdm_t(:,       1:nb(1)      ,       1:nb(1)      , :) = nac_dat%tdms(:, bup(1):bup(2), bup(1):bup(2), 1, :)
             hamil%tdm_t(:, nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%tdms(:, bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
-        END IF
+        ENDIF
 
         hamil%nac_t = hamil%nac_t * (-IMGUNIT * HBAR / (2.0 * hamil%dt))
         hamil%eig_t = hamil%eig_t - nac_dat%efermi
@@ -362,7 +362,7 @@ MODULE hamiltonian_mod
         IF (ABS(norm-1) > 1E-3) THEN
             WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved: ", F9.6)') norm
             STOP ERROR_HAMIL_PROPFAIL
-        END IF
+        ENDIF
 
         IF (iion == hamil%namdtime - 1) THEN
             hamil%pop_t(:, hamil%namdtime)  = normsquare(hamil%psi_c(:))
@@ -383,7 +383,7 @@ MODULE hamiltonian_mod
                     hamil%psi_n = hamil%psi_c - IMGUNIT * edt * hamil%psi_h / HBAR
                 ELSE
                     hamil%psi_n = hamil%psi_p - 2 * IMGUNIT * edt * hamil%psi_h / HBAR
-                END IF
+                ENDIF
 
                 hamil%psi_p = hamil%psi_c
                 hamil%psi_c = hamil%psi_n
@@ -450,7 +450,7 @@ MODULE hamiltonian_mod
                 ELSE IF (INFO_ > 0) THEN
                     WRITE(STDERR, '("[ERROR] ZHEEV failed. ", A)') AT
                     STOP ERROR_HAMIL_DIAGFAIL
-                END IF
+                ENDIF
 
                 !! H(:,i) are the eigen vectorss, E contains the eigen values
                 FORALL(i=1:nbasis) EXPH(:,i) = H(:,i) * EXP(E(i) * IMGUNIT)     !< EXPH = P*\Lambda
@@ -579,7 +579,7 @@ MODULE hamiltonian_mod
         ELSE
             nbup = bup(2) - bup(1) + 1
             ret = iniband - bdn(1) + 1 + nbup
-        END IF
+        ENDIF
     END FUNCTION iniband_index_convert_
 
 

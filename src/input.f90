@@ -74,14 +74,14 @@ MODULE input_mod
             IF (ios /= 0) THEN
                 WRITE(STDERR, '("[ERROR] Open file ", A, " failed. ", A)') fname, AT
                 STOP ERROR_INPUT_OPEN_FAILED
-            END IF
+            ENDIF
             CALL input_from_iu_(iu, inp)
             CLOSE(iu)
         ELSE
             IF (llog_) WRITE(STDOUT, '("[INFO] Reading input file from stdin ...")')
             WRITE(STDOUT, '("[INFO] Waiting for input ...")')
             CALL input_from_iu_(STDIN, inp)
-        END IF
+        ENDIF
 
         IF (llog_) WRITE(STDOUT, '("[INFO] Input file read successfully.")')
 
@@ -105,12 +105,12 @@ MODULE input_mod
             IF (ios /= 0) THEN
                 WRITE(STDERR, '("[ERROR] Open file ", A, " failed. ", A)') fname, AT
                 STOP ERROR_INPUT_OPEN_FAILED
-            END IF
+            ENDIF
             CALL input_to_iu_(iu, inp)
             CLOSE(iu)
         ELSE
             CALL input_to_iu_(STDOUT, inp)
-        END IF
+        ENDIF
 
     END SUBROUTINE input_to_file
 
@@ -145,7 +145,7 @@ MODULE input_mod
         IF (nsw <= 10) THEN
             WRITE(STDERR, '("[ERROR] NSW too small: ", I6, " ", A)') nsw, AT
             STOP ERROR_INPUT_EXAMPLEERR
-        END IF
+        ENDIF
 
         ALLOCATE(inp%inibands(nsample))
         ALLOCATE(inp%inispins(nsample))
@@ -164,7 +164,7 @@ MODULE input_mod
         INQUIRE(FILE=fname, EXIST=lexist)
         IF (lexist) THEN
             WRITE(STDOUT, '("[WARN] The file ", A, " exists and will be OVERWRITTEN.")') '"' // fname // '"'
-        END IF
+        ENDIF
 
         CALL input_to_file(inp, fname)
 
@@ -320,20 +320,20 @@ MODULE input_mod
         IF (brange(1) <= 0 .OR. brange(1) >= brange(2)) THEN
             WRITE(STDERR, '("[ERROR] Invalid BRANGE: ", 2I5, " ", A)') brange, AT
             STOP ERROR_INPUT_RANGEWRONG
-        END IF
+        ENDIF
         nbrange = brange(2) - brange(1) + 1
 
         IF (ANY(basis_up == 0)) THEN
             nb(1) = 0
         ELSE
             nb(1) = basis_up(2) - basis_up(1) + 1
-        END IF
+        ENDIF
 
         IF (ANY(basis_dn == 0)) THEN
             nb(2) = 0
         ELSE
             nb(2) = basis_dn(2) - basis_dn(1) + 1
-        END IF
+        ENDIF
 
         IF (nb(1) /= 0) THEN
             IF (nb(1) < 0 .OR. nb(1) > nbrange .OR. &
@@ -341,8 +341,8 @@ MODULE input_mod
                 WRITE(STDERR, '("[ERROR] Invalid basis range: BASIS_UP = (", 2I5, ")")') basis_up
                 WRITE(STDERR, '(8X, "valid range should be: (", 2I5, ")", 2X, A)') brange, AT
                 STOP ERROR_INPUT_RANGEWRONG
-            END IF
-        END IF
+            ENDIF
+        ENDIF
 
         IF (nb(2) /= 0) THEN
             IF (nb(2) < 0 .OR. nb(2) > nbrange .OR. &
@@ -350,29 +350,29 @@ MODULE input_mod
                 WRITE(STDERR, '("[ERROR] Invalid basis range: BASIS_DN = (", 2I5, ")")') basis_dn
                 WRITE(STDERR, '(8X, "valid range should be: (", 2I5, ")", 2X, A)') brange, AT
                 STOP ERROR_INPUT_RANGEWRONG
-            END IF
-        END IF
+            ENDIF
+        ENDIF
 
         nbasis = SUM(nb)
         IF (nbasis <= 1) THEN
             WRITE(STDERR, '("[ERROR] At least two bands are required to construct Hamiltonian, selected: ", I5, 2X, A)') nbasis, AT
             STOP ERROR_INPUT_RANGEWRONG
-        END IF
+        ENDIF
 
         IF (dt <= 0) THEN
             WRITE(STDERR, '("[ERROR] Invalid BRANGE: ", F8.3, " ", A)') dt, AT
             STOP ERROR_INPUT_DTWRONG
-        END IF
+        ENDIF
 
         IF (nsample < 1) THEN
             WRITE(STDERR, '("[ERROR] Invalid NSAMPLE: ", I8, " ", A)') nsample, AT
             STOP ERROR_INPUT_RANGEWRONG
-        END IF
+        ENDIF
 
         IF (ntraj < 1) THEN
             WRITE(STDERR, '("[ERROR] Invalid NTRAJ: ", I8, " ", A)') ntraj, AT
             STOP ERROR_INPUT_RANGEWRONG
-        END IF
+        ENDIF
 
         propmethod = toupper(propmethod)
         SELECT CASE (propmethod)
@@ -384,7 +384,7 @@ MODULE input_mod
                 IF (.NOT. lreal) THEN
                     WRITE(STDERR, '("[ERROR] This method requires NAC to be totally real, consider use LREAL=.TRUE. or use other PROPMETHOD")')
                     STOP ERROR_INPUT_METHODERR
-                END IF
+                ENDIF
                 CONTINUE
             CASE DEFAULT
                 WRITE(STDERR, '("[ERROR] Invalid PROPMETHOD: ", A, ", available: FINITE-DIFFERENCE, EXACT, LIOUVILLE-TROTTER ", A)') TRIM(propmethod), AT
@@ -422,7 +422,7 @@ MODULE input_mod
         IF (temperature <= 0.0) THEN
             WRITE(STDERR, '("[ERROR] Invalid TEMPERATURE from input file: ", F8.2, " Kelvin")') temperature
             STOP ERROR_INPUT_RANGEWRONG
-        END IF
+        ENDIF
 
         IF (scissor < 0.0) THEN
             WRITE(STDERR, '("[ERROR] Negative SCISSOR from input file: ", F8.2, " eV")') scissor
