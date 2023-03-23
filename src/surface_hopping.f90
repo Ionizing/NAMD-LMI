@@ -11,6 +11,7 @@ MODULE surface_hopping_mod
         CHARACTER(len=32)    :: shmethod
         CHARACTER(len=32)    :: propmethod
         INTEGER              :: ntraj
+        LOGICAL              :: lexcitation
         REAL(q), ALLOCATABLE :: sh_prob(:, :, :)   !< cumulated surface hopping probability, 
                                                    !< sh_prob[i]-sh_prob[i-1] is the real probability, [nbasis, nbasis, namdtime]
         REAL(q), ALLOCATABLE :: sh_pops(:, :)      !< population after surface hopping, [nbasis, namdtime]
@@ -25,15 +26,17 @@ MODULE surface_hopping_mod
     CONTAINS
 
 
-    SUBROUTINE surface_hopping_init(sh, hamil, propmethod, shmethod, ntraj)
+    SUBROUTINE surface_hopping_init(sh, hamil, propmethod, shmethod, ntraj, lexcitation)
         TYPE(surface_hopping), INTENT(inout) :: sh
         TYPE(hamiltonian), INTENT(in)        :: hamil
         CHARACTER(LEN=*), INTENT(in)         :: propmethod
         CHARACTER(LEN=*), INTENT(in)         :: shmethod
         INTEGER, INTENT(in)                  :: ntraj
+        LOGICAL, INTENT(in)                  :: lexcitation
 
         !! logic starts
         sh%ntraj        = ntraj
+        sh%lexcitation  = lexcitation
         sh%propmethod   = toupper(propmethod)
         sh%shmethod     = toupper(shmethod)
 
@@ -62,7 +65,7 @@ MODULE surface_hopping_mod
         TYPE(hamiltonian), INTENT(in)        :: hamil
         TYPE(input), INTENT(in)              :: inp
 
-        CALL surface_hopping_init(sh, hamil, inp%propmethod, inp%shmethod, inp%ntraj)
+        CALL surface_hopping_init(sh, hamil, inp%propmethod, inp%shmethod, inp%ntraj, inp%lexcitation)
     END SUBROUTINE surface_hopping_init_with_input
 
     
@@ -211,14 +214,19 @@ MODULE surface_hopping_mod
         IF (.NOT. ALLOCATED(prob))              ALLOCATE(prob(hamil%nbasis))
         IF (.NOT. ALLOCATED(dE))                ALLOCATE(dE(hamil%nbasis))
 
-        rho_jj  = normsquare(hamil%psi_t(istate, iion))
-        rhod_jk = REALPART(CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime))  !< Re(rho_jk * d_jk)
+        rho_jj     = normsquare(hamil%psi_t(istate, iion))      !< |phi_|^2
+        rhod_jk(:) = REALPART( &                                !< Re(rho_jk * d_jk)
+            CONJG(hamil%psi_t(istate, iion)) * hamil%psi_t(:, iion) * hamil%nac_t(istate, :, rtime) &
+            )
+        prob(:)    = 2 * rhod_jk(:) * hamil%dt / rho_jj         !< P_jk = 2 * Re(rho_jk * d_jk) * dt / rho_jj
 
-        !< Boltzmann factor only works for upward hoppings, i.e. dE < 0
-        FORALL (i=1:hamil%nbasis) dE(i) = MIN(0.0_q, hamil%eig_t(istate, rtime) - hamil%eig_t(i, rtime))
-        thermal_factor = EXP(dE / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
-        prob = 2 * rhod_jk * hamil%dt / rho_jj                  !< P_jk_ = 2 * Re(rho_jk * d_jk) * dt / rho_jj
-        prob = prob * thermal_factor
+        !< If excitation process is not allowed
+        IF (.NOT. sh%lexcitation) THEN
+            !< Boltzmann factor only works for upward hoppings, i.e. dE < 0
+            FORALL (i=1:hamil%nbasis) dE(i) = MIN(0.0_q, hamil%eig_t(istate, rtime) - hamil%eig_t(i, rtime))
+            thermal_factor(:) = EXP(dE(:) / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
+            prob = prob * thermal_factor
+        ENDIF
 
         FORALL (i=1:hamil%nbasis, prob(i) < 0) prob(i) = 0.0  !! P_jk = max(P_jk_, 0)
 
@@ -654,10 +662,10 @@ MODULE surface_hopping_mod
 
         popBoltz = normsquare(hamil%psi_c(which)) ! REALPART( CONJG(hamil%psi_c(which)) * hamil%psi_c(which) )
 
-        dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, xtime)) - &
-              (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, xtime))) / 2.0_q
-
-        IF (dE > 0.0_q) THEN
+        !< If excitation process is not allowed
+        IF ((.NOT. sh%lexcitation) .AND. dE > 0.0_q) THEN
+            dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, xtime)) - &
+                  (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, xtime))) / 2.0_q
             popBoltz = popBoltz * EXP(-dE / kbT)
         ENDIF
 
