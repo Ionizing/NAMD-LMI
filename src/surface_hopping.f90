@@ -662,10 +662,10 @@ MODULE surface_hopping_mod
 
         popBoltz = normsquare(hamil%psi_c(which)) ! REALPART( CONJG(hamil%psi_c(which)) * hamil%psi_c(which) )
 
+        dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, xtime)) - &
+              (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, xtime))) / 2.0_q
         !< If excitation process is not allowed
         IF ((.NOT. sh%lexcitation) .AND. dE > 0.0_q) THEN
-            dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, xtime)) - &
-                  (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, xtime))) / 2.0_q
             popBoltz = popBoltz * EXP(-dE / kbT)
         ENDIF
 
