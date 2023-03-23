@@ -216,7 +216,7 @@ MODULE hamiltonian_mod
         FORALL(iband=1:hamil%nbasis, istep=1:(hamil%nsw-1), hamil%eig_t(iband, istep)>0) &
                 hamil%eig_t(iband, istep) = hamil%eig_t(iband, istep) + scissor
 
-        hamil%efield = efield * 1E-9
+        hamil%efield = efield !* 1E-9
     END SUBROUTINE hamiltonian_init
 
 
@@ -512,7 +512,7 @@ MODULE hamiltonian_mod
 
         !! local variables
         INTEGER :: ierr
-        INTEGER(HSIZE_T) :: nac_dims(3), eigs_dims(2), tdm_dims(4)
+        INTEGER(HSIZE_T) :: nac_dims(3), eigs_dims(2), tdm_dims(4), efield_dims(2)
         INTEGER(HID_T)   :: file_id, dspace_id, dset_id
         
         IF (PRESENT(llog)) THEN
@@ -553,6 +553,15 @@ MODULE hamiltonian_mod
                 CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(hamil%tdm_t), tdm_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
             CALL H5SCLOSE_F(dspace_id, ierr)
+
+            IF (0 /= hamil%efield_len) THEN
+                efield_dims = [3, hamil%efield_len]
+                CALL H5SCREATE_SIMPLE_F(2, efield_dims, dspace_id, ierr)
+                    CALL H5DCREATE_F(file_id, "efield", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                    CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, hamil%efield, efield_dims, ierr)
+                    CALL H5DCLOSE_F(dset_id, ierr)
+                CALL H5SCLOSE_F(dspace_id, ierr)
+            ENDIF
         CALL H5FCLOSE_F(file_id, ierr)
         CALL H5CLOSE_F(ierr)
     END SUBROUTINE hamiltonian_save_to_h5

@@ -13,4 +13,4 @@ This is my Fortran project!
 - [ ] Test for smaller time step - WIP
 - [X] Optimize `propagate` subroutine
 - [X] Phase correction for couplings
-- [ ] Optional duration of `EFIELD`
+- [X] Optional duration of `EFIELD`
