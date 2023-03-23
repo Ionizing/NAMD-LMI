@@ -1,7 +1,7 @@
 include ../make.inc
 
 SRCS = $(filter-out namd_lumi.f90,$(wildcard *.f90))
-OBJS = $(filter-out lib.o,$(SRCS:.f90=.o))
+OBJS = $(filter-out lib.o,$(SRCS:.f90=.o)) scripts.o
 LIB = libnamd.a
 LIBEXTERNAL = ../external/libexternal.a
 
@@ -24,6 +24,9 @@ hamiltonian.o: string.o nac.o wavecar.o common.o
 input.o: string.o
 
 surface_hopping.o: common.o string.o hamiltonian.o input.o nac.o
+
+scripts.o: scripts.c
+	$(CC) -c $< $(CFLAGS)
 
 clean:
 	rm -f *.x *.o *.mod *.a

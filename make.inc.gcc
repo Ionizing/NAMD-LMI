@@ -1,3 +1,6 @@
+CC          ?= gcc
+CFLAGS      ?= -std=c99 -g -O3 -fPIC -Wall -Wextra
+
 MPIF90      ?= mpif90
 INCLUDE     ?=
 F90FLAGS    ?=

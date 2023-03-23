@@ -109,6 +109,8 @@ PROGRAM namd_lumi_x
                 CALL cla_get('-w', inp_example_nsw)
                 CALL cla_get('-s', inp_example_nsample)
                 CALL input_example(inp_example_nsw, inp_example_nsample, TRIM(inp_example_fname))
+                CALL print_scripts_gen_efield()
+                CALL print_scripts_plot()
 
                 CALL MPI_FINALIZE(ierr)
                 STOP
