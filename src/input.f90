@@ -27,6 +27,8 @@ MODULE input_mod
         INTEGER         :: nelm         = 1
         LOGICAL         :: lreal        = .FALSE.   !! Use real NAC or not
         LOGICAL         :: lprint_input = .TRUE.    !! Print the input to log or not
+        LOGICAL         :: lexcitation  = .FALSE.   !! Allow excitation process.
+                                                    !! i.e. remove detailed balance factor in surface hopping when EFIELD /= 0
         CHARACTER(256)  :: fname        = "NAC.h5"  !! file name for saving NAC data
 
         REAL(q)         :: temperature  = 300.0     !! NAMD temperature, in Kelvin
@@ -58,11 +60,16 @@ MODULE input_mod
 
         INTEGER, PARAMETER :: iu = 114
         INTEGER :: ios
+        LOGICAL :: llog_
+
+        IF (PRESENT(llog)) THEN
+            llog_ = llog
+        ELSE
+            llog_ = .FALSE.
+        ENDIF
 
         IF (PRESENT(fname)) THEN
-            IF (PRESENT(llog)) THEN
-                IF (llog) WRITE(STDOUT, '("[INFO] Reading input file from ", A, " ...")') '"' // fname // '"'
-            END IF
+            IF (llog_) WRITE(STDOUT, '("[INFO] Reading input file from ", A, " ...")') '"' // fname // '"'
             OPEN(UNIT=iu, FILE=fname, IOSTAT=ios, STATUS="old", ACTION="read")
             IF (ios /= 0) THEN
                 WRITE(STDERR, '("[ERROR] Open file ", A, " failed. ", A)') fname, AT
@@ -71,15 +78,15 @@ MODULE input_mod
             CALL input_from_iu_(iu, inp)
             CLOSE(iu)
         ELSE
-            IF (PRESENT(llog)) THEN
-                IF (llog) WRITE(STDOUT, '("[INFO] Reading input file from stdin ...")')
-                WRITE(STDOUT, '("[INFO] Waiting for input ...")')
-            END IF
+            IF (llog_) WRITE(STDOUT, '("[INFO] Reading input file from stdin ...")')
+            WRITE(STDOUT, '("[INFO] Waiting for input ...")')
             CALL input_from_iu_(STDIN, inp)
         END IF
 
+        IF (llog_) WRITE(STDOUT, '("[INFO] Input file read successfully.")')
+
         IF (inp%lprint_input) THEN
-            WRITE(STDOUT, '("[INFO] Input file read successfully, with content of", /, /)')
+            WRITE(STDOUT, '("[INFO] The content of input is", /, /)')
             CALL input_to_iu_(STDOUT, inp)
             WRITE(STDOUT, '(/)')
         ENDIF
@@ -193,6 +200,7 @@ MODULE input_mod
         CALL MPI_BCAST(inp%nelm,      1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%lreal,     1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%lprint_input, 1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%lexcitation,  1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%fname,   256, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%temperature, 1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%scissor,   1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
@@ -235,6 +243,7 @@ MODULE input_mod
         INTEGER :: nelm
         LOGICAL :: lreal
         LOGICAL :: lprint_input
+        LOGICAL :: lexcitation
         CHARACTER(256)  :: fname
         REAL(q) :: temperature
         REAL(q) :: scissor
@@ -262,6 +271,7 @@ MODULE input_mod
                               shmethod, &
                               lreal,    &
                               lprint_input, &
+                              lexcitation, &
                               nelm,     &
                               fname,    &
                               temperature, &
@@ -279,29 +289,30 @@ MODULE input_mod
         INTEGER :: nbrange
         INTEGER :: nbasis
 
-        !! Default values for namdparams
-        rundir       = "../run"
-        wavetype     = "STD"
-        ikpoint      = 1
-        brange       = [0, 0]
-        basis_up     = [0, 0]
-        basis_dn     = [0, 0]
-        nsw          = 0
-        ndigit       = 4
-        namdtime     = 1000
-        dt           = 1.0
-        nsample      = 100
-        ntraj        = 10000
-        propmethod   = "EXACT"
-        shmethod     = "FSSH"
-        nelm         = 1
-        lreal        = .FALSE.
-        lprint_input = .TRUE.
-        fname        = "nac.h5"
-        temperature  = 300.0
-        scissor      = 0.0
-        efield_len   = 0
-        efield_lcycle = .FALSE.
+        !! Default values for namdparams, follow the declaration in TYPE :: input ... END TYPE
+        rundir        = inp%rundir
+        wavetype      = inp%wavetype
+        ikpoint       = inp%ikpoint
+        brange        = inp%brange
+        basis_up      = inp%basis_up
+        basis_dn      = inp%basis_dn
+        nsw           = inp%nsw
+        ndigit        = inp%ndigit
+        namdtime      = inp%namdtime
+        dt            = inp%dt
+        nsample       = inp%nsample
+        ntraj         = inp%ntraj
+        propmethod    = inp%propmethod
+        shmethod      = inp%shmethod
+        nelm          = inp%nelm
+        lreal         = inp%lreal
+        lprint_input  = inp%lprint_input
+        lexcitation   = inp%lexcitation
+        fname         = inp%fname
+        temperature   = inp%temperature
+        scissor       = inp%scissor
+        efield_len    = inp%efield_len
+        efield_lcycle = inp%efield_lcycle
 
         READ(iu, NML=namdparams)
 
@@ -443,6 +454,7 @@ MODULE input_mod
         inp%nelm         = nelm
         inp%lreal        = lreal
         inp%lprint_input = lprint_input
+        inp%lexcitation  = lexcitation
         inp%fname        = fname
         inp%temperature  = temperature
         inp%scissor      = scissor
@@ -514,6 +526,7 @@ MODULE input_mod
         WRITE(iu, '(1X, A12, " = ",  I10, ",")') "NELM", inp%nelm
         WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LREAL",     inp%lreal,  "Use real NAC or not"
         WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LPRINT_INPUT",  inp%lprint_input,  "Print all input or not"
+        WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LEXCITATION",   inp%lexcitation,   "Allow excitation process or not"
 
         WRITE(iu, '()')
         WRITE(iu, '(4X, A)') '!! the method used for surface hoppint, available: "FSSH", "DCSH", "DISH"'
