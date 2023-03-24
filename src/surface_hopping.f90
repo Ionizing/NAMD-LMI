@@ -201,6 +201,7 @@ MODULE surface_hopping_mod
         INTEGER :: i
         INTEGER :: rtime
         REAL(q) :: rho_jj
+        REAL(q) :: efield_norm
         REAL(q), ALLOCATABLE, SAVE :: thermal_factor(:)     !< use SAVE attribute to avoid repetitive allocations
         REAL(q), ALLOCATABLE, SAVE :: rhod_jk(:)
         REAL(q), ALLOCATABLE, SAVE :: prob(:)
@@ -220,9 +221,10 @@ MODULE surface_hopping_mod
             )
         prob(:)    = 2 * rhod_jk(:) * hamil%dt / rho_jj         !< P_jk = 2 * Re(rho_jk * d_jk) * dt / rho_jj
 
+        efield_norm = SUM(ABS(get_efield(hamil, iion)))
+
         !< If excitation process is not allowed
-        IF (.NOT. sh%lexcitation .OR. &
-            SUM(ABS(hamil%efield(:, iion))) < EPS) THEN
+        IF (.NOT. sh%lexcitation .OR. efield_norm < EPS) THEN
             !< Boltzmann factor only works for upward hoppings, i.e. dE < 0
             FORALL (i=1:hamil%nbasis) dE(i) = MIN(0.0_q, hamil%eig_t(istate, rtime) - hamil%eig_t(i, rtime))
             thermal_factor(:) = EXP(dE(:) / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
@@ -652,6 +654,7 @@ MODULE surface_hopping_mod
         REAL(q) :: rand, dE, kbT
         REAL(q) :: popBoltz
         REAL(q) :: normq
+        REAL(q) :: efield_norm
         INTEGER :: rtime, xtime
 
         !! logic starts
@@ -666,8 +669,10 @@ MODULE surface_hopping_mod
         dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, xtime)) - &
               (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, xtime))) / 2.0_q
 
+        efield_norm = SUM(ABS(get_efield(hamil, iion)))
+
         !< If excitation process is not allowed
-        IF ((.NOT. sh%lexcitation .OR. SUM(ABS(hamil%efield(:, iion))) < EPS) &
+        IF ((.NOT. sh%lexcitation .OR. efield_norm < EPS) &
              .AND. dE > 0.0_q) THEN
             popBoltz = popBoltz * EXP(-dE / kbT)
         ENDIF

@@ -4,7 +4,7 @@ CFLAGS      ?= -std=c99 -g -O3 -fPIC -Wall -Wextra
 MPIF90      ?= mpif90
 INCLUDE     ?=
 F90FLAGS    ?=
-F90FLAGS    += -g -O3 -fPIC -Wall -Wextra -pedantic -Wuninitialized \
+F90FLAGS    += -g -O3 -fPIC -Wall -Wextra -pedantic -Wuninitialized -fcheck=all \
                -Wno-unused-parameter -cpp -ffree-form  -ffree-line-length-none \
                -funroll-all-loops -fbacktrace
 

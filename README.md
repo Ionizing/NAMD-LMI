@@ -9,7 +9,7 @@ This is my Fortran project!
 
 - [X] Add optical feild
 - [ ] Add decoherence - WIP, DISH finished
-- [ ] Test for remove detailed balance factor - TODO
+- [X] Test for remove detailed balance factor
 - [ ] Test for smaller time step - WIP
 - [X] Optimize `propagate` subroutine
 - [X] Phase correction for couplings
