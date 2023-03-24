@@ -49,7 +49,7 @@ MODULE surface_hopping_mod
             sh%dish_recomb(:, :) = 0
         ENDIF
 
-        IF (sh%propmethod == "LIOUVILLE-TROTTER" .AND. ANY(ABS(REALPART(hamil%nac_t)) > 1E-9)) THEN
+        IF (sh%propmethod == "LIOUVILLE-TROTTER" .AND. ANY(ABS(REALPART(hamil%nac_t)) > EPS)) THEN
             WRITE(STDERR, '("[ERROR] A real NAC is required to use Liouville-Trotter propagation scheme, please check NAC or PROPMETHOD.")')
             STOP ERROR_HAMIL_PROPMETHOD
         ENDIF
@@ -221,7 +221,8 @@ MODULE surface_hopping_mod
         prob(:)    = 2 * rhod_jk(:) * hamil%dt / rho_jj         !< P_jk = 2 * Re(rho_jk * d_jk) * dt / rho_jj
 
         !< If excitation process is not allowed
-        IF (.NOT. sh%lexcitation) THEN
+        IF (.NOT. sh%lexcitation .OR. &
+            SUM(ABS(hamil%efield(:, iion))) < EPS) THEN
             !< Boltzmann factor only works for upward hoppings, i.e. dE < 0
             FORALL (i=1:hamil%nbasis) dE(i) = MIN(0.0_q, hamil%eig_t(istate, rtime) - hamil%eig_t(i, rtime))
             thermal_factor(:) = EXP(dE(:) / (BOLKEV*hamil%temperature))   !< exp(-dE/kbT)
@@ -664,8 +665,10 @@ MODULE surface_hopping_mod
 
         dE = ((hamil%eig_t(which, rtime) + hamil%eig_t(which, xtime)) - &
               (hamil%eig_t(cstat, rtime) + hamil%eig_t(cstat, xtime))) / 2.0_q
+
         !< If excitation process is not allowed
-        IF ((.NOT. sh%lexcitation) .AND. dE > 0.0_q) THEN
+        IF ((.NOT. sh%lexcitation .OR. SUM(ABS(hamil%efield(:, iion))) < EPS) &
+             .AND. dE > 0.0_q) THEN
             popBoltz = popBoltz * EXP(-dE / kbT)
         ENDIF
 

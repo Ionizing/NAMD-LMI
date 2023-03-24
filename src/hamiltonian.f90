@@ -216,7 +216,7 @@ MODULE hamiltonian_mod
         FORALL(iband=1:hamil%nbasis, istep=1:(hamil%nsw-1), hamil%eig_t(iband, istep)>0) &
                 hamil%eig_t(iband, istep) = hamil%eig_t(iband, istep) + scissor
 
-        hamil%efield = efield !* 1E-9
+        hamil%efield = efield
     END SUBROUTINE hamiltonian_init
 
 
@@ -359,7 +359,7 @@ MODULE hamiltonian_mod
         END SELECT
 
         norm = SUM(normsquare(hamil%psi_c(:)))
-        IF (ABS(norm-1) > 1E-3) THEN
+        IF (ABS(norm-1) > EPS_PROPAGATION) THEN
             WRITE(STDERR, '("[ERROR] Propagation failed: norm not conserved: ", F9.6)') norm
             STOP ERROR_HAMIL_PROPFAIL
         ENDIF

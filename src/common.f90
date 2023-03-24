@@ -9,7 +9,8 @@ MODULE common_mod
 
     !> Float number difference tolerance,
     !! may be useful in float number comparisions.
-    REAL(q), PARAMETER :: EPS = 1.0d-10
+    REAL(q), PARAMETER :: EPS             = 1.0d-10             !< Threshold
+    REAL(q), PARAMETER :: EPS_PROPAGATION = 1.0d-3              !< Threshold for propagation
 
     !! Some constants
     COMPLEX(q), PARAMETER :: IMGUNIT    = (0.0_q, 1.0_q)        !< Imaginary unit
