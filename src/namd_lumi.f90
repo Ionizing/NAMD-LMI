@@ -61,7 +61,7 @@ PROGRAM namd_lumi_x
     CALL surface_hopping_run_mpi(nac_dat, inp)
     CALL nac_destroy(nac_dat)
 
-    CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+    !CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
     CALL SYSTEM_CLOCK(timing_end, timing_rate)
     IF (irank == MPI_ROOT_NODE) THEN
@@ -81,6 +81,7 @@ PROGRAM namd_lumi_x
             CHARACTER(STRLEN)   :: inp_example_fname
             INTEGER             :: inp_example_nsw
             INTEGER             :: inp_example_nsample
+            INTEGER             :: inp_example_efield_len
 
             CALL GETARG(0, progname)
 
@@ -101,6 +102,9 @@ PROGRAM namd_lumi_x
                 CALL cla_register(key='-s', longkey='--nsample', &
                                   description='NSAMPLE for input file, only valid for generating example input', &
                                   kkind=cla_int, default='10')
+                CALL cla_register(key='-l', longkey='--efield_len', &
+                                  description='EFIELD_LEN for input file, only valid for generating example input', &
+                                  kkind=cla_int, default='10')
 
             CALL cla_validate(TRIM(progname))
 
@@ -108,7 +112,8 @@ PROGRAM namd_lumi_x
                 CALL cla_get('-f', inp_example_fname)
                 CALL cla_get('-w', inp_example_nsw)
                 CALL cla_get('-s', inp_example_nsample)
-                CALL input_example(inp_example_nsw, inp_example_nsample, TRIM(inp_example_fname))
+                CALL cla_get('-l', inp_example_efield_len)
+                CALL input_example(inp_example_nsw, inp_example_nsample, inp_example_efield_len, TRIM(inp_example_fname))
                 !CALL print_scripts_gen_efield()
                 !CALL print_scripts_plot()
 

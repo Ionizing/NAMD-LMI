@@ -125,9 +125,10 @@ MODULE input_mod
     END SUBROUTINE input_destroy
 
 
-    SUBROUTINE input_example(nsw, nsample, fname)
+    SUBROUTINE input_example(nsw, nsample, efield_len, fname)
         INTEGER, INTENT(in) :: nsw
         INTEGER, INTENT(in) :: nsample
+        INTEGER, INTENT(in) :: efield_len
         CHARACTER(*), INTENT(in)    :: fname
 
         !! local variables
@@ -139,8 +140,9 @@ MODULE input_mod
         !! logic starts
         WRITE(STDOUT, '("[INFO] Generating example input file with NSW = ", I5, ", NSAMPLE = ", I5, " ...")') nsw, nsample
 
-        inp%nsw      = nsw
-        inp%nsample  = nsample
+        inp%nsw        = nsw
+        inp%nsample    = nsample
+        inp%efield_len = efield_len
 
         IF (nsw <= 10) THEN
             WRITE(STDERR, '("[ERROR] NSW too small: ", I6, " ", A)') nsw, AT
@@ -150,7 +152,7 @@ MODULE input_mod
         ALLOCATE(inp%inibands(nsample))
         ALLOCATE(inp%inispins(nsample))
         ALLOCATE(inp%inisteps(nsample))
-        ALLOCATE(inp%efield(3, inp%namdtime))
+        ALLOCATE(inp%efield(3, efield_len))
 
         inp%inibands = 0
         inp%inispins = 1
@@ -546,17 +548,17 @@ MODULE input_mod
         !! inicon stuff
         WRITE(iu, '(A)') "&INICON"       ! Start
         WRITE(iu, '(4X, "!! Initial step indices for each sample, must be within [1, NSW-NAMDTIME-1].")')
-        WRITE(iu, '(4X, "INISTEPS(:) = ", *(I5))') inp%inisteps(:)
+        WRITE(iu, '(4X, "INISTEPS(:) = ", *(I6, ","))') inp%inisteps(:)
 
         WRITE(iu, '(/)', ADVANCE='no')
         WRITE(iu, '(4X, "!! Initial band indices for each sample, must be within the basis range.")')
         WRITE(iu, '(4X, "!! If all the inibands are same, INIBANDS(:) = 8*320 is also ok, where 8 is NSAMPLE and 320 is INIBAND")')
-        WRITE(iu, '(4X, "INIBANDS(:) = ", *(I5))') inp%inibands(:)
+        WRITE(iu, '(4X, "INIBANDS(:) = ", *(I6, ","))') inp%inibands(:)
 
         WRITE(iu, '(/)', ADVANCE='no')
         WRITE(iu, '(4X, "!! Initial spin indices for each sample, must be within [1, NSPIN]")')
         WRITE(iu, '(4X, "!! If all the inispins are same, INISPINS(:) = 8*1 is also ok, where 8 is NSAMPLE and 1 is INISPIN")')
-        WRITE(iu, '(4X, "INISPINS(:) = ", *(I5))') inp%inispins(:)
+        WRITE(iu, '(4X, "INISPINS(:) = ", *(I6, ","))') inp%inispins(:)
         WRITE(iu, '(A)') "/"             ! End
 
 
