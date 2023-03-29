@@ -548,17 +548,17 @@ MODULE input_mod
         !! inicon stuff
         WRITE(iu, '(A)') "&INICON"       ! Start
         WRITE(iu, '(4X, "!! Initial step indices for each sample, must be within [1, NSW-NAMDTIME-1].")')
-        WRITE(iu, '(4X, "INISTEPS(:) = ", *(I6, ","))') inp%inisteps(:)
+        WRITE(iu, '(4X, "INISTEPS(:) = ", *(I6, " "))') inp%inisteps(:)
 
         WRITE(iu, '(/)', ADVANCE='no')
         WRITE(iu, '(4X, "!! Initial band indices for each sample, must be within the basis range.")')
         WRITE(iu, '(4X, "!! If all the inibands are same, INIBANDS(:) = 8*320 is also ok, where 8 is NSAMPLE and 320 is INIBAND")')
-        WRITE(iu, '(4X, "INIBANDS(:) = ", *(I6, ","))') inp%inibands(:)
+        WRITE(iu, '(4X, "INIBANDS(:) = ", *(I6, " "))') inp%inibands(:)
 
         WRITE(iu, '(/)', ADVANCE='no')
         WRITE(iu, '(4X, "!! Initial spin indices for each sample, must be within [1, NSPIN]")')
         WRITE(iu, '(4X, "!! If all the inispins are same, INISPINS(:) = 8*1 is also ok, where 8 is NSAMPLE and 1 is INISPIN")')
-        WRITE(iu, '(4X, "INISPINS(:) = ", *(I6, ","))') inp%inispins(:)
+        WRITE(iu, '(4X, "INISPINS(:) = ", *(I6, " "))') inp%inispins(:)
         WRITE(iu, '(A)') "/"             ! End
 
 

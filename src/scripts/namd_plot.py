@@ -245,6 +245,7 @@ def plot_eigs_evol(inputfile: str = "input.nml", whichAtom = slice(None), spd = 
     fig.suptitle('Kohn-Sham Orbital Evolution')
     fig.tight_layout(pad=0.2)
     fig.savefig('ksen_wht.png', dpi=360)
+    print('ksen_wht.png written')
 
 
 def plot_spatloc(inputfile: str = "input.nml", whichAtom = slice(None), spd = slice(None)):
@@ -287,7 +288,7 @@ def plot_spatloc(inputfile: str = "input.nml", whichAtom = slice(None), spd = sl
                       lw=1.5,
                       alpha=0.6)
 
-    T, _ = np.mgrid[0:namdtime:dt, 0:nbasis]
+    T, _ = np.mgrid[0:(namdtime*dt):dt, 0:nbasis]
     kmap = ax.scatter(T, eigs_namd, c=psi_t,
                       cmap='Reds',
                       vmin=0,
@@ -304,12 +305,13 @@ def plot_spatloc(inputfile: str = "input.nml", whichAtom = slice(None), spd = sl
               framealpha=0.7,
               fontsize=9)
 
-    ax.set_xlim(0, namdtime)
+    ax.set_xlim(0, namdtime*dt)
     ax.set_xlabel('Time (fs)',   fontsize='small', labelpad=5)
     ax.set_ylabel('Energy (eV)', fontsize='small', labelpad=5)
 
     fig.tight_layout(pad=0.2)
     fig.savefig('prop.png', dpi=400)
+    print('prop.png written')
 
 
     plt.clf()
@@ -323,7 +325,7 @@ def plot_spatloc(inputfile: str = "input.nml", whichAtom = slice(None), spd = sl
                       lw=1.5,
                       alpha=0.6)
 
-    T, _ = np.mgrid[0:namdtime:dt, 0:nbasis]
+    T, _ = np.mgrid[0:(namdtime*dt):dt, 0:nbasis]
     kmap = ax.scatter(T, eigs_namd, c=shpops,
                       cmap='Reds',
                       vmin=0,
@@ -340,12 +342,13 @@ def plot_spatloc(inputfile: str = "input.nml", whichAtom = slice(None), spd = sl
               framealpha=0.7,
               fontsize=9)
 
-    ax.set_xlim(0, namdtime)
+    ax.set_xlim(0, namdtime*dt)
     ax.set_xlabel('Time (fs)',   fontsize='small', labelpad=5)
     ax.set_ylabel('Energy (eV)', fontsize='small', labelpad=5)
 
     fig.tight_layout(pad=0.2)
     fig.savefig('shpops.png', dpi=400)
+    print('shpops.png written')
 
 
 def plot_nac(fname="HAMIL.h5"):
@@ -380,6 +383,7 @@ def plot_nac(fname="HAMIL.h5"):
     ax2.set_ylabel('NAC (CBM $\\to$ VBM) (meV)')
     fig.tight_layout(pad=1.0)
     fig.savefig('tdnac.png', dpi=600)
+    print('tdnac.png written')
     plt.clf()
 
 
@@ -417,6 +421,7 @@ def plot_tdm(fname='HAMIL.h5'):
     ax2.set_ylabel('TDM (CBM $\\to$ VBM) (eÅ)')
     fig.tight_layout(pad=1.0)
     fig.savefig('tdtdm.png', dpi=600)
+    print('tdtdm.png written')
     plt.clf()
 
 
@@ -424,6 +429,10 @@ def plot_efield(fname='HAMIL.h5'):
     print("plotting EFIELD ...")
 
     f      = h5py.File(fname)
+    if not 'efield' in f:
+        print('No EFIELD in current system')
+        return
+
     efield = f['efield'][()]
     T      = np.arange(efield.shape[0]) * 1.0
     labels = "XYZ"
@@ -441,6 +450,8 @@ def plot_efield(fname='HAMIL.h5'):
     fig.supylabel("Amplitude (V/Angstrom)")
     fig.tight_layout(pad=0.5)
     fig.savefig('efield.png', dpi=600)
+    print('efield.png written')
+    plt.clf()
 
 
 if '__main__' == __name__:
@@ -452,3 +463,6 @@ if '__main__' == __name__:
     spd       = [1, 2, 3]
     # plot_eigs_evol(inps[0], whichAtom, spd)
     plot_spatloc(inps[0], whichAtom, spd)
+    plot_nac()
+    plot_tdm()
+    plot_efield()
