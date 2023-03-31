@@ -32,6 +32,9 @@ MODULE wavecar_mod
         REAL(q), ALLOCATABLE :: kvecs(:, :)
         REAL(q), ALLOCATABLE :: eigs(:, :, :)
         REAL(q), ALLOCATABLE :: fweights(:, :, :)
+
+        INTEGER              :: nproj               !! number of projectors for each band
+        REAL(q), ALLOCATABLE :: cproj(:, :, :, :)   !! projectors on each band, [nproj, nband, nkpoints, nspin]
     END TYPE wavecar
 
 
@@ -475,4 +478,14 @@ MODULE wavecar_mod
     END SUBROUTINE wavecar_gen_fft_freq_
 
 
+    SUBROUTINE wavecar_read_normalcar(wav, fname)
+        TYPE(wavecar),    INTENT(inout) :: wav
+        CHARACTER(LEN=*), INTENT(in)    :: fname
+
+        !! local variables
+        INTEGER, PARAMETER :: iu = 119
+
+        !! TODO
+
+    END SUBROUTINE wavecar_read_normalcar
 END MODULE wavecar_mod
