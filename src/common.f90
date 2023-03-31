@@ -3,22 +3,22 @@
 MODULE common_mod
     IMPLICIT NONE
 
-    !! precisions
+    !> precisions
     INTEGER, PARAMETER :: q  = SELECTED_REAL_KIND(10)           !< Double precision indicator
     INTEGER, PARAMETER :: qs = SELECTED_REAL_KIND(5)            !< Single precision indicator
 
     !> Float number difference tolerance,
-    !! may be useful in float number comparisions.
+    !> may be useful in float number comparisions.
     REAL(q), PARAMETER :: EPS             = 1.0d-10             !< Threshold
     REAL(q), PARAMETER :: EPS_PROPAGATION = 1.0d-3              !< Threshold for propagation
 
-    !! Some constants
+    !> Some constants
     COMPLEX(q), PARAMETER :: IMGUNIT    = (0.0_q, 1.0_q)        !< Imaginary unit
     COMPLEX(q), PARAMETER :: CPLXZERO   = (0.0_q, 0.0_q)        !< Complex zero: 0.0+0.0i
     COMPLEX(q), PARAMETER :: CPLXONE    = (1.0_q, 0.0_q)        !< Complex one: 1.0+0.0i
     REAL(q),    PARAMETER :: HBAR       = 0.6582119281559802_q  !< ħ in eV*fs
 
-    !! Important parameters, convenient for unit conversion.
+    !> Important parameters, convenient for unit conversion.
     REAL(q),    PARAMETER :: AUTOA      = 0.529177249_q         !< 1 a.u. in Å
     REAL(q),    PARAMETER :: RYTOEV     = 13.605826_q           !< Rydberg constant in eV
     REAL(q),    PARAMETER :: CLIGHT     = 137.037_q             !< Light speed in a.u.
@@ -47,7 +47,7 @@ MODULE common_mod
     !> Conversion factor from magnetic moment to energy
     REAL(q),    PARAMETER :: MAGMOMTOENERGY = 1 / CLIGHT**2 * AUTOA**3 * RYTOEV
 
-    !! Dimensionless params
+    !> Dimensionless params
     REAL(q),    PARAMETER :: AUTOA2         = AUTOA  * AUTOA    !< AUTOA^2
     REAL(q),    PARAMETER :: AUTOA3         = AUTOA  * AUTOA2   !< AUTOA^3
     REAL(q),    PARAMETER :: AUTOA4         = AUTOA2 * AUTOA2   !< AUTOA^4
@@ -58,15 +58,15 @@ MODULE common_mod
 
     INTEGER,    PARAMETER :: FNAMELEN       = 256               !< Maximum length of file name
 
-    !! Standard input, output units
+    !> Standard input, output units
     INTEGER,    PARAMETER :: STDIN  = 5
     INTEGER,    PARAMETER :: STDOUT = 6
     INTEGER,    PARAMETER :: STDERR = 0
 
-    !! Newline character
+    !> Newline character
     CHARACTER,  PARAMETER :: NEWLINE = ACHAR(10)
 
-    !! Error codes
+    !> Error codes
     INTEGER,    PARAMETER :: ERROR_WAVE_OPEN_FAILED  = 11
     INTEGER,    PARAMETER :: ERROR_WAVE_INVALID_PREC = 12
     INTEGER,    PARAMETER :: ERROR_WAVE_INVALID_FILE = 13
@@ -106,11 +106,11 @@ MODULE common_mod
 
     INTEGER,    PARAMETER :: ERROR_FIT_FAILED        = 110
 
-    !! MPI related stuff
+    !> MPI related stuff
     INTEGER,    PARAMETER :: MPI_ROOT_NODE           = 0
 
 
-    !! cumulative sum interface
+    !> cumulative sum interface
     INTERFACE cumsum
         PROCEDURE cumsum_i
         PROCEDURE cumsum_f
@@ -118,13 +118,15 @@ MODULE common_mod
     PRIVATE :: cumsum_i
     PRIVATE :: cumsum_f
 
-    !! lower_bound interface, using binary search algorithm
+
+    !> lower_bound interface, using binary search algorithm
     INTERFACE lower_bound
         PROCEDURE lower_bound_f
     END INTERFACE lower_bound
     PRIVATE :: lower_bound_f
 
 
+    !> quick sort interface
     INTERFACE qsort
         PROCEDURE qsort_i
         PROCEDURE qsort_f
@@ -133,7 +135,16 @@ MODULE common_mod
     PRIVATE :: qsort_f, qsort_partition_f
 
 
-    !! calculate `CONJG(x) * x` for complex x
+    !> get the indices that make array sorted
+    INTERFACE argsort
+        PROCEDURE argsort_i
+        PROCEDURE argsort_f
+    END INTERFACE argsort
+    PRIVATE :: argsort_i, argsort_partition_i
+    PRIVATE :: argsort_f, argsort_partition_f
+
+
+    !> calculate `CONJG(x) * x` for complex x
     INTERFACE normsquare
         PROCEDURE normsquare_q_
         PROCEDURE normsquare_qs_
@@ -142,7 +153,7 @@ MODULE common_mod
     PRIVATE :: normsquare_qs_
 
 
-    !! version info
+    !> version info
     TYPE :: version
         INTEGER         :: major
         INTEGER         :: minor
@@ -153,6 +164,8 @@ MODULE common_mod
 
     CONTAINS
 
+
+    !> Print the version information of current program
     SUBROUTINE version_print(ver, io, str)
         TYPE(version), INTENT(in)       :: ver
         INTEGER, INTENT(in), OPTIONAL   :: io
@@ -168,6 +181,8 @@ MODULE common_mod
         100 FORMAT("NAMD_lumi v", I0, ".", I0, ".", I0, "  BuiltDateTime: ", A, "  GitCommit: ", A)
     END SUBROUTINE version_print
 
+
+    !> Cumulative sum
     ! copied from https://github.com/ivan-pi/cumsum_benchmark
     PURE SUBROUTINE cumsum_i(a, b)
         INTEGER, INTENT(in)  :: a(:)
@@ -195,6 +210,8 @@ MODULE common_mod
         IF (MOD(n,2) /= 0) b(n) = b(n-1) + a(n)
     END SUBROUTINE cumsum_i
 
+
+    !> Cumulative sum
     ! copied from https://github.com/ivan-pi/cumsum_benchmark
     PURE SUBROUTINE cumsum_f(a, b)
         REAL(q), INTENT(in)  :: a(:)
@@ -337,8 +354,10 @@ MODULE common_mod
     SUBROUTINE qsort_partition_i(A, p)
         INTEGER, INTENT(inout) :: A(:)
         INTEGER, INTENT(inout) :: p
+
         INTEGER :: i, j
         INTEGER :: temp
+
 #define SWAP(_X, _Y) temp=_X; _X=_Y; _Y=temp;
         p = SIZE(A)
         i = 1
@@ -356,9 +375,65 @@ MODULE common_mod
 
 
     !> numpy.argsort alternative
-    SUBROUTINE argsort_i
-        !! TODO
-    END SUBROUTINE argsort_i
+    FUNCTION argsort_i(A) RESULT(ind)
+        INTEGER, INTENT(in) :: A(:)
+        INTEGER             :: ind(SIZE(A))
+
+        INTEGER :: i, len
+
+        len = SIZE(A)
+        FORALL(i=1:len) ind(i) = i
+        
+        CALL argsort_i_impl(A, ind, 1, len)
+    END FUNCTION argsort_i
+
+
+    RECURSIVE SUBROUTINE argsort_i_impl(A, ind, low, high)
+        INTEGER, INTENT(in)  :: A(:)
+        INTEGER, INTENT(out) :: ind(:)
+        INTEGER, INTENT(in)  :: low
+        INTEGER, INTENT(in)  :: high
+        
+        INTEGER :: p
+        INTEGER :: temp
+
+        IF (high <= low) RETURN
+
+        p = randint_range(low, high)
+#define SWAP(_X, _Y) temp=_X; _X=_Y; _Y=temp;
+        SWAP(ind(low), ind(p))
+#undef SWAP
+
+        CALL argsort_partition_i(A, ind, p, low, high)
+        CALL argsort_i_impl(A, ind, low,  p-1)
+        CALL argsort_i_impl(A, ind, p+1, high)
+    END SUBROUTINE argsort_i_impl
+
+
+    SUBROUTINE argsort_partition_i(A, ind, p, low, high)
+        INTEGER, INTENT(in)    :: A(:)
+        INTEGER, INTENT(inout) :: ind(:)
+        INTEGER, INTENT(inout) :: p
+        INTEGER, INTENT(in)    :: low
+        INTEGER, INTENT(in)    :: high
+
+        INTEGER :: i, j
+        INTEGER :: temp
+
+#define SWAP(_X, _Y) temp=_X; _X=_Y; _Y=temp;
+        p = high
+        i = low
+        DO j = low, p
+            IF ( A(ind(j)) < A(ind(p)) ) THEN
+                SWAP(ind(i), ind(j))
+                i = i + 1
+            ENDIF
+        ENDDO
+
+        SWAP(ind(i), ind(p))
+        p = i
+#undef SWAP
+    END SUBROUTINE argsort_partition_i
 
 
     !> Sort real array in ascending order
@@ -403,9 +478,65 @@ MODULE common_mod
 
 
     !> numpy.argsort alternative
-    SUBROUTINE argsort_f
-        !! TODO
-    END SUBROUTINE argsort_f
+    FUNCTION argsort_f(A) RESULT(ind)
+        REAL(q), INTENT(in) :: A(:)
+        INTEGER             :: ind(SIZE(A))
+
+        INTEGER :: i, len
+
+        len = SIZE(A)
+        FORALL(i=1:len) ind(i) = i
+        
+        CALL argsort_f_impl(A, ind, 1, len)
+    END FUNCTION argsort_f
+
+
+    RECURSIVE SUBROUTINE argsort_f_impl(A, ind, low, high)
+        REAL(q), INTENT(in)  :: A(:)
+        INTEGER, INTENT(out) :: ind(:)
+        INTEGER, INTENT(in)  :: low
+        INTEGER, INTENT(in)  :: high
+        
+        INTEGER :: p
+        INTEGER :: temp
+
+        IF (high <= low) RETURN
+
+        p = randint_range(low, high)
+#define SWAP(_X, _Y) temp=_X; _X=_Y; _Y=temp;
+        SWAP(ind(low), ind(p))
+#undef SWAP
+
+        CALL argsort_partition_f(A, ind, p, low, high)
+        CALL argsort_f_impl(A, ind, low,  p-1)
+        CALL argsort_f_impl(A, ind, p+1, high)
+    END SUBROUTINE argsort_f_impl
+
+
+    SUBROUTINE argsort_partition_f(A, ind, p, low, high)
+        REAL(q), INTENT(in)    :: A(:)
+        INTEGER, INTENT(inout) :: ind(:)
+        INTEGER, INTENT(inout) :: p
+        INTEGER, INTENT(in)    :: low
+        INTEGER, INTENT(in)    :: high
+
+        INTEGER :: i, j
+        INTEGER :: temp
+
+#define SWAP(_X, _Y) temp=_X; _X=_Y; _Y=temp;
+        p = high
+        i = low
+        DO j = low, p
+            IF ( A(ind(j)) < A(ind(p)) ) THEN
+                SWAP(ind(i), ind(j))
+                i = i + 1
+            ENDIF
+        ENDDO
+
+        SWAP(ind(i), ind(p))
+        p = i
+#undef SWAP
+    END SUBROUTINE argsort_partition_f
 
 
     !> numpy cumtrapz alternative, trapezia integral
