@@ -58,7 +58,7 @@ MODULE nac_mod
             CALL SYSTEM_CLOCK(timing_start, timing_rate)
 
             CALL nac_calculate_mpi(TRIM(inp%rundir), inp%ikpoint, TRIM(inp%wavetype), inp%brange, inp%nsw, inp%dt, &
-                inp%ndigit, nac_dat, lreal=inp%lreal)
+                inp%ndigit, nac_dat, lreal=inp%lreal, lreorder=inp%lreorder)
 
             CALL SYSTEM_CLOCK(timing_end, timing_rate)
 
@@ -107,18 +107,19 @@ MODULE nac_mod
     END SUBROUTINE nac_check_inp
 
 
-    SUBROUTINE nac_calculate_mpi(rundir, ikpoint, wavetype, brange, nsw, dt, ndigit, nac_dat, lreal)
+    SUBROUTINE nac_calculate_mpi(rundir, ikpoint, wavetype, brange, nsw, dt, ndigit, nac_dat, lreal, lreorder)
         USE mpi
 
-        CHARACTER(*), INTENT(in)    :: rundir
-        INTEGER, INTENT(IN)         :: ikpoint
-        CHARACTER(*), INTENT(in)    :: wavetype
-        INTEGER, INTENT(in)         :: brange(2)
-        INTEGER, INTENT(in)         :: nsw
-        REAL(q), INTENT(in)         :: dt
-        INTEGER, INTENT(in)         :: ndigit
-        TYPE(nac), INTENT(out)      :: nac_dat      !< only valid on root node
-        LOGICAL, INTENT(in)         :: lreal
+        CHARACTER(*), INTENT(in)  :: rundir
+        INTEGER,      INTENT(IN)  :: ikpoint
+        CHARACTER(*), INTENT(in)  :: wavetype
+        INTEGER,      INTENT(in)  :: brange(2)
+        INTEGER,      INTENT(in)  :: nsw
+        REAL(q),      INTENT(in)  :: dt
+        INTEGER,      INTENT(in)  :: ndigit
+        TYPE(nac),    INTENT(out) :: nac_dat !< only valid on root node
+        LOGICAL,      INTENT(in)  :: lreal
+        LOGICAL,      INTENT(in)  :: lreorder
         
         !! local variables
         INTEGER         :: ierr
@@ -142,7 +143,7 @@ MODULE nac_mod
 
 
         !! logic starts
-        nbrange = brange(2) - brange(1) + 1
+        nbrange        = brange(2) - brange(1) + 1
         efermis_global = 0.0_q
         efermis_local  = 0.0_q
 

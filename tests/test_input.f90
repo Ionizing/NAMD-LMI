@@ -35,6 +35,7 @@ MODULE test_input
         inp%lreal       = .TRUE.
         inp%lprint_input = .FALSE.
         inp%lexcitation = .TRUE.
+        inp%lreorder    = .TRUE.
         inp%fname       = "./nac_test.h5"
         inp%temperature = 114.0
         inp%scissor     = 2.0
@@ -76,6 +77,7 @@ MODULE test_input
         CALL assert_equals(inp%lreal,           inp_read%lreal,         AT)
         CALL assert_equals(inp%lprint_input,    inp_read%lprint_input,  AT)
         CALL assert_equals(inp%lexcitation,     inp_read%lexcitation,   AT)
+        CALL assert_equals(inp%lreorder,        inp_read%lreorder,      AT)
         CALL assert_equals(inp%fname,           inp_read%fname,         AT)
         CALL assert_equals(inp%temperature,     inp_read%temperature,   AT)
         CALL assert_equals(inp%scissor,         inp_read%scissor,       AT)

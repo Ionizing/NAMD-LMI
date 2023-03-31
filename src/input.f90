@@ -18,17 +18,18 @@ MODULE input_mod
         REAL(q)         :: dt           = 1.0       !! time step, in fs
         INTEGER         :: nsample      = 100       !! number of samplings from total trajectory
         INTEGER         :: ntraj        = 10000     !! number of hopping samples
-        !! the method used for propagation, available: "FINITE-DIFFERENCE", "EXACT", "LIOUVILLE-TROTTER"
+        !> the method used for propagation, available: "FINITE-DIFFERENCE", "EXACT", "LIOUVILLE-TROTTER"
         CHARACTER(32)   :: propmethod   = "EXACT"
         !! the method used for surface hopping, available: "FSSH"
         CHARACTER(32)   :: shmethod     = "FSSH"
-        !! electronic steps for each ionic steps in propagation, different propmethod corresponds different nelms
-        !! we suggest: "FINITE-DIFFERENCE"=>1000, "EXACT"=>1, "LIOUVILLE-TROTTER"=>1
+        !> electronic steps for each ionic steps in propagation, different propmethod corresponds different nelms
+        !> we suggest: "FINITE-DIFFERENCE"=>1000, "EXACT"=>1, "LIOUVILLE-TROTTER"=>1
         INTEGER         :: nelm         = 1
         LOGICAL         :: lreal        = .FALSE.   !! Use real NAC or not
         LOGICAL         :: lprint_input = .TRUE.    !! Print the input to log or not
         LOGICAL         :: lexcitation  = .FALSE.   !! Allow excitation process.
                                                     !! i.e. remove detailed balance factor in surface hopping when EFIELD /= 0
+        LOGICAL         :: lreorder     = .FALSE.   !! Reorder the band index when band crossing occurs
         CHARACTER(256)  :: fname        = "NAC.h5"  !! file name for saving NAC data
 
         REAL(q)         :: temperature  = 300.0     !! NAMD temperature, in Kelvin
@@ -41,7 +42,7 @@ MODULE input_mod
         INTEGER, ALLOCATABLE :: inispins(:)
         INTEGER, ALLOCATABLE :: inisteps(:)
 
-        !! For external field stuff
+        !> For external field stuff
         INTEGER         :: efield_len       = 0         !! Data length of `efield`
         LOGICAL         :: efield_lcycle    = .FALSE.   !! Apply the external field in cycle or not
         REAL(q), ALLOCATABLE :: efield(:, :)            !! External electric field, [3, efield_len], in 1E-9 V/Angstrom
@@ -203,6 +204,7 @@ MODULE input_mod
         CALL MPI_BCAST(inp%lreal,        1,   MPI_LOGICAL,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%lprint_input, 1,   MPI_LOGICAL,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%lexcitation,  1,   MPI_LOGICAL,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%lreorder,     1,   MPI_LOGICAL,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%fname,        256, MPI_CHARACTER,        MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%temperature,  1,   MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%scissor,      1,   MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
@@ -246,6 +248,7 @@ MODULE input_mod
         LOGICAL :: lreal
         LOGICAL :: lprint_input
         LOGICAL :: lexcitation
+        LOGICAL :: lreorder
         CHARACTER(256)  :: fname
         REAL(q) :: temperature
         REAL(q) :: scissor
@@ -271,10 +274,11 @@ MODULE input_mod
                               ntraj,    &
                               propmethod, &
                               shmethod, &
+                              nelm,     &
                               lreal,    &
                               lprint_input, &
                               lexcitation, &
-                              nelm,     &
+                              lreorder, &
                               fname,    &
                               temperature, &
                               scissor, &
@@ -310,6 +314,7 @@ MODULE input_mod
         lreal         = inp%lreal
         lprint_input  = inp%lprint_input
         lexcitation   = inp%lexcitation
+        lreorder      = inp%lreorder
         fname         = inp%fname
         temperature   = inp%temperature
         scissor       = inp%scissor
@@ -457,6 +462,7 @@ MODULE input_mod
         inp%lreal        = lreal
         inp%lprint_input = lprint_input
         inp%lexcitation  = lexcitation
+        inp%lreorder     = lreorder
         inp%fname        = fname
         inp%temperature  = temperature
         inp%scissor      = scissor
@@ -529,6 +535,7 @@ MODULE input_mod
         WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LREAL",     inp%lreal,  "Use real NAC or not"
         WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LPRINT_INPUT",  inp%lprint_input,  "Print all input or not"
         WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LEXCITATION",   inp%lexcitation,   "Allow excitation process or not"
+        WRITE(iu, '(1X, A12, " = ",  L10, ", ! ", A)') "LREORDER",      inp%lreorder,      "Reorder the band index when band crossing occurs"
 
         WRITE(iu, '()')
         WRITE(iu, '(4X, A)') '!! the method used for surface hoppint, available: "FSSH", "DCSH", "DISH"'
