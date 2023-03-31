@@ -8,7 +8,7 @@ MODULE test_common
         randint_range, &
         cumsum,        &
         lower_bound,   &
-        qsort_i,       &
+        qsort,         &
         cumtrapz,      &
         self_correlate_function
     USE string_mod,     ONLY: int2str
@@ -22,7 +22,7 @@ MODULE test_common
         CALL test_randint_range
         CALL test_cumsum
         CALL test_lower_bound
-        CALL test_qsort_i
+        CALL test_qsort
         CALL test_cumtrapz
     END SUBROUTINE test_common_fn
 
@@ -122,24 +122,24 @@ MODULE test_common
     END SUBROUTINE test_lower_bound
 
 
-    SUBROUTINE test_qsort_i
+    SUBROUTINE test_qsort
         INTEGER :: A(6) = [5, 1, 1, 2, 0, 0]
 
-        CALL qsort_i(A)
+        CALL qsort(A)
         CALL assert_equals(A, [0, 0, 1, 1, 2, 5], 6, AT)
 
         A = [5, 0, 0, 2, 3, 1]
-        CALL qsort_i(A)
+        CALL qsort(A)
         CALL assert_equals(A, [0, 0, 1, 2, 3, 5], 6, AT)
 
         A = [1, 1, 1, 1, 1, 0]
-        CALL qsort_i(A)
+        CALL qsort(A)
         CALL assert_equals(A, [0, 1, 1, 1, 1, 1], 6, AT)
 
         A = [6, 5, 4, 3, 2, 1]
-        CALL qsort_i(A)
+        CALL qsort(A)
         CALL assert_equals(A, [1, 2, 3, 4, 5, 6], 6, AT)
-    END SUBROUTINE test_qsort_i
+    END SUBROUTINE test_qsort
 
 
     SUBROUTINE test_cumtrapz

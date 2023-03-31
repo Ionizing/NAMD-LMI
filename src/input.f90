@@ -159,7 +159,7 @@ MODULE input_mod
         DO i = 1, nsample
             inp%inisteps(i) = randint_range(1, nsw-1)
         ENDDO
-        CALL qsort_i(inp%inisteps)
+        CALL qsort(inp%inisteps)
 
         inp%efield = 0.0
 
@@ -185,27 +185,27 @@ MODULE input_mod
         TYPE(input), INTENT(inout) :: inp
         INTEGER :: ierr
 
-        CALL MPI_BCAST(inp%rundir,  256, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%wavetype,  8, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%ikpoint,   1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%brange,    2, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%basis_up,  2, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%basis_dn,  2, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%nsw,       1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%ndigit,    1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%namdtime,  1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%dt,        1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%nsample,   1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%ntraj,     1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%propmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%shmethod, 32, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%nelm,      1, MPI_INTEGER,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%lreal,     1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%lprint_input, 1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%lexcitation,  1, MPI_LOGICAL,   MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%fname,   256, MPI_CHARACTER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%temperature, 1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
-        CALL MPI_BCAST(inp%scissor,   1, MPI_DOUBLE_PRECISION,  MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%rundir,       256, MPI_CHARACTER,        MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%wavetype,     8,   MPI_CHARACTER,        MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%ikpoint,      1,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%brange,       2,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%basis_up,     2,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%basis_dn,     2,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%nsw,          1,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%ndigit,       1,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%namdtime,     1,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%dt,           1,   MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%nsample,      1,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%ntraj,        1,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%propmethod,   32,  MPI_CHARACTER,        MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%shmethod,     32,  MPI_CHARACTER,        MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%nelm,         1,   MPI_INTEGER,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%lreal,        1,   MPI_LOGICAL,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%lprint_input, 1,   MPI_LOGICAL,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%lexcitation,  1,   MPI_LOGICAL,          MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%fname,        256, MPI_CHARACTER,        MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%temperature,  1,   MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        CALL MPI_BCAST(inp%scissor,      1,   MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
         IF (.NOT. ALLOCATED(inp%inibands)) ALLOCATE(inp%inibands(inp%nsample))
         IF (.NOT. ALLOCATED(inp%inispins)) ALLOCATE(inp%inispins(inp%nsample))

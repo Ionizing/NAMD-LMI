@@ -36,15 +36,15 @@ MODULE common_mod
     COMPLEX(q), PARAMETER :: CITPI  = TPI * IMGUNIT             !< 0+3πi
 
     !> Vector field \f$\mathbf{A}\f$ times momentum times \f$ \frac{e}{2m_ec} \f$
-    !! is energy. magnetic moments are supplied in Bohr magnetons
-    !! \f[
-    !! \begin{aligned}
-    !!      E &={} \frac{e}{2m_ec}A(r)p(r) \\
-    !!        &={} \frac{e}{2m_ec}m_s \frac{r-r_s}{(r-r_s)^3} \hbar \nabla \\
-    !!        &={} e^2 \frac{\hbar^2}{2m_e^2 c^2} \frac{1}{l^3}
-    !! \end{aligned}
-    !! \f]
-    !! Conversion factor from magnetic moment to energy
+    !> is energy. magnetic moments are supplied in Bohr magnetons
+    !> \f[
+    !> \begin{aligned}
+    !>      E &={} \frac{e}{2m_ec}A(r)p(r) \\
+    !>        &={} \frac{e}{2m_ec}m_s \frac{r-r_s}{(r-r_s)^3} \hbar \nabla \\
+    !>        &={} e^2 \frac{\hbar^2}{2m_e^2 c^2} \frac{1}{l^3}
+    !> \end{aligned}
+    !> \f]
+    !> Conversion factor from magnetic moment to energy
     REAL(q),    PARAMETER :: MAGMOMTOENERGY = 1 / CLIGHT**2 * AUTOA**3 * RYTOEV
 
     !! Dimensionless params
@@ -123,6 +123,14 @@ MODULE common_mod
         PROCEDURE lower_bound_f
     END INTERFACE lower_bound
     PRIVATE :: lower_bound_f
+
+
+    INTERFACE qsort
+        PROCEDURE qsort_i
+        PROCEDURE qsort_f
+    END INTERFACE qsort
+    PRIVATE :: qsort_i, qsort_partition_i
+    PRIVATE :: qsort_f, qsort_partition_f
 
 
     !! calculate `CONJG(x) * x` for complex x
@@ -320,13 +328,13 @@ MODULE common_mod
         SWAP(A(1), A(p))
 #undef SWAP
 
-        CALL qsort_partition_(A, p)
+        CALL qsort_partition_i(A, p)
         CALL qsort_i(A(:p-1))
         CALL qsort_i(A(p+1:))
     END SUBROUTINE qsort_i
 
 
-    SUBROUTINE qsort_partition_(A, p)
+    SUBROUTINE qsort_partition_i(A, p)
         INTEGER, INTENT(inout) :: A(:)
         INTEGER, INTENT(inout) :: p
         INTEGER :: i, j
@@ -344,9 +352,63 @@ MODULE common_mod
         SWAP(A(i), A(p))
         p = i
 #undef SWAP
-    END SUBROUTINE qsort_partition_
+    END SUBROUTINE qsort_partition_i
 
 
+    !> numpy.argsort alternative
+    SUBROUTINE argsort_i
+        !! TODO
+    END SUBROUTINE argsort_i
+
+
+    !> Sort real array in ascending order
+    RECURSIVE SUBROUTINE qsort_f(A)
+        REAL(q), INTENT(inout) :: A(:)
+
+        INTEGER :: len, p
+        REAL(q) :: temp
+
+        len = SIZE(A)
+        IF (len <= 1) RETURN
+        p = randint_range(1, len)
+#define SWAP(_X, _Y) temp=_X; _X=_Y; _Y=temp;
+        SWAP(A(1), A(p))
+#undef SWAP
+
+        CALL qsort_partition_f(A, p)
+        CALL qsort_f(A(:p-1))
+        CALL qsort_f(A(p+1:))
+    END SUBROUTINE qsort_f
+
+
+    SUBROUTINE qsort_partition_f(A, p)
+        REAL(q), INTENT(inout) :: A(:)
+        INTEGER, INTENT(inout) :: p
+        INTEGER :: i, j
+        REAL(q) :: temp
+#define SWAP(_X, _Y) temp=_X; _X=_Y; _Y=temp;
+        p = SIZE(A)
+        i = 1
+        DO j = 1, p
+            IF (A(j) < A(p)) THEN
+                SWAP(A(i), A(j))
+                i = i + 1
+            ENDIF
+        ENDDO
+
+        SWAP(A(i), A(p))
+        p = i
+#undef SWAP
+    END SUBROUTINE qsort_partition_f
+
+
+    !> numpy.argsort alternative
+    SUBROUTINE argsort_f
+        !! TODO
+    END SUBROUTINE argsort_f
+
+
+    !> numpy cumtrapz alternative, trapezia integral
     SUBROUTINE cumtrapz(ys, dx, ret)
         REAL(q), INTENT(in)  :: ys(:)   ! size(ys) = n
         REAL(q), INTENT(in)  :: dx
