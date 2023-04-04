@@ -10,6 +10,7 @@ MODULE tdm_mod
     INTERFACE tdm_get_tdm_pseudo
         PROCEDURE tdm_get_tdm_pseudo_qs
         PROCEDURE tdm_get_tdm_pseudo_q
+        PROCEDURE tdm_get_ipj_pseudo_q
         PROCEDURE tdm_get_tdm_wav
     END INTERFACE tdm_get_tdm_pseudo
 
@@ -23,34 +24,12 @@ MODULE tdm_mod
         COMPLEX(q)                  :: ret(3)
 
         !! local variables
-        INTEGER :: len_i, len_j, len_k
-        CHARACTER(LEN=8)        :: wavetype_
+        INTEGER :: len_i, len_j
         COMPLEX(q), ALLOCATABLE :: phi_i_q(:), phi_j_q(:)
 
         !! logic starts
         len_i = SIZE(phi_i)
         len_j = SIZE(phi_j)
-        len_k = SIZE(k, 2)
-
-        wavetype_(:) = toupper(wavetype(:))
-
-        SELECT CASE (wavetype_)
-            CASE ("STD", "GAMX", "GAMZ")
-                IF (len_i /= len_j .OR. len_i /= len_k) THEN
-                    WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
-                        // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
-                    STOP ERROR_TDM_LEN_NOT_EQUAL
-                ENDIF
-            CASE ("NCL")
-                IF (len_i /= len_j .OR. len_i /= len_k*2) THEN
-                    WRITE(STDERR, *) "Inconsistent length of phi_i=" // TINT2STR(len_i) // ", phi_j=" &
-                        // TINT2STR(len_j) // ", kvec=" // TINT2STR(len_k) // " " // AT
-                    STOP ERROR_TDM_LEN_NOT_EQUAL
-                ENDIF
-            CASE DEFAULT
-                WRITE(STDERR, *) 'Invalid wavetype="' // wavetype_ // '", should be one of "std", "gamx", "gamz" or "ncl" ' // AT
-                STOP ERROR_WAVE_WAVETYPE
-        END SELECT
 
         ALLOCATE(phi_i_q(len_i))
         ALLOCATE(phi_j_q(len_j))
@@ -71,6 +50,23 @@ MODULE tdm_mod
         COMPLEX(q),     INTENT(in)  :: phi_i(:), phi_j(:)
         REAL(q),        INTENT(in)  :: k(:, :)
         REAL(q),        INTENT(in)  :: de
+        CHARACTER(*),   INTENT(in)  :: wavetype
+        COMPLEX(q)                  :: ret(3)
+
+        ret = tdm_get_ipj_pseudo_q(phi_i, phi_j, k, wavetype)
+        ret = ret * IMGUNIT * AUTOA * AUTODEBYE * (2*RYTOEV) / de
+        RETURN
+    END FUNCTION tdm_get_tdm_pseudo_q
+
+
+    !> Calculate <phi_i | p | phi_j> matrix element
+    !> phi_i, phi_j:    wavefunction coefficients from VASP
+    !> k:               momentum of each coefficient in cartesian coordinates
+    !> wavetype:        type of WAVECAR be std, gamx, gamz, or ncl.
+    !> return:          momentum matrix element in 1/Angstrom
+    FUNCTION tdm_get_ipj_pseudo_q(phi_i, phi_j, k, wavetype) RESULT(ret)
+        COMPLEX(q),     INTENT(in)  :: phi_i(:), phi_j(:)
+        REAL(q),        INTENT(in)  :: k(:, :)
         CHARACTER(*),   INTENT(in)  :: wavetype
         COMPLEX(q)                  :: ret(3)
 
@@ -122,12 +118,10 @@ MODULE tdm_mod
             ret = MATMUL(k, overlap)
         ENDIF
 
-        ret = ret * IMGUNIT * AUTOA * AUTODEBYE * (2*RYTOEV) / de
-
         DEALLOCATE(overlap)
 
         RETURN
-    END FUNCTION tdm_get_tdm_pseudo_q
+    END FUNCTION tdm_get_ipj_pseudo_q
     
 
     FUNCTION tdm_get_tdm_wav(wav, ispin, ikpoint, iniband, finband) RESULT(tdm_ret)
