@@ -33,8 +33,8 @@ MODULE wavecar_mod
         REAL(q), ALLOCATABLE :: eigs(:, :, :)
         REAL(q), ALLOCATABLE :: fweights(:, :, :)
 
-        INTEGER              :: nproj               !! number of projectors for each band
-        REAL(q), ALLOCATABLE :: cproj(:, :, :, :)   !! projectors on each band, [nproj, nband, nkpoints, nspin]
+        INTEGER                 :: nproj               !! number of projectors for each band
+        COMPLEX(q), ALLOCATABLE :: cproj(:, :, :, :)   !! projectors on each band, [nproj, nband, nkpoints, nspin]
     END TYPE wavecar
 
 
@@ -478,14 +478,104 @@ MODULE wavecar_mod
     END SUBROUTINE wavecar_gen_fft_freq_
 
 
-    SUBROUTINE wavecar_read_normalcar(wav, fname)
-        TYPE(wavecar),    INTENT(inout) :: wav
-        CHARACTER(LEN=*), INTENT(in)    :: fname
+    SUBROUTINE wavecar_read_normalcar(wav, fname, iu_)
+#ifdef __INTEL_COMPILER
+        use ifport
+#endif
+        TYPE(wavecar),     INTENT(inout) :: wav
+        CHARACTER(LEN=*),  INTENT(in)    :: fname
+        INTEGER, OPTIONAL, INTENT(in)   :: iu_
 
         !! local variables
-        INTEGER, PARAMETER :: iu = 119
+        INTEGER :: iu, ierr
+        INTEGER :: statb(13)
+        INTEGER :: itype
+        INTEGER :: rec_l, rec_r
+        INTEGER :: lmdim, nions, nrspinors
+        REAL(q),    ALLOCATABLE :: cqij(:, :, :, :)
+        COMPLEX(q), ALLOCATABLE :: cqij_c(:, :, :, :)
 
-        !! TODO
+        INTEGER :: nprod, npro, ntyp
+        INTEGER, ALLOCATABLE :: lmmax(:), nityp(:)
 
+        INTEGER :: ispin, ikpoint, iband
+
+        !! logic starts
+        IF (ALLOCATED(wav%cproj)) RETURN
+
+        IF (PRESENT(iu_)) THEN
+            iu = iu_
+        ELSE
+            iu = 119
+        ENDIF
+
+        OPEN(UNIT=iu, FILE=fname, STATUS='old', ACTION='read', IOSTAT=ierr, &
+            FORM='unformatted', ACCESS='stream')
+        ierr = FSTAT(iu, statb)
+
+        IF (0 /= ierr) THEN
+            WRITE(STDERR, *) 'Cannot open NormalCAR="' // fname // '" with IU=' // TINT2STR(iu) // ' ' // AT
+            STOP ERROR_WAVE_NORMALCAR
+        ENDIF
+
+        READ(unit=iu, IOSTAT=ierr) rec_l, lmdim, nions, nrspinors, rec_r
+        CALL CHECK_RECL_RECR(rec_l, rec_r, fname, AT)
+
+        IF (toupper(wav%wavetype(1:3)) == "gam") THEN
+            ALLOCATE(cqij(lmdim, lmdim, nions, nrspinors))
+            READ(UNIT=iu, IOSTAT=ierr) rec_l, cqij(:,:,:,:), rec_r
+            DEALLOCATE(cqij)
+        ELSE
+            ALLOCATE(cqij_c(lmdim, lmdim, nions, nrspinors))
+            READ(UNIT=iu, IOSTAT=ierr) rec_l, cqij_c(:,:,:,:), rec_r
+            DEALLOCATE(cqij_c)
+        ENDIF
+        CALL CHECK_RECL_RECR(rec_l, rec_r, fname, AT)
+
+        READ(UNIT=iu, IOSTAT=ierr) rec_l, nprod, npro, ntyp, rec_r
+        CALL CHECK_RECL_RECR(rec_l, rec_r, fname, AT)
+
+        ALLOCATE(lmmax(ntyp))
+        ALLOCATE(nityp(ntyp))
+        DO itype = 1, ntyp
+            READ(UNIT=iu, IOSTAT=ierr) rec_l, lmmax(itype), nityp(itype), rec_r
+        ENDDO
+        CALL CHECK_RECL_RECR(rec_l, rec_r, fname, AT)
+        DEALLOCATE(nityp)
+        DEALLOCATE(lmmax)
+
+        READ(UNIT=iu, IOSTAT=ierr) rec_l
+        wav%nproj = rec_l / 16
+
+#ifdef __INTEL_COMPILER
+        ierr = FSEEK(LUNIT=iu, OFFSET=-4, FROM=1)
+#else
+        call FSEEK(UNIT=iu, OFFSET=-4, WHENCE=1, STATUS=ierr)
+#endif
+        ALLOCATE(wav%cproj(wav%nproj, wav%nbands, wav%nkpoints, wav%nspin))
+        DO ispin = 1, wav%nspin
+            DO ikpoint = 1, wav%nkpoints
+                DO iband = 1, wav%nbands
+                    READ(UNIT=iu, IOSTAT=ierr) rec_l, wav%cproj(:, iband, ikpoint, ispin), rec_r
+                    CALL CHECK_RECL_RECR(rec_l, rec_r, fname, AT)
+                ENDDO
+            ENDDO
+        ENDDO
+
+        CLOSE(iu)
+
+        !! internal subroutines
+        CONTAINS
+        !! check the record length
+        SUBROUTINE CHECK_RECL_RECR(l, r, fn, at)
+            INTEGER,          INTENT(in) :: l, r
+            CHARACTER(LEN=*), INTENT(in) :: fn
+            CHARACTER(LEN=*), INTENT(in) :: at
+            IF (l /= r .OR. ierr /= 0) THEN
+                WRITE(STDERR, *) 'Wrong record length in NormalCAR: "' // fn // '" ' &
+                    // TINT2STR(rec_l) // ' /= ' // TINT2STR(rec_r) // ' ' // at
+                STOP ERROR_WAVE_NORMALCAR
+            ENDIF
+        END SUBROUTINE
     END SUBROUTINE wavecar_read_normalcar
 END MODULE wavecar_mod

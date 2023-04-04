@@ -16,6 +16,7 @@ MODULE test_wavecar
         CALL test_wavecar_read_phi
         CALL test_wavecar_gen_gvecs
         CALL test_wavecar_get_gvecs_cart
+        CALL test_wavecar_read_normalcar
     END SUBROUTINE test_wavecar_fn
 
 
@@ -236,4 +237,11 @@ MODULE test_wavecar
     END SUBROUTINE test_wavecar_get_gvecs_cart
 
 
+    SUBROUTINE test_wavecar_read_normalcar
+        TYPE(wavecar) :: wav
+
+        CALL wavecar_init(wav, "WAVECAR_GaAs", "std")
+        CALL wavecar_read_normalcar(wav, "NormalCAR_GaAs")
+        CALL wavecar_destroy(wav)
+    END SUBROUTINE test_wavecar_read_normalcar
 END MODULE test_wavecar
