@@ -521,7 +521,7 @@ MODULE wavecar_mod
         READ(unit=iu, IOSTAT=ierr) rec_l, lmdim, nions, nrspinors, rec_r
         CALL CHECK_RECL_RECR(rec_l, rec_r, fname, AT)
 
-        IF (toupper(wav%wavetype(1:3)) == "gam") THEN
+        IF (toupper(wav%wavetype(1:3)) == "GAM") THEN
             ALLOCATE(cqij(lmdim, lmdim, nions, nrspinors))
             READ(UNIT=iu, IOSTAT=ierr) rec_l, cqij(:,:,:,:), rec_r
             DEALLOCATE(cqij)
