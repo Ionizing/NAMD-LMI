@@ -54,7 +54,7 @@ def amp_wpcm2_to_vpa(wpcm2: float) -> float:
     E = sqrt(2I/(cε0))
 
     wmp2: input intensity, in W/cm2
-    returns E: electric field, in V/Angstrom (1E-9 V/Angstrom)
+    returns E: electric field, in V/Angstrom (V/Angstrom)
     """
     return np.sqrt(wpcm2) * 2.744E-6 # 2.744E-6 means 1W/cm2 ~ 2.744E-6 V/Angstrom
 

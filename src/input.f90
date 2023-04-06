@@ -45,7 +45,7 @@ MODULE input_mod
         !> For external field stuff
         INTEGER         :: efield_len       = 0         !! Data length of `efield`
         LOGICAL         :: efield_lcycle    = .FALSE.   !! Apply the external field in cycle or not
-        REAL(q), ALLOCATABLE :: efield(:, :)            !! External electric field, [3, efield_len], in 1E-9 V/Angstrom
+        REAL(q), ALLOCATABLE :: efield(:, :)            !! External electric field, [3, efield_len], in V/Angstrom
     END TYPE
 
     PRIVATE     :: input_from_iu_
@@ -575,7 +575,7 @@ MODULE input_mod
         IF (inp%efield_len /= 0) THEN
             WRITE(iu, '(A)') "&EXTFIELD"
             WRITE(iu, '(1X, A15, " = ",  L10, ", ! ", A)') "EFIELD_LCYCLE", inp%efield_lcycle,  "Apply the external field in cycle or not"
-            WRITE(iu, '(4X, A)') "!! Time-dependent electric field applied to current system, in 1E-9 V/Angstrom"
+            WRITE(iu, '(4X, A)') "!! Time-dependent electric field applied to current system, in V/Angstrom"
             WRITE(iu, '(4X, "!!", 3(4X, A7), A9)') "X", "Y", "Z", "TIMESTEP"
             WRITE(iu, '(4X, A)') "EFIELD(:,:) ="
             DO i = 1, inp%efield_len

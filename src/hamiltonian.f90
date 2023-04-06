@@ -270,6 +270,7 @@ MODULE hamiltonian_mod
         !! local variable
         COMPLEX(q), ALLOCATABLE, SAVE :: hamil_tdm_curr(:, :), hamil_tdm_next(:, :)
         REAL(q) :: efield(3)
+        REAL(q) :: vecpot(3)        !! vector potential, A = - c \int E dt
         INTEGER :: nelm
         INTEGER :: rtime, xtime
         INTEGER :: nsw
@@ -295,7 +296,7 @@ MODULE hamiltonian_mod
                             (hamil%nac_t(:, :, xtime) - hamil%nac_t(:, :, rtime)) * (DBLE(iele) / nelm)
 
         IF (0 /= hamil%efield_len) THEN
-            efield = get_efield(hamil, iion)
+            vecpot = get_vecpot(hamil, iion)
 
             !! tdm part, use linear interpolation
             IF (iion == 1) THEN
@@ -621,9 +622,38 @@ MODULE hamiltonian_mod
 
     PURE FUNCTION get_efield(hamil, iion) RESULT(ret)
         TYPE(hamiltonian), INTENT(in) :: hamil
-        INTEGER, INTENT(in) :: iion
+        INTEGER,           INTENT(in) :: iion
         REAL(q) :: ret(3)
         ret = get_efield_impl(hamil%efield, iion, hamil%efield_len, hamil%efield_lcycle)
         RETURN
     END FUNCTION get_efield
+
+
+    !> A = - c \int E dt
+    !> Here the trapz integration is used
+    FUNCTION get_vecpot(hamil, iion) RESULT(ret)
+        TYPE(hamiltonian), INTENT(in) :: hamil
+        INTEGER,           INTENT(in) :: iion
+        REAL(q) :: ret(3)
+
+        REAL(q), SAVE :: efield_last(3)
+        REAL(q), SAVE :: efield_curr(3)
+        REAL(q), SAVE :: vecpot(3)
+
+        IF (iion <= 1) THEN
+            efield_last = 0.0_q
+            efield_curr = 0.0_q
+            vecpot      = 0.0_q
+        ENDIF
+
+        efield_last = efield_curr
+        efield_curr = get_efield(hamil, iion)
+
+        vecpot = vecpot &
+            - C_ANGPFS &                                    !! -c
+            * (efield_curr + efield_last) * hamil%dt / 2    !! \int E dt trapz integration
+
+        ret = vecpot
+        RETURN
+    END FUNCTION get_vecpot
 END MODULE hamiltonian_mod
