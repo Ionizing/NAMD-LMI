@@ -9,34 +9,34 @@ MODULE hamiltonian_mod
     IMPLICIT NONE
 
     TYPE :: hamiltonian
-        INTEGER :: basis_up(2)                  !> basis index for spin up
-        INTEGER :: basis_dn(2)                  !> basis index for spin down
-        INTEGER :: nbasis                       !> number of basis
-        REAL(q) :: dt                           !> time step, in fs
-        INTEGER :: basisini                     !> initial band index of basis
-        INTEGER :: namdinit                     !> start index of NAMD in total trajectory
-        INTEGER :: namdtime                     !> number of NAMD steps
-        INTEGER :: nsw                          !> number of AIMD steps
-        INTEGER :: nelm                         !> number of electronic steps when performing interpolations
-        LOGICAL :: lreal                        !> hamiltonian is totally real or not
-        REAL(q) :: temperature                  !> NAMD temperature, in Kelvin
+        INTEGER :: basis_up(2)                  !! basis index for spin up
+        INTEGER :: basis_dn(2)                  !! basis index for spin down
+        INTEGER :: nbasis                       !! number of basis
+        REAL(q) :: dt                           !! time step, in fs
+        INTEGER :: basisini                     !! initial band index of basis
+        INTEGER :: namdinit                     !! start index of NAMD in total trajectory
+        INTEGER :: namdtime                     !! number of NAMD steps
+        INTEGER :: nsw                          !! number of AIMD steps
+        INTEGER :: nelm                         !! number of electronic steps when performing interpolations
+        LOGICAL :: lreal                        !! hamiltonian is totally real or not
+        REAL(q) :: temperature                  !! NAMD temperature, in Kelvin
 
-        INTEGER :: efield_len                   !> EFIELD data length
-        LOGICAL :: efield_lcycle                !> Apply external field in cycle or not
+        INTEGER :: efield_len                   !! EFIELD data length
+        LOGICAL :: efield_lcycle                !! Apply external field in cycle or not
 
-        COMPLEX(q), ALLOCATABLE :: psi_p(:)     !> ket for previous step, [nbasis]
-        COMPLEX(q), ALLOCATABLE :: psi_c(:)     !> ket for current step, [nbasis]
-        COMPLEX(q), ALLOCATABLE :: psi_n(:)     !> ket for next step, [nbasis]
-        COMPLEX(q), ALLOCATABLE :: psi_t(:, :)  !> time dependent kets, [nbasis, namdtime]
-        REAL(q),    ALLOCATABLE :: pop_t(:, :)  !> the population ABS(psi_t), [nbasis, namdtime]
-        COMPLEX(q), ALLOCATABLE :: psi_h(:)     !> the result of hamiltonian applied on the ket, H|psi>, [nbasis]
+        COMPLEX(q), ALLOCATABLE :: psi_p(:)     !! ket for previous step, [nbasis]
+        COMPLEX(q), ALLOCATABLE :: psi_c(:)     !! ket for current step, [nbasis]
+        COMPLEX(q), ALLOCATABLE :: psi_n(:)     !! ket for next step, [nbasis]
+        COMPLEX(q), ALLOCATABLE :: psi_t(:, :)  !! time dependent kets, [nbasis, namdtime]
+        REAL(q),    ALLOCATABLE :: pop_t(:, :)  !! the population ABS(psi_t), [nbasis, namdtime]
+        COMPLEX(q), ALLOCATABLE :: psi_h(:)     !! the result of hamiltonian applied on the ket, H|psi>, [nbasis]
 
-        COMPLEX(q), ALLOCATABLE :: hamil(:, :)  !> Hamiltonian, H_{jk} = [e_{jk} * \delta_{jk} - i\hbar d_{jkk}], [nbasis, nbasis]
-        REAL(q),    ALLOCATABLE :: eig_t(:, :)  !> time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
-        REAL(q),    ALLOCATABLE :: prop_eigs(:) !> time-dependent energy of system due to propagation
-        COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !> time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian, [nbasis, nbasis, nsw-1]
-        COMPLEX(q), ALLOCATABLE :: tdm_t(:, :, :, :) !> time-dependent transition dipole moment data, [nbasis, nbasis, nsw-1]
-        REAL(q),    ALLOCATABLE :: efield(:, :) !> time-dependent electric field from user input, [3, namdtime]
+        COMPLEX(q), ALLOCATABLE :: hamil(:, :)  !! Hamiltonian, H_{jk} = [e_{jk} * \delta_{jk} - i\hbar d_{jkk}], [nbasis, nbasis]
+        REAL(q),    ALLOCATABLE :: eig_t(:, :)  !! time-dependent eigen value of kohn-sham orbits, [nbasis, nsw-1]
+        REAL(q),    ALLOCATABLE :: prop_eigs(:) !! time-dependent energy of system due to propagation
+        COMPLEX(q), ALLOCATABLE :: nac_t(:, :, :) !! time-dependent non-adiabatic coupling data, i.e. d_ij in hamiltonian, [nbasis, nbasis, nsw-1]
+        COMPLEX(q), ALLOCATABLE :: ipj_t(:, :, :, :) !! time-dependent momentum matrix element, [nbasis, nbasis, nsw-1]
+        REAL(q),    ALLOCATABLE :: efield(:, :) !! time-dependent electric field from user input, [3, namdtime]
     END TYPE hamiltonian
 
     CONTAINS
@@ -161,7 +161,7 @@ MODULE hamiltonian_mod
         ALLOCATE(hamil%eig_t(nbasis, hamil%nsw-1))
         ALLOCATE(hamil%prop_eigs(hamil%namdtime))
         ALLOCATE(hamil%nac_t(nbasis, nbasis, hamil%nsw-1))
-        ALLOCATE(hamil%tdm_t(3, nbasis, nbasis, hamil%nsw-1))
+        ALLOCATE(hamil%ipj_t(3, nbasis, nbasis, hamil%nsw-1))
         ALLOCATE(hamil%efield(3, efield_len))
 
         !! initialize
@@ -190,11 +190,11 @@ MODULE hamiltonian_mod
         IF (nb(2) == 0) THEN        !> spin up only
             hamil%eig_t = nac_dat%eigs( bup(1):bup(2),                1, :)
             hamil%nac_t = nac_dat%olaps(bup(1):bup(2), bup(1):bup(2), 1, :)
-            hamil%tdm_t = nac_dat%tdms(:, bup(1):bup(2), bup(1):bup(2), 1, :)
+            hamil%ipj_t = nac_dat%ipjs(:, bup(1):bup(2), bup(1):bup(2), 1, :)
         ELSE IF (nb(1) == 0) THEN   !> spin down only
             hamil%eig_t = nac_dat%eigs( bdn(1):bdn(2),                2, :)
             hamil%nac_t = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
-            hamil%tdm_t = nac_dat%tdms(:, bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
+            hamil%ipj_t = nac_dat%ipjs(:, bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
         ELSE                        !> both spin up and spin down, where spin up in the lower part
             hamil%eig_t(      1:nb(1)      , :) = nac_dat%eigs(bup(1):bup(2), 1, :)
             hamil%eig_t(nb(1)+1:nb(1)+nb(2), :) = nac_dat%eigs(bdn(1):bdn(2), 2, :)
@@ -202,8 +202,8 @@ MODULE hamiltonian_mod
             hamil%nac_t(      1:nb(1)      ,       1:nb(1)      , :) = nac_dat%olaps(bup(1):bup(2), bup(1):bup(2), 1, :)
             hamil%nac_t(nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%olaps(bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
 
-            hamil%tdm_t(:,       1:nb(1)      ,       1:nb(1)      , :) = nac_dat%tdms(:, bup(1):bup(2), bup(1):bup(2), 1, :)
-            hamil%tdm_t(:, nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%tdms(:, bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
+            hamil%ipj_t(:,       1:nb(1)      ,       1:nb(1)      , :) = nac_dat%ipjs(:, bup(1):bup(2), bup(1):bup(2), 1, :)
+            hamil%ipj_t(:, nb(1)+1:nb(1)+nb(2), nb(1)+1:nb(1)+nb(2), :) = nac_dat%ipjs(:, bdn(1):bdn(2), bdn(1):bdn(2), 2, :)
         ENDIF
 
         hamil%nac_t = hamil%nac_t * (-IMGUNIT * HBAR / (2.0 * hamil%dt))
@@ -257,7 +257,7 @@ MODULE hamiltonian_mod
         IF (ALLOCATED(hamil%eig_t)) DEALLOCATE(hamil%eig_t)
         IF (ALLOCATED(hamil%prop_eigs)) DEALLOCATE(hamil%prop_eigs)
         IF (ALLOCATED(hamil%nac_t)) DEALLOCATE(hamil%nac_t)
-        IF (ALLOCATED(hamil%tdm_t)) DEALLOCATE(hamil%tdm_t)
+        IF (ALLOCATED(hamil%ipj_t)) DEALLOCATE(hamil%ipj_t)
         IF (ALLOCATED(hamil%efield)) DEALLOCATE(hamil%efield)
     END SUBROUTINE hamiltonian_destroy
 
@@ -268,22 +268,21 @@ MODULE hamiltonian_mod
         INTEGER, INTENT(in) :: iele
 
         !! local variable
-        COMPLEX(q), ALLOCATABLE, SAVE :: hamil_tdm_curr(:, :), hamil_tdm_next(:, :)
-        REAL(q) :: efield(3)
-        REAL(q) :: vecpot(3)        !! vector potential, A = - c \int E dt
+        COMPLEX(q), ALLOCATABLE, SAVE :: hamil_ipj_curr(:, :), hamil_ipj_next(:, :)
+        REAL(q) :: vecpot(3)        !! vector potential, A = - \int E dt, V*fs/Å
         INTEGER :: nelm
         INTEGER :: rtime, xtime
         INTEGER :: nsw
         INTEGER :: i, j
 
-        IF (.NOT. ALLOCATED(hamil_tdm_curr)) THEN
-            ALLOCATE(hamil_tdm_curr(hamil%nbasis, hamil%nbasis))
-            hamil_tdm_curr = 0
+        IF (.NOT. ALLOCATED(hamil_ipj_curr)) THEN
+            ALLOCATE(hamil_ipj_curr(hamil%nbasis, hamil%nbasis))
+            hamil_ipj_curr = 0
         ENDIF
 
-        IF (.NOT. ALLOCATED(hamil_tdm_next)) THEN
-            ALLOCATE(hamil_tdm_next(hamil%nbasis, hamil%nbasis))
-            hamil_tdm_next = 0
+        IF (.NOT. ALLOCATED(hamil_ipj_next)) THEN
+            ALLOCATE(hamil_ipj_next(hamil%nbasis, hamil%nbasis))
+            hamil_ipj_next = 0
         ENDIF
         
         nelm  = hamil%nelm
@@ -298,24 +297,24 @@ MODULE hamiltonian_mod
         IF (0 /= hamil%efield_len) THEN
             vecpot = get_vecpot(hamil, iion)
 
-            !! tdm part, use linear interpolation
+            !! ipj part, use linear interpolation
             IF (iion == 1) THEN
                 FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
-                    hamil_tdm_curr(i, j) = SUM(hamil%tdm_t(:, i, j, rtime) * efield)
+                    hamil_ipj_curr(i, j) = SUM(hamil%ipj_t(:, i, j, rtime) * vecpot(:)) / MASS_E
                 ENDFORALL
             ELSE
-                hamil_tdm_curr = hamil_tdm_next
+                hamil_ipj_curr = hamil_ipj_next
             ENDIF
 
             IF (iion == hamil%namdtime) THEN        !! avoid subscript overflow when
-                hamil_tdm_next = 0
+                hamil_ipj_next = 0
             ELSE
                 FORALL(i=1:hamil%nbasis, j=1:hamil%nbasis)
-                    hamil_tdm_next(i, j) = SUM(hamil%tdm_t(:, i, j, xtime) * efield)
+                    hamil_ipj_next(i, j) = SUM(hamil%ipj_t(:, i, j, xtime) * vecpot(:)) / MASS_E
                 ENDFORALL
             ENDIF
-            hamil%hamil = hamil%hamil + (hamil_tdm_next - hamil_tdm_curr) * DBLE(iele) / nelm
-            hamil_tdm_curr = hamil_tdm_next
+            hamil%hamil = hamil%hamil + (hamil_ipj_next - hamil_ipj_curr) * DBLE(iele) / nelm
+            hamil_ipj_curr = hamil_ipj_next
         ENDIF
 
         !! diagonal part, equals to eigen value
@@ -513,7 +512,7 @@ MODULE hamiltonian_mod
 
         !! local variables
         INTEGER :: ierr
-        INTEGER(HSIZE_T) :: nac_dims(3), eigs_dims(2), tdm_dims(4), efield_dims(2)
+        INTEGER(HSIZE_T) :: nac_dims(3), eigs_dims(2), ipj_dims(4), efield_dims(2)
         INTEGER(HID_T)   :: file_id, dspace_id, dset_id
         
         IF (PRESENT(llog)) THEN
@@ -543,15 +542,15 @@ MODULE hamiltonian_mod
                 CALL H5DCLOSE_F(dset_id, ierr)
             CALL H5SCLOSE_F(dspace_id, ierr)
 
-            tdm_dims = SHAPE(hamil%tdm_t)
-            CALL H5SCREATE_SIMPLE_F(4, tdm_dims, dspace_id, ierr)
+            ipj_dims = SHAPE(hamil%ipj_t)
+            CALL H5SCREATE_SIMPLE_F(4, ipj_dims, dspace_id, ierr)
                 !! real part
-                CALL H5DCREATE_F(file_id, "tdm_t_r", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
-                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, REALPART(hamil%tdm_t), tdm_dims, ierr)
+                CALL H5DCREATE_F(file_id, "ipj_t_r", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, REALPART(hamil%ipj_t), ipj_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
                 !! imag part
-                CALL H5DCREATE_F(file_id, "tdm_t_i", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
-                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(hamil%tdm_t), tdm_dims, ierr)
+                CALL H5DCREATE_F(file_id, "ipj_t_i", H5T_NATIVE_DOUBLE, dspace_id, dset_id, ierr)
+                CALL H5DWRITE_F(dset_id, H5T_NATIVE_DOUBLE, IMAGPART(hamil%ipj_t), ipj_dims, ierr)
                 CALL H5DCLOSE_F(dset_id, ierr)
             CALL H5SCLOSE_F(dspace_id, ierr)
 
@@ -629,7 +628,7 @@ MODULE hamiltonian_mod
     END FUNCTION get_efield
 
 
-    !> A = - c \int E dt
+    !> A = - \int E dt  (not Gaussian unit)
     !> Here the trapz integration is used
     FUNCTION get_vecpot(hamil, iion) RESULT(ret)
         TYPE(hamiltonian), INTENT(in) :: hamil
@@ -649,9 +648,7 @@ MODULE hamiltonian_mod
         efield_last = efield_curr
         efield_curr = get_efield(hamil, iion)
 
-        vecpot = vecpot &
-            - C_ANGPFS &                                    !! -c
-            * (efield_curr + efield_last) * hamil%dt / 2    !! \int E dt trapz integration
+        vecpot = vecpot + (efield_curr + efield_last) * hamil%dt / 2    !! \int E dt trapz integration
 
         ret = vecpot
         RETURN

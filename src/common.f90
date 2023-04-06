@@ -1,5 +1,5 @@
 !> Define the precisions and constants.
-!! @author Linjie Chen, Qijing Zheng.
+!> @author Linjie Chen, Qijing Zheng.
 MODULE common_mod
     IMPLICIT NONE
 
@@ -34,6 +34,7 @@ MODULE common_mod
     REAL(q),    PARAMETER :: FELECT = 2 * AUTOA * RYTOEV        !! \f$ \displaystyle \frac{e}{4\pi\varepsilon_0} \f$ in atomic units
     REAL(q),    PARAMETER :: EDEPS  = 4 * PI * 2 * RYTOEV * AUTOA   !! \f$ \displaystyle \frac{e}{\varepsilon_0} \f$ in atomic units
     REAL(q),    PARAMETER :: HSQDTM = RYTOEV * AUTOA * AUTOA    !! \f$ \displaystyle \frac{\hbar^2}{2m_e} \f$
+    REAL(q),    PARAMETER :: MASS_E = HBAR**2 / (2 * HSQDTM)    !! mass of electron in atomic unit
     COMPLEX(q), PARAMETER :: CITPI  = TPI * IMGUNIT             !! 0+3πi
 
     !> Vector field \f$\mathbf{A}\f$ times momentum times \f$ \frac{e}{2m_ec} \f$
