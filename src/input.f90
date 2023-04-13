@@ -155,6 +155,7 @@ MODULE input_mod
         ALLOCATE(inp%inisteps(nsample))
         ALLOCATE(inp%efield(3, efield_len))
 
+        CALL init_random_seed()
         inp%inibands = 0
         inp%inispins = 1
         DO i = 1, nsample

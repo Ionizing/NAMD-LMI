@@ -20,3 +20,4 @@ This is my Fortran project!
 - [ ] Doc-comment refactoring
 - [ ] Style guide
 - [ ] All electron NAC and TDM - WIP
+- [ ] More efficient parallelism for DISH method
