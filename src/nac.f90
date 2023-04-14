@@ -583,7 +583,7 @@ MODULE nac_mod
         COMPLEX(q),  ALLOCATABLE, SAVE :: phase(:)
         REAL(q),     ALLOCATABLE, SAVE :: gvecs_cart(:, :)
         COMPLEX(q),  ALLOCATABLE, SAVE :: psi_times_gvecs(:, :)
-        REAL(q),     ALLOCATABLE, SAVE :: invde(:, :)
+        !REAL(q),     ALLOCATABLE, SAVE :: invde(:, :)
         INTEGER :: nspin
         INTEGER :: nbrange
         INTEGER :: ispin, iband, idirect
@@ -618,8 +618,8 @@ MODULE nac_mod
             ENDIF
         ENDIF
         IF (.NOT. ALLOCATED(psi_times_gvecs)) ALLOCATE(psi_times_gvecs(nplws, nbrange))
-        IF (.NOT. ALLOCATED(invde))           ALLOCATE(invde(nbrange, nbrange))             !< 1 / ABS(E2-E1)
-        invde = 0.0_q
+        !IF (.NOT. ALLOCATED(invde))           ALLOCATE(invde(nbrange, nbrange))             !< 1 / ABS(E2-E1)
+        !invde = 0.0_q
 
         DO ispin = 1, nspin
             DO iband = brange(1), brange(2)
@@ -650,10 +650,10 @@ MODULE nac_mod
                                 -p_ij *       SPREAD(phase, 1, nbrange)
 
             !! de = Ei - Ej
-            invde = - SPREAD(wav_i%eigs(brange(1):brange(2), ikpoint, ispin), 2, nbrange) + &
-                    TRANSPOSE(SPREAD(wav_i%eigs(brange(1):brange(2), ikpoint, ispin), 2, nbrange))
-            FORALL (i=1:nbrange, j=1:nbrange, ABS(invde(i, j)) >= 1E-5_q) invde(i, j) = 1.0_q / invde(i, j)
-            FORALL (i=1:nbrange, j=1:nbrange, ABS(invde(i, j))  < 1E-5_q) invde(i, j) = 0.0_q
+            !invde = - SPREAD(wav_i%eigs(brange(1):brange(2), ikpoint, ispin), 2, nbrange) + &
+                    !TRANSPOSE(SPREAD(wav_i%eigs(brange(1):brange(2), ikpoint, ispin), 2, nbrange))
+            !FORALL (i=1:nbrange, j=1:nbrange, ABS(invde(i, j)) >= 1E-5_q) invde(i, j) = 1.0_q / invde(i, j)
+            !FORALL (i=1:nbrange, j=1:nbrange, ABS(invde(i, j))  < 1E-5_q) invde(i, j) = 0.0_q
 
             DO idirect = 1, 3
                 FORALL(i=1:nbrange) psi_times_gvecs(:, i) = psi_j(:, i) * gvecs_cart(idirect, :)

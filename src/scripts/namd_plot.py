@@ -15,6 +15,18 @@ mpl.use('agg')
 mpl.rcParams['axes.unicode_minus'] = False
 
 
+## Constants
+# AUTOA * AUTODEBYE * (2*RYTOEV)
+AUTOA     = 0.529177249
+AUTODEBYE = 2.541746
+RYTOEV    = 13.605826
+DEBYE2EA  = 0.2081943
+
+
+def lorentzian_smearing(xs, peak, gamma=0.05):
+    return gamma / (np.pi * 2) / ((xs - peak)**2 + (gamma/2)**2)
+
+
 def load_results(prefix: str="result_"):
     print("collecting SH results ...")
 
@@ -115,6 +127,7 @@ def proj_via_inp(inp, whichAtom = slice(None), spd = slice(None)):
             pros = data['pros']
     else:
         eigs, pros = parallel_proj(rundirs, whichAtom, spd)
+        eigs[eigs > 0.0] += inp['SCISSOR']
         np.savez(npzfname,
                  eigs=eigs,
                  pros=pros)
@@ -214,7 +227,7 @@ def plot_eigs_evol(inputfile: str = "input.nml", whichAtom = slice(None), spd = 
     fig, ax = plt.subplots(figsize=(6, 4.5))
     nband   = eigs.shape[-1]
     dt      = inp['DT']
-    T, dump = np.mgrid[0:nsw:dt, 0:nband]
+    T, dump = np.mgrid[0:nsw, 0:nband]
 
     nspin = eigs.shape[1]
 
@@ -237,7 +250,7 @@ def plot_eigs_evol(inputfile: str = "input.nml", whichAtom = slice(None), spd = 
         cbar.set_ticklabels(['s', 'p'])
 
     ax.set_xlim(0, nsw)
-    ax.set_ylim(-0.5, 1.5)
+    ax.set_ylim(-0.5, 2.0)
     ax.set_xlabel('Time [fs]',   fontsize='small', labelpad=5)
     ax.set_ylabel('Energy [eV]', fontsize='small', labelpad=5)
     ax.tick_params(which='both', labelsize='x-small')
@@ -392,9 +405,14 @@ def plot_tdm(fname='HAMIL.h5'):
 
     f = h5py.File(fname)
     tdm_t = np.sum(
-            np.abs(f['tdm_t_i'][()] * 1j + f['tdm_t_r'][()]),
-            axis=-1)
-    tdm = np.mean(tdm_t, axis=0)
+            np.abs(f['ipj_t_i'][()] * 1j + f['ipj_t_r'][()]),
+            axis=-1) * AUTOA * AUTODEBYE * 2 * RYTOEV * DEBYE2EA
+
+    E_t    = f['eigs_t'][()]
+    dE_t   = np.abs(E_t[:,None,:] - E_t[:,:,None])
+    tdm_t  = np.divide(tdm_t, dE_t, where=(dE_t != 0))
+    tdm    = np.mean(tdm_t, axis=0)
+
     np.fill_diagonal(tdm, 0)
     
     fig, ax = plt.subplots()
@@ -408,6 +426,28 @@ def plot_tdm(fname='HAMIL.h5'):
     fig.tight_layout(pad=0.2)
     fig.savefig('tdm.png', dpi=600)
     plt.clf()
+
+
+    print("plotting TDM spectra ...")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    E = np.mean(f['eigs_t'][()], axis=0)
+    dE = E - E[:, None]
+    xvals = np.linspace(-0.5, dE.max(), 1000)   
+    yvals = np.zeros_like(xvals)
+    for (_dE, _tdm) in zip(dE.ravel(), tdm.ravel()):
+        if _dE > 0.0:
+            yvals[:] += lorentzian_smearing(xvals, _dE) * _tdm
+            pass
+
+    ax.plot(xvals, yvals)
+    ax.set_xlim(-0.5, dE.max())
+    ax.set_xlabel("Energy (eV)")
+    ax.set_ylabel("Transition Dipole Moment (arb. unit)")
+    ax.set_title("Transition Dipole Moment (eÅ)")
+    fig.tight_layout(pad=0.5)
+    fig.savefig("tdm_spectra.png", dpi=600)
+    plt.clf()
+
 
     print("plotting td-TDM ...")
     # plot td-tdm
@@ -425,8 +465,11 @@ def plot_tdm(fname='HAMIL.h5'):
     plt.clf()
 
 
-def plot_efield(fname='HAMIL.h5'):
+def plot_efield(fname='HAMIL.h5', inpfname='input.nml'):
     print("plotting EFIELD ...")
+
+    inp = parse_inp(inpfname)
+    dt  = inp['DT']
 
     f      = h5py.File(fname)
     if not 'efield' in f:
@@ -434,7 +477,7 @@ def plot_efield(fname='HAMIL.h5'):
         return
 
     efield = f['efield'][()]
-    T      = np.arange(efield.shape[0]) * 1.0
+    T      = np.arange(efield.shape[0]) * dt
     labels = "XYZ"
     colors = "rgb"
     nrows  = 3
@@ -461,8 +504,8 @@ if '__main__' == __name__:
 
     whichAtom = slice(None)
     spd       = [1, 2, 3]
-    # plot_eigs_evol(inps[0], whichAtom, spd)
+    plot_eigs_evol(inps[0], whichAtom, spd)
     plot_spatloc(inps[0], whichAtom, spd)
     plot_nac()
     plot_tdm()
-    plot_efield()
+    plot_efield(fname='HAMIL.h5', inpfname=inps[0])

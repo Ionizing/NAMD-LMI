@@ -436,7 +436,7 @@ MODULE hamiltonian_mod
             DO iele = 1, hamil%nelm
                 CALL hamiltonian_make_hamil(hamil, iion, iele)
 
-                H = hamil%hamil * (edt/HBAR)   ! -iHt/hbar
+                H = hamil%hamil * (-edt/HBAR)   ! -iHt/hbar
                 E = 0
 
                 !! Let A = -iHt/hbar and can be decomposed by A = P x \Lambda x P^-1

@@ -213,13 +213,14 @@ MODULE input_mod
         IF (.NOT. ALLOCATED(inp%inibands)) ALLOCATE(inp%inibands(inp%nsample))
         IF (.NOT. ALLOCATED(inp%inispins)) ALLOCATE(inp%inispins(inp%nsample))
         IF (.NOT. ALLOCATED(inp%inisteps)) ALLOCATE(inp%inisteps(inp%nsample))
-        IF (.NOT. ALLOCATED(inp%efield))   ALLOCATE(inp%efield(3, inp%namdtime))
 
         CALL MPI_BCAST(inp%inibands, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%inispins, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%inisteps, inp%nsample, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
 
         CALL MPI_BCAST(inp%efield_len,         1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+        IF (.NOT. ALLOCATED(inp%efield)) ALLOCATE(inp%efield(3, inp%efield_len))
+
         CALL MPI_BCAST(inp%efield_lcycle,      1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
         CALL MPI_BCAST(inp%efield,   3*inp%efield_len, MPI_DOUBLE_PRECISION, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
     END SUBROUTINE

@@ -32,7 +32,7 @@ PROGRAM namd_lumi_x
         CALL cli_parse                      !! input file loads here
 
         IF (inp%scissor > 0.0) THEN
-            WRITE(STDOUT, '("[WARN] You have specified SCISSOR > 0, thus no band crossings between VBM and CBM are required.")')
+            WRITE(STDOUT, '("[WARN] You have specified SCISSOR > 0, thus no band crossings between VBM and CBM are allowed.")')
         ENDIF
 
         WRITE(STDOUT, '(A)') "================================================================================"
@@ -63,14 +63,14 @@ PROGRAM namd_lumi_x
 
     !CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
+    CALL MPI_FINALIZE(ierr)
+
     CALL SYSTEM_CLOCK(timing_end, timing_rate)
     IF (irank == MPI_ROOT_NODE) THEN
         WRITE(STDOUT, '(A)') "================================================================================"
         WRITE(STDOUT, '(A, F10.3, A)') "    CONGRATULATIONS, ALL CALCULATIONS DONE IN ", DBLE(timing_end - timing_start) / timing_rate, " SECS."
         WRITE(STDOUT, '(A)') "================================================================================"
     ENDIF
-
-    CALL MPI_FINALIZE(ierr)
 
     !! End of NAMD_lumi
 
