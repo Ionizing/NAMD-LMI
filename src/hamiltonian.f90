@@ -350,6 +350,7 @@ MODULE hamiltonian_mod
                 CALL propagate_finite_difference_
             CASE("EXACT")
                 CALL propagate_exact_
+                !CALL propagate_exact2_
             CASE("LIOUVILLE-TROTTER")
                 CALL propagate_liouville_trotter_
             CASE DEFAULT
@@ -372,7 +373,7 @@ MODULE hamiltonian_mod
 
         CONTAINS
 
-        !> This method empolys the linear interpolation to integrate the exp(-iHt/hbar)
+        !> This method employs the linear interpolation to integrate the exp(-iHt/hbar)
         !> In each electronic step, the |psi_c'> = H_ele * |psi_c> are performed,
         !>  where H_ele are linear interpolated, thus this method requires NELM = ~1000 to preserve the norm of psi_c
         SUBROUTINE propagate_finite_difference_
@@ -459,6 +460,39 @@ MODULE hamiltonian_mod
                 hamil%psi_c = MATMUL(EXPH, hamil%psi_c)
             ENDDO   !! iele
         END SUBROUTINE propagate_exact_
+
+
+        !> This method uses `expokit` to perform exp(t*A)*v
+        SUBROUTINE propagate_exact2_
+            USE expokit_mod
+            IMPLICIT NONE
+
+            INTEGER                       :: m          ! order of hamil, == nbasis
+            REAL(q)                       :: t          ! time step, == edt / HBAR
+            COMPLEX(q), ALLOCATABLE, SAVE :: H(:,:)     ! hamiltonian
+            COMPLEX(q), ALLOCATABLE, SAVE :: y(:)       ! operand vector, == hamil%psi_c
+            INTEGER,    ALLOCATABLE, SAVE :: iwsp(:)    ! workspace
+            COMPLEX(q), ALLOCATABLE, SAVE :: wsp(:)     ! workspace
+            INTEGER                       :: iflag      ! return flag
+
+            !! preparations
+            m = hamil%nbasis
+            t = edt / HBAR  !! (t/hbar)
+            IF (.NOT. ALLOCATED(H))    ALLOCATE(H(m,m))
+            IF (.NOT. ALLOCATED(y))    ALLOCATE(y(m))
+            IF (.NOT. ALLOCATED(iwsp)) ALLOCATE(iwsp(m))
+            IF (.NOT. ALLOCATED(wsp))  ALLOCATE(wsp(2*m*(m+2)))
+
+            !! logic starts here
+            DO iele = 1, hamil%nelm
+                CALL hamiltonian_make_hamil(hamil, iion, iele)
+                H(:,:) = - IMGUNIT * hamil%hamil(:,:) !! (-i*H)
+                y(:)   = hamil%psi_c(:)
+                CALL ZGCHBV(m, t, H, m, y, wsp, iwsp, iflag)
+                hamil%psi_c(:) = y(:)
+            ENDDO
+
+        END SUBROUTINE propagate_exact2_
 
 
         !> This method can be much faster than exact methods, but requires the Hamiltonian off-diagonals to be totally real

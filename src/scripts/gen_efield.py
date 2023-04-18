@@ -158,7 +158,7 @@ def gen_efield(efield_len: int, dt: float, input_str: str, center: float, intens
     amplitude = amp_wpcm2_to_vpa(intensity)
     pulse = gaussian_pulse(t, center, 500*dt)
 
-    x = amplitude * np.sin(omega * t) * pulse
+    x = amplitude * np.cos(omega * t) * pulse
     # y = amplitude * np.cos(omega * t) * pulse
     y = amplitude * np.zeros_like(x) * pulse
     z = amplitude * np.zeros_like(x)  * pulse

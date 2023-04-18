@@ -122,6 +122,7 @@ PROGRAM namd_lumi_x
             ELSE
                 IF (cla_key_present('-i')) THEN
                     CALL cla_get('-i', inpname)
+                    WRITE(STDOUT, '(A)') '  Using user specified input file "' // TRIM(inpname) // '".'
                     CALL input_from_file(inp, TRIM(inpname), llog=.FALSE.)
                 ELSE
                     CALL input_from_file(inp, llog=.FALSE.)
