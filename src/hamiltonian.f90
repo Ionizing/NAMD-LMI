@@ -295,7 +295,7 @@ MODULE hamiltonian_mod
                             (hamil%nac_t(:, :, xtime) - hamil%nac_t(:, :, rtime)) * (DBLE(iele) / nelm)
 
         IF (0 /= hamil%efield_len) THEN
-            vecpot = get_vecpot(hamil, iion)
+            vecpot = get_vecpot(hamil, iion, iele)
 
             !! ipj part, use linear interpolation
             IF (iion == 1) THEN
@@ -314,7 +314,10 @@ MODULE hamiltonian_mod
                 ENDFORALL
             ENDIF
             hamil%hamil = hamil%hamil + (hamil_ipj_next - hamil_ipj_curr) * DBLE(iele) / nelm
-            hamil_ipj_curr = hamil_ipj_next
+
+            IF (iele == nelm) THEN
+                hamil_ipj_curr = hamil_ipj_next
+            ENDIF
         ENDIF
 
         !! diagonal part, equals to eigen value
@@ -322,6 +325,14 @@ MODULE hamiltonian_mod
             hamil%hamil(i,i) = hamil%eig_t(i, rtime) + &
                               (hamil%eig_t(i, rtime+1) - hamil%eig_t(i, rtime)) * (DBLE(iele) / nelm)
     END SUBROUTINE hamiltonian_make_hamil
+
+
+    SUBROUTINE hamiltonian_make_hamil_noiele(hamil, iion)
+        TYPE(hamiltonian), INTENT(inout) :: hamil
+        INTEGER, INTENT(in) :: iion
+
+        !! TODO
+    END SUBROUTINE hamiltonian_make_hamil_noiele
 
 
     SUBROUTINE hamiltonian_propagate(hamil, iion, method)
@@ -664,9 +675,10 @@ MODULE hamiltonian_mod
 
     !> A = - \int E dt  (not Gaussian unit)
     !> Here the trapz integration is used
-    FUNCTION get_vecpot(hamil, iion) RESULT(ret)
+    FUNCTION get_vecpot(hamil, iion, iele) RESULT(ret)
         TYPE(hamiltonian), INTENT(in) :: hamil
-        INTEGER,           INTENT(in) :: iion
+        INTEGER,           INTENT(in) :: iion   !! ionic step
+        INTEGER,           INTENT(in) :: iele   !! electronic step
         REAL(q) :: ret(3)
 
         REAL(q), SAVE :: efield_last(3)
@@ -679,10 +691,12 @@ MODULE hamiltonian_mod
             vecpot      = 0.0_q
         ENDIF
 
-        efield_last = efield_curr
-        efield_curr = get_efield(hamil, iion)
+        IF (iele == 1) THEN
+            efield_last = efield_curr
+            efield_curr = get_efield(hamil, iion)
+        ENDIF
 
-        vecpot = vecpot + (efield_curr + efield_last) * hamil%dt / 2    !! \int E dt trapz integration
+        vecpot = vecpot - (2 * efield_curr + (efield_last - efield_curr) / hamil%nelm * iele  ) * hamil%dt / hamil%nelm / 2    !! \int E dt trapz integration
 
         ret = vecpot
         RETURN
