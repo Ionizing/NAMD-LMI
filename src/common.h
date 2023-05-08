@@ -3,7 +3,7 @@
 #define TREAL2STR(x) TRIM(real2str(x))
 #define AT "at " // __FILE__ // ":" // TINT2STR(__LINE__)
 
-#ifdef __INTEL_COMPILER
+#if defined(__INTEL_COMPILER)
 #define REALPART DREAL
 #define IMAGPART DIMAG
 #else

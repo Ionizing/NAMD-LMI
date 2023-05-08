@@ -588,7 +588,7 @@ MODULE nac_mod
         INTEGER :: nbrange
         INTEGER :: ispin, iband, idirect
         INTEGER :: nplws, ngvec
-        INTEGER :: i, j
+        INTEGER :: i !, j
 
         !! logic starts
         nspin    = wav_i%nspin
@@ -655,15 +655,22 @@ MODULE nac_mod
             !FORALL (i=1:nbrange, j=1:nbrange, ABS(invde(i, j)) >= 1E-5_q) invde(i, j) = 1.0_q / invde(i, j)
             !FORALL (i=1:nbrange, j=1:nbrange, ABS(invde(i, j))  < 1E-5_q) invde(i, j) = 0.0_q
 
+
+            !! phase correction for <i|p|j>
+            !!p_ji = MATMUL(CONJG(TRANSPOSE(psi_i)), psi_i)
+            !p_ij =        CONJG(TRANSPOSE( p_ji))
+            !!FORALL(i=1:nbrange) phase(i) = p_ji(i,i) / ABS(p_ji(i,i))
+            !!IF (wav_i%wavetype(1:3) == "GAM") phase = SIGN(1.0_q, REALPART(phase))
+
             DO idirect = 1, 3
                 FORALL(i=1:nbrange) psi_times_gvecs(:, i) = psi_j(:, i) * gvecs_cart(idirect, :)
 
                 !! <phi_i | p | phi_j>
                 IF (wav_i%wavetype(1:3) == "GAM") THEN
-                    ipj_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs) &
-                                                 - MATMUL(CONJG(TRANSPOSE(psi_times_gvecs)), psi_j)
+                    ipj_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs) * CONJG(SPREAD(phase, 2, nbrange)) &
+                                                 - MATMUL(CONJG(TRANSPOSE(psi_times_gvecs)), psi_j) *       SPREAD(phase, 1, nbrange)
                 ELSE
-                    ipj_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs)
+                    ipj_ij(idirect, :, :, ispin) = MATMUL(CONJG(TRANSPOSE(psi_j)), psi_times_gvecs) * CONJG(SPREAD(phase, 2, nbrange))
                 ENDIF
             ENDDO
         ENDDO

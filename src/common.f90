@@ -1,3 +1,5 @@
+#include "common.h"
+
 !> Define the precisions and constants.
 !> @author Linjie Chen, Qijing Zheng.
 MODULE common_mod

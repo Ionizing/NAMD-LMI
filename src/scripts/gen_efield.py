@@ -167,6 +167,7 @@ def gen_efield(efield_len: int, dt: float, input_str: str, center: float, intens
     print(f"Maximum amplitude of applied EFIELD = {maxamp} V/Angstrom")
 
     ret = ''
+    ret += f'        !! Maximum amplitude of applied EFIELD = {maxamp} V/Angstrom\n'
     for i in range(efield_len):
         ret += "   {:13.5e} {:13.5e} {:13.5e} !{:7d}\n".format(x[i], y[i], z[i], i+1)
     return ret
@@ -184,6 +185,8 @@ def parse_args():
                         help='Make efield applied in cycle?, Default: False')
     parser.add_argument('--hw', type=str, action='store', default='1.5 eV',
                         help='Photon energy of input, Default: \'1.5 eV\'')
+    parser.add_argument('-o', '--output', type=str, action='store', default=None,
+                        help='Filename of generated input file for NAMD_lumi')
     return parser.parse_args()
 
 
@@ -208,9 +211,7 @@ if '__main__' == __name__:
     new_efield = gen_efield(efield_len, dt, args.hw, center, power)
     new_input  = replace_efield(txt, new_efield, args.cycle)
     new_dir    = f'{power:.0e}'
-    new_fname  = f'input_{new_dir}_{args.hw}.nml'
+    new_fname  = args.output if not args.output is None else f'input_{new_dir}_{args.hw}.nml'
 
     print(f"Saving to {new_fname} ...")
-    # if not os.path.exists(new_dir):
-        # os.mkdir(new_dir)
     open(new_fname, "w").write(new_input)

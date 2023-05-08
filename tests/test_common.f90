@@ -11,6 +11,7 @@ MODULE test_common
         qsort,         &
         argsort,       &
         cumtrapz,      &
+        MASS_E,        &
         self_correlate_function
     USE string_mod,     ONLY: int2str
     IMPLICIT NONE
@@ -18,6 +19,8 @@ MODULE test_common
     CONTAINS
 
     SUBROUTINE test_common_fn
+        PRINT *, "MASS_E = ", MASS_E
+
         CALL set_case_name("test_common")
         CALL test_common_mpi_partition
         CALL test_randint_range
@@ -98,7 +101,7 @@ MODULE test_common
         Ai = [(i, i=1, N)]
         CALL cumsum(Ai, Bi)
 
-        Bf = [(DBLE(i), i=1, N)]
+        Af = [(DBLE(i), i=1, N)]
         CALL cumsum(Af, Bf)
 
         DO i = 1, N
