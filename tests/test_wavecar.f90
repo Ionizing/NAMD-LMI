@@ -205,7 +205,7 @@ MODULE test_wavecar
         CALL wavecar_destroy(wav)
 
 
-        CALL wavecar_init(wav, "WAVECAR_gamx", "gamx", lgvecs=.FALSE.)
+        CALL wavecar_init(wav, "WAVECAR_gamx", "gamx", lgvecs=.TRUE.)
         ngvec = wav%nplws(ikpoint)
 
         ALLOCATE(gvecs_cart(3, ngvec))
@@ -226,7 +226,7 @@ MODULE test_wavecar
         CALL wavecar_destroy(wav)
 
 
-        CALL wavecar_init(wav, "WAVECAR_std", "std", lgvecs=.FALSE.)
+        CALL wavecar_init(wav, "WAVECAR_std", "std", lgvecs=.TRUE.)
         ngvec = wav%nplws(ikpoint)
 
         ALLOCATE(gvecs_cart(3, ngvec))

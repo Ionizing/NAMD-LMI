@@ -1,1 +1,1 @@
-make.inc.gcc
+make.inc.gcc_mkl

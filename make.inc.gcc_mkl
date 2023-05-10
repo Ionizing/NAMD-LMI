@@ -4,10 +4,10 @@ CFLAGS      ?= -std=c99 -g -O0 -fPIC -Wall -Wextra
 MPIF90      ?= mpif90
 INCLUDE     ?=
 F90FLAGS    ?=
-F90FLAGS    += -g -O0 -fPIC -Wall -Wextra -pedantic -Wuninitialized -fcheck=all \
+F90FLAGS    += -g -O3 -Wall -Wextra -pedantic -Wuninitialized -fcheck=all \
                -Wno-unused-parameter -cpp -ffree-form  -ffree-line-length-none \
                -funroll-all-loops -fbacktrace -fsanitize=address -fno-omit-frame-pointer
-LDFLAGS     ?= -lasan
+LDFLAGS      = -lasan
 
 # For MKL
 F90FLAGS    += -m64  -I"${MKLROOT}/include"

@@ -6,7 +6,7 @@ LIB = libnamd.a
 LIBEXTERNAL = ../external/libexternal.a
 
 namd_lumi.x: namd_lumi.f90 $(LIB) $(LIBEXTERNAL)
-	$(MPIF90) -o $@ $^ $(F90FLAGS) -I../external
+	$(MPIF90) -o $@ $^ $(F90FLAGS) -I../external $(LDFLAGS)
 
 $(LIB): $(OBJS) lib.o
 	ar -rcv $@ $^
