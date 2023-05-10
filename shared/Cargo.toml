@@ -6,9 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.71"
-clap = "4.2.7"
-log = "0.4.17"
+anyhow  = "1.0.71"
+clap    = "4.2.7"
+log     = "0.4.17"
 ndarray = "0.15.6"
-rayon = "1.7.0"
-regex = "1.8.1"
+ndarray-linalg = { version = "0.16.0", features = ["intel-mkl-system"] }
+rayon   = "1.7.0"
+regex   = "1.8.1"

@@ -1,0 +1,13 @@
+[package]
+name = "namd"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hdf5 = "0.8.1"
+hdf5-sys = { version = "0.8.1", features = ["static"] }
+mpi          = { version = "0.6.0", features = ["derive"] }
+shared       = { path = "../shared" }
+vasp_parsers = { path = "../vasp_parsers" }

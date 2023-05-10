@@ -3,4 +3,5 @@
 members = [
     "vasp_parsers",
     "shared",
+    "namd",
 ]

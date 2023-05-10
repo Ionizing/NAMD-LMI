@@ -10,6 +10,7 @@ pub use ndarray::{
     Array2,
     Array3,
 };
+pub use ndarray_linalg;
 pub use regex::Regex;
 pub use clap::Parser;
 pub use log::{
