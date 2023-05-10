@@ -1,0 +1,18 @@
+[package]
+name           = "vasp_parsers"
+version        = "0.1.0"
+edition        = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+byteorder = "1.4.3"
+colored   = "2.0.0"
+flate2    = "1.0.26"
+itertools = "0.10.5"
+ndrustfft = "0.4.0"
+rayon     = "1.7.0"
+shared    = { path = "../shared" }
+
+[dev-dependencies]
+tempdir = "0.3.7"
