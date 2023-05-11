@@ -889,7 +889,7 @@ impl Wavecar {
 
 
     // Read wavefunction coefficients and convert to Array1<Complex64>
-    fn _wav_kspace(&self, ispin: u64, ikpoint: u64, iband: u64, nplw: usize) -> Array2<Complex<f64>> {
+    pub fn _wav_kspace(&self, ispin: u64, ikpoint: u64, iband: u64, nplw: usize) -> Array2<Complex<f64>> {
         let wav = self.read_wavefunction(ispin, ikpoint, iband).unwrap();
         match wav {
             Wavefunction::Complex32Array1(wf) => {

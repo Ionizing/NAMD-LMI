@@ -19,6 +19,10 @@ pub use log::{
     info,
 };
 
+#[allow(non_camel_case_types)]
+pub type c64 = ndrustfft::Complex<f64>;
+#[allow(non_camel_case_types)]
+pub type c32 = ndrustfft::Complex<f32>;
 
 // Convenient types
 pub type Vector<T> = Array1<T>;  // Define this type to use broadcast operations.

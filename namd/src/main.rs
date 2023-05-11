@@ -1,5 +1,5 @@
 use shared::{
-    ndarray,
+    //ndarray,
     Result,
     Context,
 };
@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     let world    = universe.world();
     let nrank     = world.size();
     let irank    = world.rank();
-    let root_rank = world.process_at_rank(0);
+    //let root_rank = world.process_at_rank(0);
 
     if 0 == irank {
         println!("MPI initialized with {nrank} ranks.");
