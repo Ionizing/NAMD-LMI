@@ -513,6 +513,22 @@ impl Wavecar {
     }
 
 
+    pub fn generate_fft_grid_cart(&self, ikpoint: u64) -> MatX3<f64> {
+        let kvec  = self.kvecs.row(ikpoint as usize);
+        self.generate_fft_grid(ikpoint)
+            .into_iter()
+            .map(|[gx, gy, gz]| [gx as f64 + kvec[0], gy as f64 + kvec[1], gz as f64 + kvec[2]])
+            .map(|[gx, gy, gz]| {
+                [
+                    gx * self.bcell[0][0] + gy * self.bcell[1][0] + gz * self.bcell[2][0],
+                    gx * self.bcell[0][1] + gy * self.bcell[1][1] + gz * self.bcell[2][1],
+                    gx * self.bcell[0][2] + gy * self.bcell[1][2] + gz * self.bcell[2][2],
+                ]
+            })
+            .collect::<Vec<_>>()
+    }
+
+
     fn _determine_wavecar_type(ngrid:   &[u64; 3],
                                kvec:    &Array1<f64>,
                                bcell:   &Mat33<f64>,
