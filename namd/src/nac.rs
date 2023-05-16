@@ -1,6 +1,14 @@
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::ops::RangeInclusive;
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
+use rayon::prelude::*;
 use mpi::traits::*;
 
 use shared::{
@@ -50,14 +58,56 @@ impl Nac {
     }
 
 
-    fn from_wavecars(&mut self) -> Result<()> {
-        todo!()
+    fn from_wavecars(rundir: &Path, nsw: usize, ikpoint: usize, brange: RangeInclusive<usize>, gvecs: &Array2<c64>, ndigit: usize)
+        -> Result<(Array4<c64>, Array3<f64>, Array5<c64>)>
+    {
+        let w1      = Wavecar::from_file(&rundir.with_file_name(format!("{:0ndigit$}/WAVECAR", 1)))?;
+        let nbrange = brange.clone().count();
+        let nspin   = w1.nspin as usize;
+
+        let ret_c_ij = Arc::new(Mutex::new(
+                Array4::<c64>::zeros((nsw-1, nspin, nbrange, nbrange))
+                ));
+        let ret_e_ij = Arc::new(Mutex::new(
+                Array3::<f64>::zeros((nsw-1, nspin, nbrange))
+                ));
+        let ret_p_ij = Arc::new(Mutex::new(
+                Array5::<c64>::zeros((nsw-1, nspin, 3, nbrange, nbrange))
+                ));
+
+        (1 .. nsw).into_par_iter().for_each(|isw| {
+            let mut path_i = PathBuf::from(rundir.clone());
+            path_i.push(format!("{:0ndigit$}", isw));
+            let mut path_j = PathBuf::from(rundir.clone());
+            path_j.push(format!("{:0ndigit$}", isw+1));
+
+            let (c_ij, e_ij, p_ij) = Self::coupling_ij(path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs).unwrap();
+
+            ret_c_ij.lock().unwrap()
+                .slice_mut(s![isw, .., .., ..]).assign(&c_ij);
+
+            ret_e_ij.lock().unwrap()
+                .slice_mut(s![isw, .., ..]).assign(&e_ij);
+
+            ret_p_ij.lock().unwrap()
+                .slice_mut(s![isw, .., .., .., ..]).assign(&p_ij);
+        });
+
+        Ok((
+            Arc::try_unwrap(ret_c_ij).unwrap().into_inner()?,
+            Arc::try_unwrap(ret_e_ij).unwrap().into_inner()?,
+            Arc::try_unwrap(ret_p_ij).unwrap().into_inner()?,
+                ))
+
     }
 
 
-    fn nac_ij(wi: &Wavecar, wj: &Wavecar, ikpoint: usize, brange: RangeInclusive<usize>, gvecs: &Array2<c64>)
+    fn coupling_ij(path_i: &Path, path_j: &Path, ikpoint: usize, brange: RangeInclusive<usize>, gvecs: &Array2<c64>)
         -> Result<(Array3<c64>, Array2<f64>, Array4<c64>)>
     {
+        let wi = Wavecar::from_file(&path_i.with_file_name("WAVECAR"))?;
+        let wj = Wavecar::from_file(&path_j.with_file_name("WAVECAR"))?;
+        
         let nplw     = wi.nplws[ikpoint] as usize;
         let nbrange  = brange.clone().count();
         let nspin    = wi.nspin as usize;
@@ -82,7 +132,7 @@ impl Nac {
                 );
                 phi_j.slice_mut(s![iband, ..]).assign(
                     &wj._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw)
-                        .into_shape((nspinor * nplw,)).unwrap()
+                        .into_shape((nspinor * nplw,))?
                 );
             }
 
@@ -101,12 +151,12 @@ impl Nac {
                 };
                 p_ij.slice_mut(s![ispin, idirect, .., ..]).assign(&p_ij_tmp);
             }
-
-            e_ij.slice_mut(s![ispin, ..]).assign(&(
-                ( wi.band_eigs.slice(s![ispin, ikpoint, brange.clone()]).to_owned() + 
-                  wj.band_eigs.slice(s![ispin, ikpoint, brange.clone()]) ) / 2.0
-            ));
         }
+
+        e_ij.slice_mut(s![.., ..]).assign(&(
+            ( wi.band_eigs.slice(s![.., ikpoint, brange.clone()]).to_owned() + 
+              wj.band_eigs.slice(s![.., ikpoint, brange.clone()]) ) / 2.0
+        ));
 
         Ok((c_ij, e_ij, p_ij))
     }
