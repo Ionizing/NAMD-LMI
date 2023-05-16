@@ -1133,6 +1133,7 @@ dependencies = [
  "hdf5",
  "hdf5-sys",
  "mpi",
+ "rayon",
  "shared",
  "vasp_parsers",
 ]
