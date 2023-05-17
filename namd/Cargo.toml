@@ -12,3 +12,7 @@ mpi          = { version = "0.6.0", features = ["derive"] }
 rayon        = "1.7.0"
 shared       = { path = "../shared" }
 vasp_parsers = { path = "../vasp_parsers" }
+
+[[bin]]
+name = "namd_lumi"
+path = "src/main.rs"
