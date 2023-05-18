@@ -531,8 +531,6 @@ MODULE surface_hopping_mod
 
 
     SUBROUTINE dish_gausfit_(ns, xs, ys, sigma)
-        USE lmdif_module
-
         INTEGER, INTENT(in)  :: ns
         REAL(q), INTENT(in)  :: xs(ns)
         REAL(q), INTENT(in)  :: ys(ns)
@@ -542,31 +540,33 @@ MODULE surface_hopping_mod
         REAL(q) :: fvec0(ns)
         INTEGER :: info
 
-        solution = [1.0_q]   !! [sigma] to be fitted
+        STOP "DISH not implemented yet"
 
-        CALL lmdif0(fit_func, ns, 1, solution, fvec0, 1.0d-9, info)
+        !solution = [1.0_q]   !! [sigma] to be fitted
 
-        sigma = solution(1)
+        !CALL lmdif0(fit_func, ns, 1, solution, fvec0, 1.0d-9, info)
 
-        IF (info <= 0 .OR. info >= 5) THEN
-            WRITE(STDERR, '(A, I2, A, F10.4, A, F10.4, A)') "[ERROR] Fit failed in gausfit function, with info = ", &
-                info, " sigma = ", sigma, " " // AT
-            STOP ERROR_FIT_FAILED
-        ENDIF
+        !sigma = solution(1)
 
-    CONTAINS
-        SUBROUTINE fit_func(m, n, x, fvec, iflag)
-            INTEGER, INTENT(in)     :: m, n
-            INTEGER, INTENT(inout)  :: iflag
-            REAL(q), INTENT(in)     :: x(n)
-            REAL(q), INTENT(inout)  :: fvec(m)
+        !IF (info <= 0 .OR. info >= 5) THEN
+            !WRITE(STDERR, '(A, I2, A, F10.4, A, F10.4, A)') "[ERROR] Fit failed in gausfit function, with info = ", &
+                !info, " sigma = ", sigma, " " // AT
+            !STOP ERROR_FIT_FAILED
+        !ENDIF
 
-            INTEGER :: dummy
+    !CONTAINS
+        !SUBROUTINE fit_func(m, n, x, fvec, iflag)
+            !INTEGER, INTENT(in)     :: m, n
+            !INTEGER, INTENT(inout)  :: iflag
+            !REAL(q), INTENT(in)     :: x(n)
+            !REAL(q), INTENT(inout)  :: fvec(m)
 
-            dummy = iflag       ! iflag is unused, designed to make compiler happy
-            CALL dish_gaussian1d_(xs, m, x(1), fvec)
-            fvec = fvec - ys
-        END SUBROUTINE fit_func
+            !INTEGER :: dummy
+
+            !dummy = iflag       ! iflag is unused, designed to make compiler happy
+            !CALL dish_gaussian1d_(xs, m, x(1), fvec)
+            !fvec = fvec - ys
+        !END SUBROUTINE fit_func
     END SUBROUTINE dish_gausfit_
 
 

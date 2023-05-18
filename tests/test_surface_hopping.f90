@@ -11,8 +11,8 @@ MODULE test_surface_hopping
     CONTAINS
 
     SUBROUTINE test_surface_hopping_fn
-        CALL test_surface_hopping_gausfit
-        CALL test_surface_hopping_dephase_time
+        !CALL test_surface_hopping_gausfit
+        !CALL test_surface_hopping_dephase_time
     END SUBROUTINE test_surface_hopping_fn
 
     SUBROUTINE test_surface_hopping_gausfit
