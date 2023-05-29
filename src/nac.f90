@@ -222,7 +222,7 @@ MODULE nac_mod
         !! Prepare phase correction of wavefunctions
         IF (MPI_ROOT_NODE == irank) THEN
             fname_1 = TRIM(generate_static_calculation_path(rundir, 1, ndigit)) // "/WAVECAR"
-            CALL wavecar_init(wav_1, fname_1, wavetype)
+            CALL wavecar_init(wav_1, fname_1, wavetype, iu0=114514)
             nplws   = wav_1%nplws(ikpoint)
 
             CALL MPI_BCAST(nplws, 1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
@@ -232,10 +232,11 @@ MODULE nac_mod
             DO ispin = 1, nspin
                 DO iband = brange(1), brange(2)
                     CALL wavecar_read_wavefunction(wav_1, ispin, ikpoint, iband, psi_1qs, lnorm=.TRUE.)
-                    psi_1(:, iband-brange(1), ispin) = psi_1qs
+                    psi_1(:, iband-brange(1)+1, ispin) = psi_1qs
                 ENDDO
             ENDDO
             CALL MPI_BCAST(psi_1, nspin*nbrange*nplws, MPI_DOUBLE_COMPLEX, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
+            CALL wavecar_destroy(wav_1)
         ELSE
             CALL MPI_BCAST(nplws, 1, MPI_INTEGER, MPI_ROOT_NODE, MPI_COMM_WORLD, ierr)
             ALLOCATE(psi_1(nplws, nbrange, nspin))
@@ -667,8 +668,8 @@ MODULE nac_mod
             phase_i(:) = SUM(CONJG(psi_1(:, :, ispin)) * psi_i(:, :), DIM=1)
             phase_j(:) = SUM(CONJG(psi_1(:, :, ispin)) * psi_j(:, :), DIM=1)
 
-            psi_i(:, :) = psi_i(:, :) * SPREAD(CONJG(phase_i), 2, nbrange)
-            psi_j(:, :) = psi_j(:, :) * SPREAD(CONJG(phase_j), 2, nbrange)
+            psi_i(:, :) = psi_i(:, :) * SPREAD(CONJG(phase_i), 1, nplws)
+            psi_j(:, :) = psi_j(:, :) * SPREAD(CONJG(phase_j), 1, nplws)
 
             !< psi_i,j = [nplws, nbrange]
             p_ji = MATMUL(CONJG(TRANSPOSE(psi_i)), psi_j)   !! <psi_i(t) | psi_j(t+dt)>

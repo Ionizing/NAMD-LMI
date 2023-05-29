@@ -408,25 +408,26 @@ def plot_tdm(fname='HAMIL.h5'):
             np.abs(f['ipj_t_i'][()] * 1j + f['ipj_t_r'][()]),
             axis=-1) * AUTOA * AUTODEBYE * 2 * RYTOEV * DEBYE2EA
 
+    ipj = np.abs(np.mean(tdm_t, axis=0))
+
+    fig, ax = plt.subplots()
+    pos = ax.imshow(ipj, cmap='Reds', vmin=0, origin='lower')
+    for (i, j), label in np.ndenumerate(ipj):
+        ax.text(i, j, f"{label:5.2f}", ha='center', va='center')
+
+    cbar = fig.colorbar(pos, ax=ax)
+    cbar.minorticks_on()
+    cbar.ax.set_title("$m_e$Å/fs")
+    fig.tight_layout(pad=0.2)
+    fig.savefig('ipj.png', dpi=600)
+    plt.clf()
+
     E_t    = f['eigs_t'][()]
     dE_t   = np.abs(E_t[:,None,:] - E_t[:,:,None])
     tdm_t  = np.divide(tdm_t, dE_t, where=(dE_t != 0))
     tdm    = np.mean(tdm_t, axis=0)
 
     np.fill_diagonal(tdm, 0)
-    
-    fig, ax = plt.subplots()
-    pos = ax.imshow(tdm, cmap='Reds', vmin=0, origin='lower')
-    for (i, j), label in np.ndenumerate(tdm):
-        ax.text(i, j, f"{label:5.2f}", ha='center', va='center')
-
-    cbar = fig.colorbar(pos, ax=ax)
-    cbar.minorticks_on()
-    cbar.ax.set_title("eÅ")
-    fig.tight_layout(pad=0.2)
-    fig.savefig('tdm.png', dpi=600)
-    plt.clf()
-
 
     print("plotting TDM spectra ...")
     fig, ax = plt.subplots(figsize=(6, 4))

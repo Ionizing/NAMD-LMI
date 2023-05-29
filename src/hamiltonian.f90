@@ -306,6 +306,11 @@ MODULE hamiltonian_mod
                 hamil_ipj_curr = hamil_ipj_next
             ENDIF
 
+            !!!!!!!!!!!!!!!!!!!!!!
+            !PRINT *, vecpot(1)
+            !PRINT *, REALPART(hamil_ipj_curr(3,4))
+            !!!!!!!!!!!!!!!!!!!!!!
+
             IF (iion == hamil%namdtime) THEN        !! avoid subscript overflow when
                 hamil_ipj_next = 0
             ELSE

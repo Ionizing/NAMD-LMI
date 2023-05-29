@@ -5,98 +5,17 @@ import re
 from argparse import ArgumentParser
 import numpy as np
 
-
-HBAR = 0.6582119569 # eV*fs
-
-
-def parse_inp(fname="input.nml"):
-    """
-    parse input file and return a dictionary
-    """
-    def parse_int(txt: str, key: str, count: int = 1):
-        regex = re.compile(fr'\b{key}\s*=\s*((\s*\d+){{{count}}})')
-        match = regex.search(txt).group(1).split()
-        ret   =  list(map(lambda x: int(x), match))
-        return ret[0] if 1 == count else ret
-
-    def parse_float(txt: str, key: str, count: int = 1):
-        regex = re.compile(fr'\b{key}\s*=\s*((\s+[-+]?(\d+([.]\d*)?|[.]\d+)([eE][-+]?\d+)?){{{count}}})', re.I | re.M)
-        match = regex.search(txt).group(1).split()
-        ret   =  list(map(lambda x: float(x), match))
-        return ret[0] if 1 == count else ret
-
-    def parse_str(txt: str, key: str, count: int=1):
-        """
-        count ignored
-        """
-        regex = re.compile(fr'\b{key}\s*=\s*"(.*?)"', re.I)
-        return regex.search(txt).group(1)
-
-    def parse_bool(txt: str, key: str, count: int=1):
-        """
-        count ignored
-        """
-        regex = re.compile(fr'\b{key}\s*=\s*([TF]|\.TRUE\.|\.FALSE\.)', re.I)
-        match = regex.search(txt).group(1)
-        if 'T' in match or 't' in match:
-            return True
-        else:
-            return False
-
-    txt = open(fname).read()
-    txt = re.sub(re.compile(r'!.*(?=\n)'), "", txt)
-    # open("inp_nocomment.nml", "w").write(txt)
-    
-    key_typ_cnt = [
-        ('RUNDIR',       str,   1),
-        ('WAVETYPE',     str,   1),
-        ('IKPOINT',      int,   1),
-        ('BRANGE',       int,   2),
-        ('BASIS_UP',     int,   2),
-        ('BASIS_DN',     int,   2),
-        ('NSW',          int,   1),
-        ('NDIGIT',       int,   1),
-        ('NAMDTIME',     int,   1),
-        ('DT',           float, 1),
-        ('NSAMPLE',      int,   1),
-        ('NTRAJ',        int,   1),
-        ('PROPMETHOD',   str,   1),
-        ('NELM',         int,   1),
-        ('LREAL',        bool,  1),
-        ('LPRINT_INPUT', bool,  1),
-        ('LEXCITATION',  bool,  1),
-        ('SHMETHOD',     str,   1),
-        ('FNAME',        str,   1),
-        ('TEMPERATURE',  float, 1),
-        ('SCISSOR',      float, 1),
-        ('EFIELD_LEN',   int,   1),
-    ]
-    
-    ret = dict()
-    for (k, t, c) in key_typ_cnt:
-        if t == int:
-            ret[k] = parse_int(txt,   k, c)
-        elif t == float:
-            ret[k] = parse_float(txt, k, c)
-        elif t == str:
-            ret[k] = parse_str(txt,   k, c)
-        elif t == bool:
-            ret[k] = parse_bool(txt,  k, c)
-        else:
-            raise ValueError
-    
-    nsample = ret['NSAMPLE']
-
-    ret['INISTEPS'] = parse_int(txt, 'INISTEPS\(:\)', nsample)
-    # ret['INIBANDS'] = parse_int(txt, 'INIBANDS\(:\)', nsample)
-    # ret['INISPINS'] = parse_int(txt, 'INISPINS\(:\)', nsample)
-
-    return ret
-
-
 def gaussian_pulse(t: np.ndarray, center: float, width: float):
     pulse = np.exp(-1.0/2 * ((t - center)/width)**2)
     return pulse / np.max(np.abs(pulse))
+
+
+def parse_efield_len(txt: str) -> int:
+    return int(re.findall(r'efield_len\s*=\s*(\d+),?', txt, re.I)[-1])
+
+
+def parse_dt(txt: str) -> float:
+    return float(re.findall(r'dt\s*=\s*([0-9]+[.]?[0-9]*([eE][-+]?[0-9]+)?),?', txt, flags=re.I)[-1][0])
 
 
 def replace_efield(txt: str, new_efield: str, is_cycle: bool = False) -> str:
@@ -112,18 +31,21 @@ def replace_efield(txt: str, new_efield: str, is_cycle: bool = False) -> str:
 def wavelength_to_omega(wavelength: float) -> float:
     """
     wavelength in nm
-    returns angular frequency: 
+    returns angular frequency: 2pi * f, in 2pi*10^15 Hz, 1fs=1e-15Hz
     """
-    energy = 1239.84 / wavelength # eV
-    return energy_to_omega(energy)
+    lh = 45.5633   # 1Hartree = 27.2114eV = 45.5633nm
+    wh = 6.579684  # 1E15Hz
+    return 2 * np.pi * wh * (lh / wavelength)
 
 
 def energy_to_omega(energy: float) -> float:
     """
     energy in eV
-    returns angular frequency: rad/fs
+    returns angular frequency: 2pi * f, in 2pi*10^15 Hz, 1fs=1e-15Hz
     """
-    return energy / HBAR
+    Eh = 27.211386 # eV
+    wh = 6.579684  # 1E15Hz
+    return 2 * np.pi * wh * (energy / Eh)
 
 
 def amp_wpcm2_to_vpa(wpcm2: float) -> float:
@@ -132,7 +54,7 @@ def amp_wpcm2_to_vpa(wpcm2: float) -> float:
     E = sqrt(2I/(cε0))
 
     wmp2: input intensity, in W/cm2
-    returns E: electric field, in V/Angstrom (V/Angstrom)
+    returns E: electric field, in V/Angstrom (1E-9 V/Angstrom)
     """
     return np.sqrt(wpcm2) * 2.744E-6 # 2.744E-6 means 1W/cm2 ~ 2.744E-6 V/Angstrom
 
@@ -153,21 +75,20 @@ def gen_efield(efield_len: int, dt: float, input_str: str, center: float, intens
     elif inp[1] == "nm":
         omega = wavelength_to_omega(float(inp[0]))
     else:
-        raise ValueError("Invalid unit for photon energy: should be either eV or nm")
+        raise ValueError
 
     amplitude = amp_wpcm2_to_vpa(intensity)
-    pulse = gaussian_pulse(t, center, 500*dt)
+    pulse = gaussian_pulse(t, center, 1000)
+    pulse = 1.0 #gaussian_pulse(t, center, 50)
 
     x = amplitude * np.cos(omega * t) * pulse
-    # y = amplitude * np.cos(omega * t) * pulse
-    y = amplitude * np.zeros_like(x) * pulse
+    y = amplitude * np.sin(omega * t) * pulse
     z = amplitude * np.zeros_like(x)  * pulse
 
-    maxamp = np.max(np.linalg.norm(np.c_[x, y, z], axis=1))
+    maxamp = np.max(np.linalg.norm(np.c_[x, y, z], axis=0))
     print(f"Maximum amplitude of applied EFIELD = {maxamp} V/Angstrom")
 
     ret = ''
-    ret += f'        !! Maximum amplitude of applied EFIELD = {maxamp} V/Angstrom\n'
     for i in range(efield_len):
         ret += "   {:13.5e} {:13.5e} {:13.5e} !{:7d}\n".format(x[i], y[i], z[i], i+1)
     return ret
@@ -177,16 +98,14 @@ def parse_args():
     parser = ArgumentParser(description='A tool to add EFIELD to input file for NAMD_lumi', add_help=True)
     parser.add_argument('-t', '--template', type=str, action='store', default='input_template.nml',
                         help='Input template for NAMD_lumi')
-    parser.add_argument('-p', '--power', type=float, action='store', default=1E4,
-                        help='The power of applied light field, in (W/cm2), Default: 1E4')
+    parser.add_argument('-p', '--power', type=float, action='store', default=1E10,
+                        help='The power of applied light field, in (W/cm2)')
     parser.add_argument('-c', '--center', type=int, action='store', default=1000,
-                        help='Center of gaussian wavepack, Default: 1000')
+                        help='Center of gaussian wavepack')
     parser.add_argument('-l', '--cycle', action='store_true', default=False,
-                        help='Make efield applied in cycle?, Default: False')
+                        help='Make efield applied in cycle?')
     parser.add_argument('--hw', type=str, action='store', default='1.5 eV',
-                        help='Photon energy of input, Default: \'1.5 eV\'')
-    parser.add_argument('-o', '--output', type=str, action='store', default=None,
-                        help='Filename of generated input file for NAMD_lumi')
+                        help='Input energy of photon (hbar*omega). Can be like "1.5 eV" or "900 nm". "1.5 eV" by Default')
     return parser.parse_args()
 
 
@@ -194,12 +113,11 @@ if '__main__' == __name__:
     args = parse_args()
     
     txt = open(args.template).read()
-    inp = parse_inp(args.template)
 
-    efield_len = inp['EFIELD_LEN']
+    efield_len = parse_efield_len(txt)
     print("EFIELD_LEN = {}".format(efield_len))
 
-    dt = inp['DT']
+    dt = parse_dt(txt)
     print("DT = {}".format(dt))
 
     power = args.power
@@ -211,7 +129,9 @@ if '__main__' == __name__:
     new_efield = gen_efield(efield_len, dt, args.hw, center, power)
     new_input  = replace_efield(txt, new_efield, args.cycle)
     new_dir    = f'{power:.0e}'
-    new_fname  = args.output if not args.output is None else f'input_{new_dir}_{args.hw}.nml'
+    new_fname  = f'input_{new_dir}.nml'
 
     print(f"Saving to {new_fname} ...")
+    # if not os.path.exists(new_dir):
+        # os.mkdir(new_dir)
     open(new_fname, "w").write(new_input)
