@@ -21,4 +21,7 @@ pub struct Input {
     pub fname:        String,
     pub temperature:  f64,
     pub scissor:      f64,
+
+    pub efield_len:   usize,
+    pub efield_lcycle: bool,
 }

@@ -16,3 +16,6 @@ vasp_parsers = { path = "../vasp_parsers" }
 [[bin]]
 name = "namd_lumi"
 path = "src/main.rs"
+
+[dev-dependencies]
+tempfile = "3.5.0"

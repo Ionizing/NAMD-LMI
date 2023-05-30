@@ -2,6 +2,7 @@ use shared::{
     //ndarray,
     Result,
     Context,
+    bail,
 };
 use mpi::{
     self,
@@ -18,7 +19,11 @@ fn main() -> Result<()> {
 
     if 0 == irank {
         println!("MPI initialized with {nrank} ranks.");
+        if nrank != 1 {
+            bail!("MPI parallelism not implemented yet, exiting ...");
+        }
     }
+
 
     Ok(())
 }
