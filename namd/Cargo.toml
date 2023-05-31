@@ -9,8 +9,13 @@ edition = "2021"
 hdf5         = "0.8.1"
 hdf5-sys     = { version = "0.8.1", features = ["static"] }
 mpi          = { version = "0.6.0", features = ["derive"] }
+once_cell = "1.17.2"
+pest = "2.6.0"
+pest_derive = "2.6.0"
 rayon        = "1.7.0"
+serde = { version = "1.0.163", features = ["derive"] }
 shared       = { path = "../shared" }
+toml = "0.7.4"
 vasp_parsers = { path = "../vasp_parsers" }
 
 [[bin]]

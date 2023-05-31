@@ -1,0 +1,27 @@
+value = @{ int ~ ("." ~ ASCII_DIGIT*)? ~ (^"e" ~ int)? }
+    int = { ("+" | "-")? ~ ASCII_DIGIT+ }
+infix = _{ add | sub | mul | div | pow }
+    add = { "+" }
+    sub = { "-" }
+    mul = { "*" }
+    div = { "/" }
+    pow = { "^" }
+prefix = _{ neg | exp }
+    neg = { "-" }
+    exp = { "e^" }
+function = _{ sin | cos | tan }
+    sin = { "sin" }
+    cos = { "cos" }
+    tan = { "tan" }
+variable = @{ "t" }
+primary = _{
+    variable |
+    value |
+    function ~ "(" ~ expr ~ ")" |
+    "(" ~ expr ~ ")"
+}
+expr = {
+    prefix? ~ primary ~ (infix ~ prefix? ~ primary)*
+}
+program = _{ SOI ~ expr ~ EOI }
+WHITESPACE = _{ " " }

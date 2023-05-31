@@ -1,3 +1,15 @@
+use shared::{
+    anyhow,
+    Result,
+};
+
+use toml;
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use crate::efield::Efield;
+
 pub struct Input {
     pub rundir:       String,
     pub wavetype:     String,
@@ -22,6 +34,6 @@ pub struct Input {
     pub temperature:  f64,
     pub scissor:      f64,
 
-    pub efield_len:   usize,
-    pub efield_lcycle: bool,
+    pub efield:       Option<Efield>,
+    pub lcycle:       bool,
 }
