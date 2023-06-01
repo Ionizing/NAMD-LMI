@@ -1,15 +1,5 @@
-use std::str::FromStr;
-
-//use once_cell::sync::Lazy;
 use pest_derive::Parser;
-//use pest::{
-    //Parser,
-    //pratt_parser::PrattParser,
-//};
-use shared::{
-    anyhow,
-    Result,
-};
+use shared::Result;
 
 
 mod fnparse {
@@ -265,12 +255,8 @@ impl Efield {
     fn string_to_function(s: &str) -> Box<dyn Fn(f64) -> f64> {
         Box::new(fnparse::str2fn(s))
     }
-}
 
-
-impl FromStr for Efield {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<Self> {
+    pub fn from_str(s: &str) -> Result<Self> {
         use pest::Parser;
         use pest::iterators::Pair;
 
@@ -297,7 +283,7 @@ impl FromStr for Efield {
                         Efield::string_to_function(tokens[2]),
                     ])
                 },
-                _ => panic!("Unexpected token. Only function3 and vector3 is acceptable.")
+                _ => panic!("Unexpected token. Only function3 and vector3 are acceptable.")
             }
         }
 
