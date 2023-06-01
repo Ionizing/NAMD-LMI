@@ -1,6 +1,11 @@
 use std::str::FromStr;
 
+//use once_cell::sync::Lazy;
 use pest_derive::Parser;
+//use pest::{
+    //Parser,
+    //pratt_parser::PrattParser,
+//};
 use shared::{
     anyhow,
     Result,
@@ -37,7 +42,7 @@ mod fnparse {
         sin = { "sin" }
         cos = { "cos" }
         tan = { "tan" }
-    variable = @{ "x" }
+    variable = @{ "t" }
     primary = _{
         variable |
         value |
@@ -48,7 +53,7 @@ mod fnparse {
         prefix? ~ primary ~ (infix ~ prefix? ~ primary)*
     }
     program = _{ SOI ~ expr ~ EOI }
-    WHITESPACE = _{ " " }
+    WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
     "#]
     struct Function;
 
@@ -181,7 +186,7 @@ mod fnparse {
 
 
 /// Example of input external-field data:
-/// ```
+/// ```ignore
 /// # comments
 /// lcycle = false # or true
 ///
@@ -203,25 +208,26 @@ mod fnparse {
 #[derive(Parser)]
 #[grammar_inline = r##"
 float = @{ int ~ ("." ~ ASCII_DIGIT*)? ~ (^"e" ~ int)? }
-    int = { ("+" | "-")? ~ ASCII_DIGIT+ }
+    int = _{ ("+" | "-")? ~ ASCII_DIGIT+ }
 
 vector3 = {
     vector3tag ~ "{" ~
         (float ~ float ~ float) ~
-        (";" ~ float ~ float ~ float)* ~ (";")? ~
+        ("," ~ float ~ float ~ float)* ~ (",")? ~
     "}"
 }
     vector3tag = @{ ^"vector3" }
 
 function3 = {
     functiontag ~ "{" ~
-        not_semicolon_or_brace+ ~ ";" ~
-        not_semicolon_or_brace+ ~ ";" ~
-        not_semicolon_or_brace+ ~ (";")? ~
+        functionbody ~ ";" ~
+        functionbody ~ ";" ~
+        functionbody ~ (";")? ~
     "}"
 }
-    functiontag = @{ ^"function3" }
-    not_semicolon_or_brace = _{
+    functiontag  = @{ ^"function3" }
+    functionbody = @{ not_semicolon_or_brace+ }
+    not_semicolon_or_brace = {
         !(
             ";" |
             "{" |
@@ -230,9 +236,9 @@ function3 = {
         ~ ANY
     }
 
-efield = _{ SOI ~ ( vector3 | function3 ) ~ EOI }
-WHITESPACE = _{ " " | "\n" | "\t" }
-COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+efield     = _{ SOI ~ ( vector3 | function3 ) ~ EOI }
+WHITESPACE = _{ " " | "\n" | "\t" | "\r" }
+COMMENT    = _{ "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
 "##]
 pub enum Efield {
     Vector3(Vec<[f64; 3]>),
@@ -242,7 +248,9 @@ pub enum Efield {
 
 impl Efield {
     fn string_to_vec3(s: &str) -> Vec<[f64; 3]> {
-        let efield_vec = s.split_ascii_whitespace()
+        let efield_vec = s
+            .split(&[',', ' ', '\n', '\t', '\r'])
+            .filter(|x| !x.is_empty())
             .map(|v| v.parse::<f64>().unwrap())
             .collect::<Vec<f64>>();
         
@@ -263,7 +271,38 @@ impl Efield {
 impl FromStr for Efield {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self> {
-        todo!()
+        use pest::Parser;
+        use pest::iterators::Pair;
+
+        fn parse_internal(pair: Pair<Rule>) -> Efield {
+            match pair.as_rule() {
+                Rule::vector3   => {
+                    let token = pair.as_str()
+                        .split(&['{', '}'])
+                        .nth(1)
+                        .unwrap();
+                    Efield::Vector3(Efield::string_to_vec3(token))
+                },
+                Rule::function3 => {
+                    let token = pair.as_str()
+                        .split(&['{', '}'])
+                        .nth(1)
+                        .unwrap();
+                    let tokens = token.split(";")
+                        .map(|x| x.trim())
+                        .collect::<Vec<&str>>();
+                    Efield::Function3([
+                        Efield::string_to_function(tokens[0]),
+                        Efield::string_to_function(tokens[1]),
+                        Efield::string_to_function(tokens[2]),
+                    ])
+                },
+                _ => panic!("Unexpected token. Only function3 and vector3 is acceptable.")
+            }
+        }
+
+        let efield = Efield::parse(Rule::efield, s).unwrap().next().unwrap();
+        Ok(parse_internal(efield))
     }
 }
 
@@ -276,7 +315,7 @@ mod tests {
     #[test]
     fn test_string_to_vec3() {
         let s = r#"
-        1 2 3
+        1 2 3,
         3 2 1 "#;
         let vec3 = Efield::string_to_vec3(s);
         assert_eq!(vec3, &[[1.0, 2.0, 3.0], [3.0, 2.0, 1.0]]);
@@ -288,5 +327,39 @@ mod tests {
         let f = Efield::string_to_function(s);
         assert_eq!(2.0, f(0.0));
         assert!( (1.8225281546 - f(1.0)) < 1e-8 );
+    }
+
+    #[test]
+    fn test_parse_efield_function3() {
+        let s = r#"
+        Function3 {
+            e^(-0.001 * (t - 500)^2) * sin(t);
+            e^(-0.001 * (t - 500)^2) * cos(t);
+            0
+        }"#;
+        match Efield::from_str(s).unwrap() {
+            Efield::Function3(f) => {
+                assert!((f[0](498.0) - 0.9943582286).abs() < 1E-8);
+                assert!((f[1](498.0) + 0.05730294897).abs() < 1E-8);
+                assert!((f[2](498.0) - 0.0).abs() < 1E-8);
+            },
+            _ => panic!("Parse failed.")
+        }
+    }
+
+
+    #[test]
+    fn test_parse_efield_vector3() {
+        let s = r#"
+        Vector3 {
+            1 2 3,
+            3 2 1,
+        }"#;
+        match Efield::from_str(s).unwrap() {
+            Efield::Vector3(vec3) => {
+                assert_eq!(vec3, &[[1.0, 2.0, 3.0], [3.0, 2.0, 1.0]]);
+            },
+            _ => panic!("Parse failed.")
+        }
     }
 }
