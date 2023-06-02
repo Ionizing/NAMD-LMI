@@ -165,6 +165,34 @@ mod fnparse {
                 }
             }
         }
+
+        pub fn to_str(&self) -> String {
+            match self {
+                Expr::Variable => "t".to_string(),
+                Expr::Value(x) => x.to_string(),
+                Expr::UnaryOp { op, rhs } => {
+                    match op {
+                        Operation::Neg => format!("- {}", rhs.to_str()),
+                        Operation::Exp => format!("e^({})", rhs.to_str()),
+                        Operation::Sin => format!("sin({})", rhs.to_str()),
+                        Operation::Cos => format!("cos({})", rhs.to_str()),
+                        Operation::Tan => format!("tan({})", rhs.to_str()),
+                        _ => unreachable!(),
+                    }
+                }
+                Expr::BinOp { lhs, op, rhs } => {
+                    match op {
+                        Operation::Add => format!("({}) + ({})", lhs.to_str(), rhs.to_str()),
+                        Operation::Sub => format!("({}) - ({})", lhs.to_str(), rhs.to_str()),
+                        Operation::Mul => format!("({}) * ({})", lhs.to_str(), rhs.to_str()),
+                        Operation::Div => format!("({}) / ({})", lhs.to_str(), rhs.to_str()),
+                        Operation::Pow => format!("({})^({})", lhs.to_str(), rhs.to_str()),
+                        _ => unreachable!(),
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
     }
 
 
