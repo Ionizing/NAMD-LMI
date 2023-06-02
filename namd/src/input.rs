@@ -41,6 +41,10 @@ pub struct Input {
     #[serde(default)]
     pub scissor:      f64,
 
+    pub inibands:     Vec<usize>,
+    pub inispins:     Vec<usize>,
+    pub inisteps:     Vec<usize>,
+
     #[serde(default)]
     #[serde(deserialize_with = "Input::efield_from_file")]
     pub efield:       Option<(String, Efield)>,
@@ -91,6 +95,10 @@ mod tests {
         temperature  = 300
         lcycle       = false
         efield       = "tests/1.5eV.txt"
+
+        inibands     = [114, 114]
+        inispins     = [1, 1]
+        inisteps     = [514, 810]
             "#;
 
         let input: Input = toml::from_str(raw).unwrap();

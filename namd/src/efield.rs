@@ -1,6 +1,7 @@
 use pest_derive::Parser;
 use shared::Result;
 
+pub use fnparse::Expr;
 
 mod fnparse {
     use once_cell::sync::Lazy;
@@ -61,7 +62,7 @@ mod fnparse {
     });
 
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Operation {
         // binary op
         Add,
@@ -80,7 +81,7 @@ mod fnparse {
     }
 
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Expr {
         Variable,
         Value(f64),
@@ -138,7 +139,7 @@ mod fnparse {
 
 
     impl Expr {
-        fn eval(&self, var: f64) -> f64 {
+        pub fn eval(&self, var: f64) -> f64 {
             match self {
                 Expr::Variable => var,
                 Expr::Value(x) => *x,
@@ -167,9 +168,14 @@ mod fnparse {
     }
 
 
-    pub fn str2fn(i: &str) -> impl Fn(f64) -> f64 {
+    pub fn str2expr(i: &str) -> Expr {
         let mut pairs = Function::parse(Rule::program, i).unwrap();
-        let expr = parse_expr(pairs.next().unwrap().into_inner());
+        parse_expr(pairs.next().unwrap().into_inner())
+    }
+
+
+    pub fn str2fn(i: &str) -> impl Fn(f64) -> f64 {
+        let expr = str2expr(i);
         move |x| expr.eval(x)
     }
 }
@@ -230,9 +236,10 @@ efield     = _{ SOI ~ ( vector3 | function3 ) ~ EOI }
 WHITESPACE = _{ " " | "\n" | "\t" | "\r" }
 COMMENT    = _{ "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
 "##]
+#[derive(Clone)]
 pub enum Efield {
     Vector3(Vec<[f64; 3]>),
-    Function3([Box<dyn Fn(f64) -> f64>; 3]),
+    Function3([Expr; 3]),
 }
 
 
@@ -252,6 +259,7 @@ impl Efield {
             .collect::<Vec<_>>()
     }
 
+    #[allow(dead_code)]
     fn string_to_function(s: &str) -> Box<dyn Fn(f64) -> f64> {
         Box::new(fnparse::str2fn(s))
     }
@@ -278,9 +286,9 @@ impl Efield {
                         .map(|x| x.trim())
                         .collect::<Vec<&str>>();
                     Efield::Function3([
-                        Efield::string_to_function(tokens[0]),
-                        Efield::string_to_function(tokens[1]),
-                        Efield::string_to_function(tokens[2]),
+                        fnparse::str2expr(tokens[0]),
+                        fnparse::str2expr(tokens[1]),
+                        fnparse::str2expr(tokens[2]),
                     ])
                 },
                 _ => panic!("Unexpected token. Only function3 and vector3 are acceptable.")
@@ -325,9 +333,9 @@ mod tests {
         }"#;
         match Efield::from_str(s).unwrap() {
             Efield::Function3(f) => {
-                assert!((f[0](498.0) - 0.9943582286).abs() < 1E-8);
-                assert!((f[1](498.0) + 0.05730294897).abs() < 1E-8);
-                assert!((f[2](498.0) - 0.0).abs() < 1E-8);
+                assert!((f[0].eval(498.0) - 0.9943582286).abs() < 1E-8);
+                assert!((f[1].eval(498.0) + 0.05730294897).abs() < 1E-8);
+                assert!((f[2].eval(498.0) - 0.0).abs() < 1E-8);
             },
             _ => panic!("Parse failed.")
         }
