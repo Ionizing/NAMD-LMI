@@ -41,26 +41,32 @@ pub struct Hamiltonian {
     pub prop_eigs:     Array1<f64>,
     pub nac_t:         Array3<c64>,
     pub pij_t:         Array4<c64>,
-    pub efield:        Efield,
+    pub efield:        Option<Efield>,
 }
 
 
 impl Hamiltonian {
-    pub fn from_input(nac: &Nac, inp: Input, inicon_idx: usize) -> Self {
-        //Self::init_with_nac(
-            //nac,
-            //inp.efield.clone(),
-            //inp.basis_up.clone(),
-            //inp.basis_dn.clone(),
-            //inp.dt,
-            ////inp.inis,
-        //)
-        todo!()
+    pub fn from_input(nac: &Nac, inp: &Input, inicon_idx: usize) -> Self {
+        Self::init_with_nac(
+            nac,
+            inp.efield.clone().map(|x| x.1),
+            inp.basis_up.clone(),
+            inp.basis_dn.clone(),
+            inp.dt,
+            inp.inisteps[inicon_idx],
+            inp.inibands[inicon_idx],
+            inp.inispins[inicon_idx],
+            inp.namdtime,
+            inp.nelm,
+            inp.temperature,
+            inp.scissor,
+            inp.lcycle,
+        )
     }
 
     fn init_with_nac(
         nac:           &Nac,
-        efield:        Efield,
+        efield:        Option<Efield>,
         basis_up:      [usize; 2],
         basis_dn:      [usize; 2],
         dt:            f64,

@@ -1,3 +1,5 @@
+//use std::fmt::Display;
+
 use pest_derive::Parser;
 use shared::Result;
 
@@ -166,6 +168,7 @@ mod fnparse {
             }
         }
 
+        // TODO: better display
         pub fn to_str(&self) -> String {
             match self {
                 Expr::Variable => "t".to_string(),
