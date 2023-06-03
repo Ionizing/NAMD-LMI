@@ -1,4 +1,7 @@
+use std::path::Path;
+
 use shared::{
+    Result,
     ndarray::s,
     c64,
     Array1,
@@ -13,6 +16,15 @@ use crate::{
     nac::Nac,
     input::Input,
 };
+
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum PropagateMethod {
+    FiniteDifference,
+    Exact,
+    Expm,
+    LiouvilleTrotter,
+}
 
 
 pub struct Hamiltonian {
@@ -195,6 +207,41 @@ impl Hamiltonian {
             pij_t,
             efield,
         }
+    }
+
+
+    pub fn propagate(&mut self, iion: usize, method: PropagateMethod) {
+        todo!()
+    }
+
+
+    fn propagate_finite_difference(&mut self, iion: usize) {
+        todo!()
+    }
+
+
+    fn propagate_exact(&mut self, iion: usize) {
+        todo!()
+    }
+
+
+    fn propagate_expm(&mut self, iion: usize) {
+        todo!()
+    }
+
+
+    fn propagate_liouvilletrotter(&mut self, iion: usize) {
+        todo!()
+    }
+
+
+    fn make_hamil(&mut self, iion: usize, iele: usize) {
+        todo!()
+    }
+
+
+    pub fn save_to_h5(&self, fname: &Path) -> Result<()> {
+        todo!()
     }
 
 
