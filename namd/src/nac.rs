@@ -14,7 +14,6 @@ use mpi::traits::*;
 use hdf5::{
     File as H5File,
     H5Type,
-    Selection,
 };
 
 use shared::{
@@ -43,11 +42,14 @@ use vasp_parsers::{
 
 use crate::input::Input;
 
+/// All the indices are counted from 0
 #[derive(PartialEq, Debug)]
 pub struct Nac {
     pub ikpoint: usize,
     pub nspin:   usize,
     pub nbands:  usize,
+
+    /// stores (brange[0] .. brange[1]) where brange[1] is not included
     pub brange:  [usize; 2],
     pub nbrange: usize,
     pub nsw:     usize,
@@ -108,7 +110,7 @@ impl Nac {
     }
 
 
-    pub fn to_h5<P>(&self, fname: &P) -> Result<()>
+    pub fn save_to_h5<P>(&self, fname: &P) -> Result<()>
     where
         P: AsRef<Path> + ?Sized,
     {
@@ -339,7 +341,7 @@ mod tests {
 
         let dir = tempdir().unwrap();
         let fname = dir.path().join("test_nac.h5");
-        nac.to_h5(&fname).unwrap();
+        nac.save_to_h5(&fname).unwrap();
         let nac_read = Nac::from_h5(&fname).unwrap();
         assert_eq!(nac, nac_read);
     }

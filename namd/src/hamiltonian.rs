@@ -9,6 +9,11 @@ use shared::{
     Array3,
     ndarray::Array4,
 };
+use hdf5::{
+    File as H5File,
+    H5Type,
+    Selection,
+};
 
 use crate::{
     constants::*,
@@ -41,19 +46,24 @@ pub struct Hamiltonian {
     pub temperature:   f64,
     pub efield_lcycle: bool,
 
-    pub psi_p:         Array1<c64>,
-    pub psi_c:         Array1<c64>,
-    pub psi_n:         Array1<c64>,
-    pub psi_t:         Array2<c64>,
-    pub pop_t:         Array2<f64>,
-    pub psi_h:         Array1<c64>,
+    pub psi_p:         Array1<c64>,     // [nbasis]
+    pub psi_c:         Array1<c64>,     // [nbasis]
+    pub psi_n:         Array1<c64>,     // [nbasis]
+    pub psi_t:         Array2<c64>,     // [namdtime, nbasis]
+    pub pop_t:         Array2<f64>,     // [nbasis]
+    pub psi_h:         Array1<c64>,     // [nbasis]
     
-    pub hamil:         Array2<c64>,
-    pub eig_t:         Array2<f64>,
-    pub prop_eigs:     Array1<f64>,
-    pub nac_t:         Array3<c64>,
-    pub pij_t:         Array4<c64>,
+    pub hamil:         Array2<c64>,     // [nbasis, nbasis]
+    pub eig_t:         Array2<f64>,     // [nsw-1, nbasis]
+    pub prop_eigs:     Array1<f64>,     // [namdtime]
+    pub nac_t:         Array3<c64>,     // [nsw-1, nbasis, nbasis]
+    pub pij_t:         Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     pub efield:        Option<Efield>,
+
+    // Auxiliary variables used by `make_hamil method`
+    delta_eig:         Array1<f64>,     // [nbasis]
+    delta_nac:         Array2<c64>,     // [nbasis, nbasis]
+    delta_pij:         Array3<c64>,     // [3, nbasis, nbasis]
 }
 
 
@@ -147,7 +157,7 @@ impl Hamiltonian {
         let mut nac_t     = Array3::<c64>::zeros((nsw-1, nbasis, nbasis));
         let mut pij_t     = Array4::<c64>::zeros((nsw-1, 3, nbasis, nbasis));
 
-        let basisini = Self::_iniband_index_convert(&basis_up, &basis_dn, inispin, iniband);
+        let basisini = Self::iniband_index_convert(&basis_up, &basis_dn, inispin, iniband);
         psi_c[basisini] = c64::new(1.0, 0.0);
         psi_t.slice_mut(s![0, ..]).assign(&psi_c);
 
@@ -179,6 +189,11 @@ impl Hamiltonian {
         // apply the scissor operator
         eig_t.mapv_inplace(|e| if e > 0.0 { e + scissor } else { e });
 
+        // initial auxiliary vars
+        let delta_eig    = Array1::<f64>::zeros(nbasis);
+        let delta_nac    = Array2::<c64>::zeros((nbasis, nbasis));
+        let delta_pij    = Array3::<c64>::zeros((3, nbasis, nbasis));
+
         Self {
             basis_up,
             basis_dn,
@@ -206,6 +221,10 @@ impl Hamiltonian {
             nac_t,
             pij_t,
             efield,
+
+            delta_eig,
+            delta_nac,
+            delta_pij,
         }
     }
 
@@ -236,16 +255,61 @@ impl Hamiltonian {
 
 
     fn make_hamil(&mut self, iion: usize, iele: usize) {
-        todo!()
+        let rtime: usize = (iion + self.namdinit) % (self.nsw - 1);
+        let xtime: usize = rtime + 1;
+
+        // first electronic step inside ionic step
+        if 0 == iele {
+            self.delta_eig = (self.eig_t.slice(s![xtime, ..]).to_owned() -
+                              self.eig_t.slice(s![rtime,   ..]) ) / self.nelm as f64 ;
+            self.delta_nac = (self.nac_t.slice(s![xtime, .., ..]).to_owned() -
+                              self.nac_t.slice(s![rtime,   .., ..]) ) / self.nelm as f64;
+            self.delta_pij = (self.pij_t.slice(s![xtime, .., .., ..]).to_owned() -
+                              self.pij_t.slice(s![rtime,   .., .., ..]) ) / self.nelm as f64;
+        }
+
+        // non-diagonal part: NAC
+        self.hamil = self.nac_t.slice(s![rtime, .., ..]).to_owned() +
+                     self.delta_nac.mapv(|v| v.scale(iele as f64));
+
+        // light matter interaction
+        // vecpot dot <i|p|j>
+        let vecpot = self.get_vecpot(iion, iele);
+        for i in 0 .. 3 {
+            self.hamil += &(
+                self.pij_t.slice(s![rtime, i, .., ..]).to_owned() +
+                self.delta_pij.mapv(|v| v.scale(iele as f64 * vecpot[i]))
+                );
+        }
+
+        // dagonal part: eigenvalue of ks orbits
+        // rustc refuses to compile `struct.method() = somethingelse;`
+        self.hamil.diag_mut().assign(&(
+            self.eig_t.slice(s![rtime, ..]).mapv(|v| c64::new(v, 0.0)) +
+            self.delta_eig.mapv(|v| c64::new(v * iele as f64, 0.0))
+            ));
     }
 
 
-    pub fn save_to_h5(&self, fname: &Path) -> Result<()> {
-        todo!()
+    pub fn save_to_h5<P>(&self, fname: &P) -> Result<()>
+    where
+        P: AsRef<Path> + ?Sized,
+    {
+        let f = H5File::create(fname)?;
+
+        f.new_dataset_builder().with_data(&self.nac_t.mapv(|v| v.re)).create("nac_t_r")?;
+        f.new_dataset_builder().with_data(&self.nac_t.mapv(|v| v.im)).create("nac_t_i")?;
+
+        f.new_dataset_builder().with_data(&self.eig_t).create("eig_t")?;
+
+        f.new_dataset_builder().with_data(&self.pij_t.mapv(|v| v.im)).create("pij_t_r")?;
+        f.new_dataset_builder().with_data(&self.pij_t.mapv(|v| v.im)).create("pij_t_i")?;
+
+        Ok(())
     }
 
 
-    fn _iniband_index_convert(
+    fn iniband_index_convert(
         basis_up: &[usize; 2], basis_dn: &[usize; 2], inispin: usize, iniband: usize
         ) -> usize {
 
@@ -254,6 +318,28 @@ impl Hamiltonian {
         } else {
             let nbup = basis_up[1] - basis_up[0];
             iniband - basis_dn[0] + nbup
+        }
+    }
+
+
+    fn get_vecpot(&self, iion: usize, iele: usize) -> [f64; 3] {
+        match self.efield.as_ref().unwrap() {
+            Efield::Vector3(v) => {
+                let mut ret = [0.0f64; 3];
+                for i in 0 .. 3 {
+                    ret[i] = (v[iion+1][i] - v[iion][i]) * (iele as f64) / (self.nelm as f64);
+                }
+                ret
+            },
+            Efield::Function3(f) => {
+                // convert indices to real time value
+                let t = iion as f64 * self.dt + (iele as f64 / self.nelm as f64) * self.dt;
+                [
+                    f[0].eval(t),
+                    f[1].eval(t),
+                    f[2].eval(t),
+                ]
+            }
         }
     }
 
