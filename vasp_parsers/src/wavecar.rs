@@ -59,6 +59,7 @@ const PI:           f64 = 3.141592653589793238;
 const PIx2:         f64 = PI * 2.0;
 //const H_PLANCK:     f64 = 6.6260755E-34;
 //const HBAR:         f64 = H_PLANCK / PIx2;
+const HBAR:         f64 = 0.6582119281559802;               // eV * fs
 const RY_TO_EV:     f64 = 13.605826;
 const AU_TO_A:      f64 = 0.529177249;
 const AU_TO_DEBYE:  f64 = 2.541746;
@@ -513,16 +514,24 @@ impl Wavecar {
     }
 
 
+    /// Generate kinetic vetor of each FFT grid point, in eV*fs/Angstrom
     pub fn generate_fft_grid_cart(&self, ikpoint: u64) -> MatX3<f64> {
         let kvec  = self.kvecs.row(ikpoint as usize);
         self.generate_fft_grid(ikpoint)
             .into_iter()
             .map(|[gx, gy, gz]| [gx as f64 + kvec[0], gy as f64 + kvec[1], gz as f64 + kvec[2]])
-            .map(|[gx, gy, gz]| {
+            .map(|[gx, gy, gz]| {   // now in 1/Angstrom
                 [
                     gx * self.bcell[0][0] + gy * self.bcell[1][0] + gz * self.bcell[2][0],
                     gx * self.bcell[0][1] + gy * self.bcell[1][1] + gz * self.bcell[2][1],
                     gx * self.bcell[0][2] + gy * self.bcell[1][2] + gz * self.bcell[2][2],
+                ]
+            })
+            .map(|[px, py, pz]| {   // times 2pi and hbar, in eV*fs/Angstrom
+                [
+                    px * PIx2 * HBAR,
+                    py * PIx2 * HBAR,
+                    pz * PIx2 * HBAR,
                 ]
             })
             .collect::<Vec<_>>()
