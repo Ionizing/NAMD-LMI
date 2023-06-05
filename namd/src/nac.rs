@@ -268,7 +268,7 @@ impl Nac {
             for idirect in 0 .. 3 {
                 let phi_x_gvecs: Array2<_> = phi_j.clone() * gvecs.slice(s![NewAxis, .., idirect]);
 
-                // <phi_i | p | phi_j>
+                // <i | p | j>, in eV*fs/Angstrom
                 let p_ij_tmp = match wi.wavecar_type {
                     WavecarType::GammaHalf(_) => phi_j.mapv(|v| v.conj()).dot(&phi_x_gvecs.t())
                                                - phi_x_gvecs.mapv(|v| v.conj()).dot(&phi_j.t()),

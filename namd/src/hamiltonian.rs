@@ -64,6 +64,7 @@ pub struct Hamiltonian {
     delta_eig:         Array1<f64>,     // [nbasis]
     delta_nac:         Array2<c64>,     // [nbasis, nbasis]
     delta_pij:         Array3<c64>,     // [3, nbasis, nbasis]
+    acc_vecpot:        [f64; 3],        // [x, y, z]
 }
 
 
@@ -183,6 +184,7 @@ impl Hamiltonian {
             pij_t.slice_mut(s![.., .., nb[0] .., nb[0] ..]).assign(&nac.pij.slice(s![.., 1, .., bdn[0] .. bdn[1], bdn[0] .. bdn[1]]));
         }
 
+        // NAC = -ihbar * <i|d/dt|j> / 2, in eV
         nac_t *= c64::new(0.0, -1.0).scale(HBAR / (2.0 * dt));
         eig_t -= nac.efermi;
 
@@ -225,6 +227,7 @@ impl Hamiltonian {
             delta_eig,
             delta_nac,
             delta_pij,
+            acc_vecpot: [0.0; 3],
         }
     }
 
@@ -269,20 +272,24 @@ impl Hamiltonian {
         }
 
         // non-diagonal part: NAC
+        // nac_t is in eV alrady
         self.hamil = self.nac_t.slice(s![rtime, .., ..]).to_owned() +
                      self.delta_nac.mapv(|v| v.scale(iele as f64));
 
-        // light matter interaction
-        // vecpot dot <i|p|j>
-        let vecpot = self.get_vecpot(iion, iele);
-        for i in 0 .. 3 {
-            self.hamil += &(
-                self.pij_t.slice(s![rtime, i, .., ..]).to_owned() +
-                self.delta_pij.mapv(|v| v.scale(iele as f64 * vecpot[i]))
-                );
+        // if electric field exists
+        if self.efield.is_some() {
+            // light matter interaction
+            // vecpot .dot. <i|p|j> / m_e, in eV
+            let vecpot = self.get_vecpot(iion, iele);
+            for ii in 0 .. 3 {
+                self.hamil += &((
+                    self.pij_t.slice(s![rtime, ii, .., ..]).to_owned() +
+                    self.delta_pij.mapv(|v| v.scale(iele as f64 * vecpot[ii]))
+                    ) / MASS_E);
+            }
         }
 
-        // dagonal part: eigenvalue of ks orbits
+        // dagonal part: eigenvalue of ks orbits, in eV
         // rustc refuses to compile `struct.method() = somethingelse;`
         self.hamil.diag_mut().assign(&(
             self.eig_t.slice(s![rtime, ..]).mapv(|v| c64::new(v, 0.0)) +
@@ -322,8 +329,8 @@ impl Hamiltonian {
     }
 
 
-    fn get_vecpot(&self, iion: usize, iele: usize) -> [f64; 3] {
-        match self.efield.as_ref().unwrap() {
+    fn get_vecpot(&mut self, iion: usize, iele: usize) -> [f64; 3] {
+        let ef = match self.efield.as_ref().unwrap() {
             Efield::Vector3(v) => {
                 let mut ret = [0.0f64; 3];
                 for i in 0 .. 3 {
@@ -340,7 +347,14 @@ impl Hamiltonian {
                     f[2].eval(t),
                 ]
             }
+        };
+
+        // vecpot = \int_0^t dt -\vec{E}
+        for i in 0 .. 3 {
+            self.acc_vecpot[i] -= ef[i] * (self.dt / self.nelm as f64);
         }
+
+        self.acc_vecpot
     }
 
 }
