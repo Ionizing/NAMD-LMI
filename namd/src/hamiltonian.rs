@@ -8,6 +8,8 @@ use shared::{
     Array2,
     Array3,
     ndarray::Array4,
+    ndarray_linalg::EighInplace,
+    ndarray_linalg::UPLO,
 };
 use hdf5::{
     File as H5File,
@@ -233,26 +235,70 @@ impl Hamiltonian {
 
 
     pub fn propagate(&mut self, iion: usize, method: PropagateMethod) {
-        todo!()
+        let edt = self.dt / self.nelm as f64;
+
+        match method {
+            PropagateMethod::FiniteDifference => self.propagate_finite_difference(iion, edt),
+            PropagateMethod::Exact            => self.propagate_exact(iion, edt),
+            PropagateMethod::Expm             => self.propagate_expm(iion, edt),
+            PropagateMethod::LiouvilleTrotter => self.propagate_liouvilletrotter(iion, edt),
+        }
     }
 
 
-    fn propagate_finite_difference(&mut self, iion: usize) {
-        todo!()
+    fn propagate_finite_difference(&mut self, iion: usize, edt: f64) {
+        for iele in 0 .. iion {
+            self.make_hamil(iion, iele);
+            self.psi_h = self.hamil.dot(&self.psi_c);
+
+            if 0 == iion && 0 == iele {
+                self.psi_n = self.psi_c.clone() -       IMGUNIT * edt / HBAR * self.psi_h.clone();
+            } else {
+                self.psi_n = self.psi_p.clone() - 2.0 * IMGUNIT * edt / HBAR * self.psi_h.clone();
+            }
+
+            self.psi_p.assign(&self.psi_c);
+            self.psi_c.assign(&self.psi_n);
+        }
     }
 
 
-    fn propagate_exact(&mut self, iion: usize) {
-        todo!()
+    fn propagate_exact(&mut self, iion: usize, edt: f64) {
+        let mut lambda_expv = Array2::<c64>::zeros(self.hamil.dim());
+
+        for iele in 0 .. iion {
+            self.make_hamil(iion, iele);
+            self.hamil.mapv_inplace(|v| v * (-edt / HBAR)); // -edt*H/hbar
+
+            // P, Lambda = eigh(-edt*H/hbar)
+            let (eigvals, eigvecs) = self.hamil.eigh_inplace(UPLO::Upper).unwrap();
+
+            let expie = eigvals.mapv(|v| (v*IMGUNIT).exp());
+
+            // P @ diag(exp(i * Lambda))
+            for i in 0 .. self.nbasis {
+                lambda_expv.slice_mut(s![i, ..]).assign(&(
+                    eigvecs.slice(s![i, ..]).to_owned() * expie[i]
+                    ));
+            }
+
+            self.psi_c = lambda_expv
+                .dot(&eigvecs.t().mapv(|v| v.conj()))       // exp(-i*H*dt/hbar) = P @ diag(exp(i*Lambda)) @ conj(P^T)
+                .dot(&self.psi_c);                          // psi' = exp(-i*H*dt/hbar) @ psi
+        }
     }
 
 
-    fn propagate_expm(&mut self, iion: usize) {
-        todo!()
+    fn propagate_expm(&mut self, iion: usize, edt: f64) {
+        todo!("This method is not implemented since the PR below is not merged yet.\n\
+              https://github.com/rust-ndarray/ndarray-linalg/pull/352.");
     }
 
 
-    fn propagate_liouvilletrotter(&mut self, iion: usize) {
+    fn propagate_liouvilletrotter(&mut self, iion: usize, edt: f64) {
+        assert!(self.lreal, "LiouvilleTrotter method can be used for REAL NAC only.");
+        assert!(self.efield.is_none(), "LiouvilleTrotter method cannot be used with EFIELD present.");
+
         todo!()
     }
 
