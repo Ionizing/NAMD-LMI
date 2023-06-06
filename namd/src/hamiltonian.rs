@@ -11,11 +11,7 @@ use shared::{
     ndarray_linalg::EighInplace,
     ndarray_linalg::UPLO,
 };
-use hdf5::{
-    File as H5File,
-    H5Type,
-    Selection,
-};
+use hdf5::File as H5File;
 
 use crate::{
     constants::*,
@@ -295,11 +291,49 @@ impl Hamiltonian {
     }
 
 
+    // WARN: this method is not tested yet
     fn propagate_liouvilletrotter(&mut self, iion: usize, edt: f64) {
         assert!(self.lreal, "LiouvilleTrotter method can be used for REAL NAC only.");
         assert!(self.efield.is_none(), "LiouvilleTrotter method cannot be used with EFIELD present.");
 
-        todo!()
+        let mut cjj     = c64::new(0.0, 0.0);
+        let mut ckk     = c64::new(0.0, 0.0);
+        let mut phi     = 0.0;
+        let mut cos_phi = 0.0;
+        let mut sin_phi = 0.0;
+
+        for iele in 0 .. self.nelm {
+            self.make_hamil(iion, iele);
+            for jj in 0 .. self.nbasis {        // the traversal order is not tested
+                for kk in jj+1 .. self.nbasis {
+                    phi = -(IMGUNIT * self.hamil[(kk, jj)]).re * 0.5 * edt / HBAR;
+                    cos_phi = phi.cos();
+                    sin_phi = phi.sin();
+                    cjj = self.psi_c[jj];
+                    ckk = self.psi_c[kk];
+                    self.psi_c[jj] =  cos_phi * cjj + sin_phi * ckk;
+                    self.psi_c[kk] = -sin_phi * cjj + cos_phi * ckk;
+                }
+            }
+
+            for jj in 0 .. self.nbasis {
+                phi = -(IMGUNIT * self.hamil[(jj, jj)]).re * 0.5 * edt / HBAR;
+                self.psi_c[jj] = self.psi_c[jj] * phi.exp();
+            }
+
+
+            for jj in (0 .. self.nbasis).rev() {
+                for kk in (jj+1 .. self.nbasis).rev() {
+                    phi = -(IMGUNIT * self.hamil[(kk, jj)]).re * 0.5 * edt / HBAR;
+                    cos_phi = phi.cos();
+                    sin_phi = phi.sin();
+                    cjj = self.psi_c[jj];
+                    ckk = self.psi_c[kk];
+                    self.psi_c[jj] =  cos_phi * cjj + sin_phi * ckk;
+                    self.psi_c[kk] = -sin_phi * cjj + cos_phi * ckk;
+                }
+            }
+        } // iele
     }
 
 
@@ -402,5 +436,4 @@ impl Hamiltonian {
 
         self.acc_vecpot
     }
-
 }
