@@ -2,6 +2,7 @@ use std::fs::read_to_string;
 
 use shared::{
     anyhow,
+    bail,
     Result,
 };
 
@@ -14,6 +15,8 @@ use serde::{
     Serialize,
 };
 use crate::efield::Efield;
+use crate::hamiltonian::PropagateMethod;
+use crate::surface_hopping::SHMethod;
 
 #[derive(Deserialize)]
 pub struct Input {
@@ -28,14 +31,18 @@ pub struct Input {
     pub dt:           f64,
     pub nsample:      usize,
     pub ntraj:        usize,
-    pub propmethod:   String,
-    pub shmethod:     String,
+
+    #[serde(deserialize_with = "Input::parse_propmethod")]
+    pub propmethod:   PropagateMethod,
+
+    #[serde(deserialize_with = "Input::parse_shmethod")]
+    pub shmethod:     SHMethod,
     pub nelm:         usize,
     pub lreal:        bool,
     pub lprint_input: bool,
     pub lexcitation:  bool,
     pub lreorder:     bool,
-    pub nacfname:        String,
+    pub nacfname:     String,
     pub temperature:  f64,
 
     #[serde(default)]
@@ -62,6 +69,36 @@ impl Input {
                 s.to_string(),
                 Efield::from_str(&txt).map_err(D::Error::custom)?
                 )))
+    }
+
+    fn parse_propmethod<'de, D>(deserializer: D) -> Result<PropagateMethod, D::Error>
+    where D: Deserializer<'de>
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.to_lowercase().as_str() {
+            "finitedifference" | "fd" => Ok(PropagateMethod::FiniteDifference),
+            "exact"                   => Ok(PropagateMethod::Exact),
+            "expm"                    => Ok(PropagateMethod::Expm),
+            "liouvilletrotter" | "lt" => Ok(PropagateMethod::LiouvilleTrotter),
+            _ => Err(D::Error::custom(
+                    format!("Invalid propmethod from input: {}, available methods: FiniteDifference(or FD), Exact, Expm, LiouvilleTrotter(or LT)", &s)
+                    )),
+        }
+    }
+
+    fn parse_shmethod<'de, D>(deserializer: D) -> Result<SHMethod, D::Error>
+    where D: Deserializer<'de>
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.to_ascii_lowercase().as_str() {
+            "fssh" => Ok(SHMethod::FSSH),
+            "dish" => Ok(SHMethod::DISH),
+            "dcsh" => Ok(SHMethod::DCSH),
+            "gfsh" => Ok(SHMethod::GFSH),
+            _ => Err(D::Error::custom(
+                    format!("Invalid shmethod from input: {}, available methods: FSSH, DISH, DCSH, GFSH", &s)
+                    )),
+        }
     }
 }
 
