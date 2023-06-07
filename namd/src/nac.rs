@@ -6,7 +6,7 @@ use std::sync::{
 };
 
 use rayon::prelude::*;
-use mpi::traits::*;
+//use mpi::traits::*;
 use hdf5::File as H5File;
 
 use shared::{

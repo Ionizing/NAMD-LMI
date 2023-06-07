@@ -64,7 +64,8 @@ pub struct Hamiltonian {
     delta_nac:         Array2<c64>,     // [nbasis, nbasis]
     delta_pij:         Array3<c64>,     // [3, nbasis, nbasis]
     vecpot:            [f64; 3],        // [x, y, z]
-    lmi_t:             Array3<c64>,     // [namdtime, nbasis, nbasis]
+    pub lmi_t:         Array3<c64>,     // [namdtime, nbasis, nbasis]
+    pub ham_t:         Array3<c64>,     // [namdtime, nbasis, nbasis]
 }
 
 
@@ -197,6 +198,7 @@ impl Hamiltonian {
         let delta_nac    = Array2::<c64>::zeros((nbasis, nbasis));
         let delta_pij    = Array3::<c64>::zeros((3, nbasis, nbasis));
         let lmi_t        = Array3::<c64>::zeros((namdtime, nbasis, nbasis));
+        let ham_t        = Array3::<c64>::zeros((namdtime, nbasis, nbasis));
 
         Self {
             basis_up,
@@ -232,6 +234,7 @@ impl Hamiltonian {
             delta_pij,
             vecpot: [0.0; 3],
             lmi_t,
+            ham_t,
         }
     }
 
@@ -289,7 +292,7 @@ impl Hamiltonian {
     }
 
 
-    fn propagate_expm(&mut self, iion: usize) {
+    fn propagate_expm(&mut self, _iion: usize) {
         todo!("This method is not implemented since the PR below is not merged yet.\n\
               https://github.com/rust-ndarray/ndarray-linalg/pull/352.");
     }
@@ -378,6 +381,10 @@ impl Hamiltonian {
             if 0 == iele {
                 self.lmi_t.slice_mut(s![iion, .., ..]).assign(&lmi);
             }
+        }
+
+        if 0 == iele {
+            self.ham_t.slice_mut(s![iion, .., ..]).assign(&self.hamil);
         }
 
         // dagonal part: eigenvalue of ks orbits, in eV

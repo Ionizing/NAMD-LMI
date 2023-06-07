@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use shared::{
+    ndarray::s,
     Result,
     Array1,
     Array2,
@@ -13,7 +14,12 @@ use crate::{
     hamiltonian::{
         Hamiltonian,
         PropagateMethod,
-    }
+    },
+    constants::{
+        IMGUNIT,
+        HBAR,
+        BOLKEV,
+    },
 };
 
 
@@ -32,7 +38,7 @@ pub struct SurfaceHopping {
     pub lexcitation: bool,
     pub hamil:       Hamiltonian,
 
-    pub prob:        Array3<f64>,       // [namdtime, nbasis, nbasis]
+    //pub prob:        Array3<f64>,       // [namdtime, nbasis, nbasis]
     pub pops:        Array2<f64>,       // [namdtime, nbasis]
     pub recomb:      Array2<f64>,       // [namdtime, nbasis]
     pub energy:      Array1<f64>,       // [namdtime]
@@ -64,7 +70,7 @@ impl SurfaceHopping {
         let namdtime = hamil.namdtime;
         let nbasis   = hamil.nbasis;
 
-        let prob   = Array3::<f64>::zeros((namdtime, nbasis, nbasis));
+        //let prob   = Array3::<f64>::zeros((namdtime, nbasis, nbasis));
         let pops   = Array2::<f64>::zeros((namdtime, nbasis));
         let recomb = Array2::<f64>::zeros((namdtime, nbasis));
         let energy = Array1::<f64>::zeros(namdtime);
@@ -76,7 +82,7 @@ impl SurfaceHopping {
             lexcitation,
             hamil,
 
-            prob,
+            //prob,
             pops,
             recomb,
             energy
@@ -116,7 +122,40 @@ impl SurfaceHopping {
 
 
     fn fssh(&mut self) {
+        self.pops.fill(0.00);
+        let mut prob = Array3::<f64>::zeros((self.hamil.namdtime, self.hamil.nbasis, self.hamil.nbasis));
+
+        for iion in 0 .. self.hamil.namdtime {
+            self.hamil.propagate(iion, self.propmethod);
+        }
+
+        for iion in 0 .. self.hamil.namdtime {
+
+        }
+
         todo!()
+    }
+
+    fn fssh_hop_prob(&self, iion: usize, istate: usize) -> Array1<f64> {
+        let rtime: usize = (iion + self.hamil.namdinit) % (self.hamil.nsw - 1);
+
+        // |phi(j)|^2
+        let rho_jj = self.hamil.psi_t[(iion, istate)].norm_sqr();
+        // phi(j).conj() * phi(k)
+        let rho_jk = self.hamil.psi_t[(iion, istate)].conj() * self.hamil.psi_t.slice(s![iion, ..]).to_owned();
+        // \max[\frac{2*\int_t^{t+\Delta t} Re(\rho_{jk}*H_{jk} / -ihbar) dt}{\rho_{jj}}, 0]
+        let mut prob = (IMGUNIT * rho_jk * self.hamil.ham_t.slice(s![iion, istate, ..]) * (2.0 * self.hamil.dt / (HBAR * rho_jj)))
+            .mapv(|v| if v.re > 0.0 { v.re } else { 0.0 });
+
+        if !self.lexcitation {
+            let thermal_factor = (self.hamil.eig_t[(rtime, istate)] - self.hamil.eig_t.slice(s![rtime, ..]).to_owned())
+                .mapv(|v| f64::exp(
+                        f64::min(v, 0.0) / (BOLKEV * self.hamil.temperature)
+                ));
+            prob *= &thermal_factor;
+        }
+
+        prob
     }
 
 
