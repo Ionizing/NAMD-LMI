@@ -35,7 +35,7 @@ pub struct SurfaceHopping {
     pub prob:        Array3<f64>,       // [namdtime, nbasis, nbasis]
     pub pops:        Array2<f64>,       // [namdtime, nbasis]
     pub recomb:      Array2<f64>,       // [namdtime, nbasis]
-    pub eigs:        Array1<f64>,       // [namdtime]
+    pub energy:      Array1<f64>,       // [namdtime]
 }
 
 
@@ -67,7 +67,7 @@ impl SurfaceHopping {
         let prob   = Array3::<f64>::zeros((namdtime, nbasis, nbasis));
         let pops   = Array2::<f64>::zeros((namdtime, nbasis));
         let recomb = Array2::<f64>::zeros((namdtime, nbasis));
-        let eigs   = Array1::<f64>::zeros(namdtime);
+        let energy = Array1::<f64>::zeros(namdtime);
 
         Self {
             shmethod,
@@ -79,7 +79,7 @@ impl SurfaceHopping {
             prob,
             pops,
             recomb,
-            eigs
+            energy
         }
     }
 
@@ -104,7 +104,7 @@ impl SurfaceHopping {
         f.new_dataset_builder().with_data(&self.hamil.psi_t.mapv(|v| v.re)).create("psi_t_r")?;
         f.new_dataset_builder().with_data(&self.hamil.psi_t.mapv(|v| v.im)).create("psi_t_i")?;
 
-        f.new_dataset_builder().with_data(&self.eigs).create("sh_energy")?;
+        f.new_dataset_builder().with_data(&self.energy).create("sh_energy")?;
         f.new_dataset_builder().with_data(&self.pops).create("shpops")?;
 
         if self.shmethod == SHMethod::DISH {
@@ -112,5 +112,25 @@ impl SurfaceHopping {
         }
 
         Ok(())
+    }
+
+
+    fn fssh(&mut self) {
+        todo!()
+    }
+
+
+    fn dish(&mut self) {
+        todo!()
+    }
+
+
+    fn dcsh(&mut self) {
+        todo!()
+    }
+
+
+    fn gfsh(&mut self) {
+        todo!()
     }
 }

@@ -35,6 +35,7 @@ pub struct Hamiltonian {
     pub basis_dn:      [usize; 2],
     pub nbasis:        usize,
     pub dt:            f64,
+    pub edt:           f64,
     pub basisini:      usize,
     pub namdinit:      usize,
     pub namdtime:      usize,
@@ -62,7 +63,8 @@ pub struct Hamiltonian {
     delta_eig:         Array1<f64>,     // [nbasis]
     delta_nac:         Array2<c64>,     // [nbasis, nbasis]
     delta_pij:         Array3<c64>,     // [3, nbasis, nbasis]
-    acc_vecpot:        [f64; 3],        // [x, y, z]
+    vecpot:            [f64; 3],        // [x, y, z]
+    lmi_t:             Array3<c64>,     // [namdtime, nbasis, nbasis]
 }
 
 
@@ -142,6 +144,7 @@ impl Hamiltonian {
 
         let nsw   = nac.nsw;
         let lreal = nac.lreal;
+        let edt   = dt / nelm as f64;
 
         let     psi_p = Array1::<c64>::zeros(nbasis);
         let mut psi_c = psi_p.clone();
@@ -193,12 +196,14 @@ impl Hamiltonian {
         let delta_eig    = Array1::<f64>::zeros(nbasis);
         let delta_nac    = Array2::<c64>::zeros((nbasis, nbasis));
         let delta_pij    = Array3::<c64>::zeros((3, nbasis, nbasis));
+        let lmi_t        = Array3::<c64>::zeros((namdtime, nbasis, nbasis));
 
         Self {
             basis_up,
             basis_dn,
             nbasis,
             dt,
+            edt,
             basisini,
             namdinit,
             namdtime,
@@ -225,32 +230,31 @@ impl Hamiltonian {
             delta_eig,
             delta_nac,
             delta_pij,
-            acc_vecpot: [0.0; 3],
+            vecpot: [0.0; 3],
+            lmi_t,
         }
     }
 
 
     pub fn propagate(&mut self, iion: usize, method: PropagateMethod) {
-        let edt = self.dt / self.nelm as f64;
-
         match method {
-            PropagateMethod::FiniteDifference => self.propagate_finite_difference(iion, edt),
-            PropagateMethod::Exact            => self.propagate_exact(iion, edt),
-            PropagateMethod::Expm             => self.propagate_expm(iion, edt),
-            PropagateMethod::LiouvilleTrotter => self.propagate_liouvilletrotter(iion, edt),
+            PropagateMethod::FiniteDifference => self.propagate_finite_difference(iion),
+            PropagateMethod::Exact            => self.propagate_exact(iion),
+            PropagateMethod::Expm             => self.propagate_expm(iion),
+            PropagateMethod::LiouvilleTrotter => self.propagate_liouvilletrotter(iion),
         }
     }
 
 
-    fn propagate_finite_difference(&mut self, iion: usize, edt: f64) {
+    fn propagate_finite_difference(&mut self, iion: usize) {
         for iele in 0 .. iion {
             self.make_hamil(iion, iele);
             self.psi_h = self.hamil.dot(&self.psi_c);
 
             if 0 == iion && 0 == iele {
-                self.psi_n = self.psi_c.clone() -       IMGUNIT * edt / HBAR * self.psi_h.clone();
+                self.psi_n = self.psi_c.clone() -       IMGUNIT * self.edt / HBAR * self.psi_h.clone();
             } else {
-                self.psi_n = self.psi_p.clone() - 2.0 * IMGUNIT * edt / HBAR * self.psi_h.clone();
+                self.psi_n = self.psi_p.clone() - 2.0 * IMGUNIT * self.edt / HBAR * self.psi_h.clone();
             }
 
             self.psi_p.assign(&self.psi_c);
@@ -259,12 +263,12 @@ impl Hamiltonian {
     }
 
 
-    fn propagate_exact(&mut self, iion: usize, edt: f64) {
+    fn propagate_exact(&mut self, iion: usize) {
         let mut lambda_expv = Array2::<c64>::zeros(self.hamil.dim());
 
         for iele in 0 .. iion {
             self.make_hamil(iion, iele);
-            self.hamil.mapv_inplace(|v| v * (-edt / HBAR)); // -edt*H/hbar
+            self.hamil.mapv_inplace(|v| v * (-self.edt / HBAR)); // -edt*H/hbar
 
             // P, Lambda = eigh(-edt*H/hbar)
             let (eigvals, eigvecs) = self.hamil.eigh_inplace(UPLO::Upper).unwrap();
@@ -285,50 +289,51 @@ impl Hamiltonian {
     }
 
 
-    fn propagate_expm(&mut self, iion: usize, edt: f64) {
+    fn propagate_expm(&mut self, iion: usize) {
         todo!("This method is not implemented since the PR below is not merged yet.\n\
               https://github.com/rust-ndarray/ndarray-linalg/pull/352.");
     }
 
 
     // WARN: this method is not tested yet
-    fn propagate_liouvilletrotter(&mut self, iion: usize, edt: f64) {
+    fn propagate_liouvilletrotter(&mut self, iion: usize) {
         assert!(self.lreal, "LiouvilleTrotter method can be used for REAL NAC only.");
         assert!(self.efield.is_none(), "LiouvilleTrotter method cannot be used with EFIELD present.");
 
-        let mut cjj     = c64::new(0.0, 0.0);
-        let mut ckk     = c64::new(0.0, 0.0);
-        let mut phi     = 0.0;
-        let mut cos_phi = 0.0;
-        let mut sin_phi = 0.0;
+        // Don't initialize them, in order to make rustc happy
+        let mut cjj:     c64;
+        let mut ckk:     c64;
+        let mut phi:     f64;
+        let mut cos_phi: f64;
+        let mut sin_phi: f64;
 
         for iele in 0 .. self.nelm {
             self.make_hamil(iion, iele);
             for jj in 0 .. self.nbasis {        // the traversal order is not tested
                 for kk in jj+1 .. self.nbasis {
-                    phi = -(IMGUNIT * self.hamil[(kk, jj)]).re * 0.5 * edt / HBAR;
+                    phi     = -(IMGUNIT * self.hamil[(kk, jj)]).re * 0.5 * self.edt / HBAR;
                     cos_phi = phi.cos();
                     sin_phi = phi.sin();
-                    cjj = self.psi_c[jj];
-                    ckk = self.psi_c[kk];
+                    cjj     = self.psi_c[jj];
+                    ckk     = self.psi_c[kk];
                     self.psi_c[jj] =  cos_phi * cjj + sin_phi * ckk;
                     self.psi_c[kk] = -sin_phi * cjj + cos_phi * ckk;
                 }
             }
 
             for jj in 0 .. self.nbasis {
-                phi = -(IMGUNIT * self.hamil[(jj, jj)]).re * 0.5 * edt / HBAR;
+                phi = -(IMGUNIT * self.hamil[(jj, jj)]).re * 0.5 * self.edt / HBAR;
                 self.psi_c[jj] = self.psi_c[jj] * phi.exp();
             }
 
 
             for jj in (0 .. self.nbasis).rev() {
                 for kk in (jj+1 .. self.nbasis).rev() {
-                    phi = -(IMGUNIT * self.hamil[(kk, jj)]).re * 0.5 * edt / HBAR;
+                    phi     = -(IMGUNIT * self.hamil[(kk, jj)]).re * 0.5 * self.edt / HBAR;
                     cos_phi = phi.cos();
                     sin_phi = phi.sin();
-                    cjj = self.psi_c[jj];
-                    ckk = self.psi_c[kk];
+                    cjj     = self.psi_c[jj];
+                    ckk     = self.psi_c[kk];
                     self.psi_c[jj] =  cos_phi * cjj + sin_phi * ckk;
                     self.psi_c[kk] = -sin_phi * cjj + cos_phi * ckk;
                 }
@@ -360,12 +365,18 @@ impl Hamiltonian {
         if self.efield.is_some() {
             // light matter interaction
             // vecpot .dot. <i|p|j> / m_e, in eV
-            let vecpot = self.get_vecpot(iion, iele);
+            let     vecpot  = self.get_vecpot(iion, iele);
+            let mut lmi     = Array2::<c64>::zeros((self.nbasis, self.nbasis));
             for ii in 0 .. 3 {
-                self.hamil += &((
+                lmi += &((
                     self.pij_t.slice(s![rtime, ii, .., ..]).to_owned() +
                     self.delta_pij.mapv(|v| v.scale(iele as f64 * vecpot[ii]))
                     ) / MASS_E);
+            }
+            self.hamil += &lmi;
+
+            if 0 == iele {
+                self.lmi_t.slice_mut(s![iion, .., ..]).assign(&lmi);
             }
         }
 
@@ -414,13 +425,14 @@ impl Hamiltonian {
             Efield::Vector3(v) => {
                 let mut ret = [0.0f64; 3];
                 for i in 0 .. 3 {
-                    ret[i] = (v[iion+1][i] - v[iion][i]) * (iele as f64) / (self.nelm as f64);
+                    // perform interpolating
+                    ret[i] = v[iion][i] + (v[iion+1][i] - v[iion][i]) * (iele as f64) / (self.nelm as f64);
                 }
                 ret
             },
             Efield::Function3(f) => {
                 // convert indices to real time value
-                let t = iion as f64 * self.dt + (iele as f64 / self.nelm as f64) * self.dt;
+                let t = iion as f64 * self.dt + iele as f64 * self.edt;
                 [
                     f[0].eval(t),
                     f[1].eval(t),
@@ -431,9 +443,9 @@ impl Hamiltonian {
 
         // vecpot = \int_0^t dt -\vec{E}
         for i in 0 .. 3 {
-            self.acc_vecpot[i] -= ef[i] * (self.dt / self.nelm as f64);
+            self.vecpot[i] -= ef[i] * self.edt;
         }
 
-        self.acc_vecpot
+        self.vecpot
     }
 }

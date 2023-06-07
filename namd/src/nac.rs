@@ -1,20 +1,13 @@
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::Path;
 use std::ops::Range;
 use std::sync::{
     Arc,
     Mutex,
 };
-use std::time::Instant;
 
 use rayon::prelude::*;
 use mpi::traits::*;
-use hdf5::{
-    File as H5File,
-    H5Type,
-};
+use hdf5::File as H5File;
 
 use shared::{
     Context,
@@ -29,11 +22,7 @@ use shared::{
         Array5,
         NewAxis,
     },
-    log::{
-        info,
-        warn,
-        error,
-    },
+    log::info,
 };
 use vasp_parsers::{
     Wavecar,
@@ -291,6 +280,7 @@ impl Nac {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
     use super::*;
     use tempfile::tempdir;
 

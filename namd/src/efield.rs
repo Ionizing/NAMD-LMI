@@ -193,7 +193,6 @@ mod fnparse {
                         _ => unreachable!(),
                     }
                 }
-                _ => unreachable!(),
             }
         }
     }

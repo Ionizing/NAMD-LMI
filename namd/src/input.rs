@@ -1,18 +1,15 @@
+use std::path::Path;
 use std::fs::read_to_string;
 
-use shared::{
-    anyhow,
-    bail,
-    Result,
-};
+use shared::Result;
 
 use toml;
 use serde::{
     de::Error,
-    ser,
+    //ser,
     Deserialize,
     Deserializer,
-    Serialize,
+    //Serialize,
 };
 use crate::efield::Efield;
 use crate::hamiltonian::PropagateMethod;
@@ -60,6 +57,15 @@ pub struct Input {
 
 
 impl Input {
+    pub fn from_file<P>(fname: &P) -> Result<Self>
+    where
+        P: AsRef<Path> + ?Sized
+    {
+        let raw         = read_to_string(fname)?;
+        let input: Self = toml::from_str(&raw)?;
+        Ok(input)
+    }
+
     fn efield_from_file<'de, D>(deserializer: D) -> Result<Option<(String, Efield)>, D::Error>
     where D: Deserializer<'de>
     {
