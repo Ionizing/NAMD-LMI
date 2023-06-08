@@ -455,4 +455,13 @@ impl Hamiltonian {
 
         self.vecpot
     }
+
+
+    pub fn get_efield(&self, iion: usize) -> Option<[f64; 3]> {
+        let t = iion as f64 * self.dt;
+        self.efield.as_ref().map(|e| match e {
+            Efield::Vector3(v) => v[iion],
+            Efield::Function3(f) => [f[0].eval(t), f[1].eval(t), f[2].eval(t)],
+        })
+    }
 }

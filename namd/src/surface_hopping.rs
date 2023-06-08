@@ -8,6 +8,7 @@ use shared::{
     Array3,
 };
 use hdf5::File as H5File;
+use rand::{thread_rng, Rng};
 
 use crate::{
     input::Input,
@@ -19,6 +20,7 @@ use crate::{
         IMGUNIT,
         HBAR,
         BOLKEV,
+        EPS,
     },
 };
 
@@ -38,7 +40,7 @@ pub struct SurfaceHopping {
     pub lexcitation: bool,
     pub hamil:       Hamiltonian,
 
-    //pub prob:        Array3<f64>,       // [namdtime, nbasis, nbasis]
+    pub ndigit:      usize,
     pub pops:        Array2<f64>,       // [namdtime, nbasis]
     pub recomb:      Array2<f64>,       // [namdtime, nbasis]
     pub energy:      Array1<f64>,       // [namdtime]
@@ -54,6 +56,7 @@ impl SurfaceHopping {
             hamil,
             inp.propmethod,
             inp.shmethod,
+            inp.ndigit,
             inp.ntraj,
             inp.lexcitation,
         )
@@ -64,13 +67,13 @@ impl SurfaceHopping {
         hamil:       Hamiltonian,
         propmethod:  PropagateMethod,
         shmethod:    SHMethod,
+        ndigit:      usize,
         ntraj:       usize,
         lexcitation: bool,
     ) -> Self {
         let namdtime = hamil.namdtime;
         let nbasis   = hamil.nbasis;
 
-        //let prob   = Array3::<f64>::zeros((namdtime, nbasis, nbasis));
         let pops   = Array2::<f64>::zeros((namdtime, nbasis));
         let recomb = Array2::<f64>::zeros((namdtime, nbasis));
         let energy = Array1::<f64>::zeros(namdtime);
@@ -82,7 +85,7 @@ impl SurfaceHopping {
             lexcitation,
             hamil,
 
-            //prob,
+            ndigit,
             pops,
             recomb,
             energy
@@ -91,7 +94,16 @@ impl SurfaceHopping {
 
 
     pub fn run(&mut self) {
-        todo!()
+        match self.shmethod {
+            SHMethod::FSSH => self.fssh(),
+            SHMethod::DISH => self.dish(),
+            SHMethod::DCSH => self.dcsh(),
+            SHMethod::GFSH => self.gfsh(),
+        }
+
+        let ndigit = self.ndigit;
+        let fname = format!("result_{:0ndigit$}.h5", self.hamil.namdinit);
+        self.save_to_h5(&fname).unwrap();
     }
 
 
@@ -130,24 +142,47 @@ impl SurfaceHopping {
         }
 
         for iion in 0 .. self.hamil.namdtime {
-
+            for istate in 0 .. self.hamil.nbasis {
+                prob.slice_mut(s![iion, istate, ..]).assign(&self.fssh_hop_prob(iion, istate));
+            }
         }
 
-        todo!()
+        let mut rng = thread_rng();
+
+        for _ in 0 .. self.ntraj {
+            let mut curstate = self.hamil.basisini;
+            for iion in 0 .. self.hamil.namdtime {
+                let randnum: f64 = rng.gen();
+                let hop_dest = prob.slice(s![iion, curstate, ..])
+                    .as_slice().unwrap()
+                    .partition_point(|v| v < &randnum);
+                curstate = if hop_dest < self.hamil.nbasis { hop_dest } else { curstate };
+                self.pops[(iion, curstate)] += 1.0;
+            }
+        }
+
+        self.pops /= self.ntraj as f64;
     }
 
     fn fssh_hop_prob(&self, iion: usize, istate: usize) -> Array1<f64> {
         let rtime: usize = (iion + self.hamil.namdinit) % (self.hamil.nsw - 1);
 
         // |phi(j)|^2
-        let rho_jj = self.hamil.psi_t[(iion, istate)].norm_sqr();
+        let rho_jj   = self.hamil.psi_t[(iion, istate)].norm_sqr();
         // phi(j).conj() * phi(k)
-        let rho_jk = self.hamil.psi_t[(iion, istate)].conj() * self.hamil.psi_t.slice(s![iion, ..]).to_owned();
+        let rho_jk   = self.hamil.psi_t[(iion, istate)].conj() * self.hamil.psi_t.slice(s![iion, ..]).to_owned();
         // \max[\frac{2*\int_t^{t+\Delta t} Re(\rho_{jk}*H_{jk} / -ihbar) dt}{\rho_{jj}}, 0]
         let mut prob = (IMGUNIT * rho_jk * self.hamil.ham_t.slice(s![iion, istate, ..]) * (2.0 * self.hamil.dt / (HBAR * rho_jj)))
             .mapv(|v| if v.re > 0.0 { v.re } else { 0.0 });
 
-        if !self.lexcitation {
+        // determine if the electric field is still present
+        let has_efield = self.hamil.get_efield(iion).map(|v| v[0]*v[0] + v[1]*v[1] + v[2]*v[2]).unwrap_or(0.0) > EPS;
+
+        // balance factor to restrict upward hops
+        // upward hops is restricted only when
+        //     - not excitation process
+        //     - |EFIELD| != 0
+        if !self.lexcitation && !has_efield {
             let thermal_factor = (self.hamil.eig_t[(rtime, istate)] - self.hamil.eig_t.slice(s![rtime, ..]).to_owned())
                 .mapv(|v| f64::exp(
                         f64::min(v, 0.0) / (BOLKEV * self.hamil.temperature)
@@ -155,7 +190,13 @@ impl SurfaceHopping {
             prob *= &thermal_factor;
         }
 
-        prob
+        // cumulative sum
+        prob.into_iter()
+            .scan(0.0, |acc, x| {
+                *acc += x;
+                Some(*acc)
+            })
+            .collect()
     }
 
 
