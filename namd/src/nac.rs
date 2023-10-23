@@ -22,8 +22,12 @@ use shared::{
         Array5,
         NewAxis,
     },
-    log::info,
 };
+#[cfg(not(test))]
+use shared::log::{info, warn};
+#[cfg(test)]
+use std::{println as info, println as warn};
+
 use vasp_parsers::{
     Wavecar,
     WavecarType,
@@ -164,6 +168,12 @@ impl Nac {
     }
 
 
+    #[cfg_attr(doc, katexit::katexit)]
+    /// This function calculates non-adiabatic coupling (NAC), and transition dipole moment (TDM)
+    /// 
+    /// $$
+    /// D_ij = \mel{\phi_i}{\frac{d}{dt}}{\phi_j}
+    /// $$
     fn from_wavecars(rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize, nspin: usize, gvecs: &Array2<c64>)
         -> Result<(Array4<c64>, Array3<f64>, Array5<c64>, f64)>
     {
@@ -287,13 +297,13 @@ mod tests {
     #[test]
     #[ignore]
     fn test_from_wavecars() {
-        let ndigit = 5;
-        let rundir = Path::new("/data2/chenlj/Work/Work2022/NAMD_lumi/2022-11-14_GaAs/2x2x2/aimd/static_0.1fs/run_3000fs");
+        let ndigit  = 5;
+        let rundir  = Path::new("/data2/chenlj/Work/Work2022/NAMD_lumi/2022-11-14_GaAs/2x2x2/aimd/static_0.1fs/run_3000fs");
         let path_1  = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
         let w1      = Wavecar::from_file(&path_1).unwrap();
         let nsw     = 300;
         let ikpoint = 0;
-        let brange  = 109 .. 150;
+        let brange  = 0 .. 150;
         let gvecs   = arr2(&w1.generate_fft_grid_cart(ikpoint as u64)).mapv(|v| c64::new(v, 0.0));
 
         let now = Instant::now();

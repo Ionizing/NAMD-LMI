@@ -1015,12 +1015,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libm"
-version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7012b1bbb0719e1097c47611d3898568c546d597c2e74d66f6087edd5233ff4"
-
-[[package]]
 name = "link-cplusplus"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1147,6 +1141,7 @@ version = "0.1.0"
 dependencies = [
  "hdf5",
  "hdf5-sys",
+ "katexit",
  "mpi",
  "once_cell",
  "pest",
@@ -1155,7 +1150,6 @@ dependencies = [
  "rayon",
  "serde",
  "shared",
- "specialfunctions",
  "tempfile",
  "toml 0.7.4",
  "vasp_parsers",
@@ -1245,7 +1239,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
- "libm",
 ]
 
 [[package]]
@@ -1303,14 +1296,6 @@ name = "once_cell"
 version = "1.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9670a07f94779e00908f3e686eab508878ebb390ba6e604d3a284c00e8d0487b"
-
-[[package]]
-name = "openspecfun-sys"
-version = "0.1.0"
-source = "git+ssh://git@github.com/Ionizing/SpecialFunctions-rs.git#eff874f5e0128cb643713ea4e1155d9f45a985d3"
-dependencies = [
- "cmake",
-]
 
 [[package]]
 name = "os_str_bytes"
@@ -1811,17 +1796,6 @@ name = "smallvec"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0"
-
-[[package]]
-name = "specialfunctions"
-version = "0.1.0"
-source = "git+ssh://git@github.com/Ionizing/SpecialFunctions-rs.git#eff874f5e0128cb643713ea4e1155d9f45a985d3"
-dependencies = [
- "libm",
- "num-complex",
- "openspecfun-sys",
- "thiserror",
-]
 
 [[package]]
 name = "spin"
