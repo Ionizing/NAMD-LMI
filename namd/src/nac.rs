@@ -1,6 +1,6 @@
-//! $$
-//! D_ij = \mel{\phi_i}{\frac{d}{dt}}{\phi_j}
-//! $$
+//! This module calculates the couplings involved in NAMD.
+//!
+//!
 
 use std::path::Path;
 use std::ops::Range;
@@ -28,7 +28,7 @@ use shared::{
     },
 };
 #[cfg(not(test))]
-use shared::log::{info, warn};
+use shared::log::{info};
 #[cfg(test)]
 use std::{println as info, println as warn};
 
@@ -46,7 +46,7 @@ pub struct Nac {
     pub nspin:   usize,
     pub nbands:  usize,
 
-    /// stores (brange[0] .. brange[1]) where brange[1] is not included
+    /// stores `(brange[0] .. brange[1])` where `brange[1]` is not included
     pub brange:  [usize; 2],
     pub nbrange: usize,
     pub nsw:     usize,

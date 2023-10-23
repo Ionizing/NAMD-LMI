@@ -55,7 +55,7 @@ pub fn index_transform(v: Vec<i32>, len: usize) -> Vec<usize> {
 }
 
 
-/// Parse string containing range and integers into Vec<i32>
+/// Parse string containing range and integers into `Vec<i32>`
 /// 
 /// Valid strings can be `"1..5 12 -1..3 0"` will be parsed as
 /// `vec![1, 2, 3, 4, 5, 12, -1, 1, 2, 3]`, `0` is filtered out.
