@@ -27,3 +27,6 @@ path = "src/main.rs"
 
 [dev-dependencies]
 tempfile = "3.5.0"
+
+[package.metadata.docs.rs]
+rustdoc-args = [ "--html-in-header", "katex-header.html" ]

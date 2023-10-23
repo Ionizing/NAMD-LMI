@@ -1,3 +1,7 @@
+//! $$
+//! D_ij = \mel{\phi_i}{\frac{d}{dt}}{\phi_j}
+//! $$
+
 use std::path::Path;
 use std::ops::Range;
 use std::sync::{
@@ -168,12 +172,8 @@ impl Nac {
     }
 
 
-    #[cfg_attr(doc, katexit::katexit)]
     /// This function calculates non-adiabatic coupling (NAC), and transition dipole moment (TDM)
     /// 
-    /// $$
-    /// D_ij = \mel{\phi_i}{\frac{d}{dt}}{\phi_j}
-    /// $$
     fn from_wavecars(rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize, nspin: usize, gvecs: &Array2<c64>)
         -> Result<(Array4<c64>, Array3<f64>, Array5<c64>, f64)>
     {
