@@ -236,13 +236,12 @@ mod fnparse {
 float = @{ int ~ ("." ~ ASCII_DIGIT*)? ~ (^"e" ~ int)? }
     int = _{ ("+" | "-")? ~ ASCII_DIGIT+ }
 
-vector3 = {
-    vector3tag ~ "{" ~
-        (float ~ float ~ float) ~
-        ("," ~ float ~ float ~ float)* ~ (",")? ~
-    "}"
-}
+vector3 = { vector3tag ~ "{" ~ vector3body ~ "}" }
     vector3tag = @{ ^"vector3" }
+    vector3body = {
+        (float ~ float ~ float) ~
+        ("," ~ float ~ float ~ float)* ~ (",")?
+    }
 
 function3 = {
     functiontag ~ "{" ~
@@ -274,21 +273,6 @@ pub enum Efield {
 
 
 impl Efield {
-    fn string_to_vec3(s: &str) -> Vec<[f64; 3]> {
-        let efield_vec = s
-            .split(&[',', ' ', '\n', '\t', '\r'])
-            .filter(|x| !x.is_empty())
-            .map(|v| v.parse::<f64>().unwrap())
-            .collect::<Vec<f64>>();
-        
-        assert_eq!(efield_vec.len() % 3, 0,
-            "Length of EFIELD data should be in multiples of 3, got {}.", efield_vec.len());
-
-        efield_vec.chunks_exact(3)
-            .map(|v| [v[0], v[1], v[2]])
-            .collect::<Vec<_>>()
-    }
-
     #[allow(dead_code)]
     fn string_to_function(s: &str) -> Box<dyn Fn(f64) -> f64> {
         Box::new(fnparse::str2fn(s))
@@ -301,11 +285,23 @@ impl Efield {
         fn parse_internal(pair: Pair<Rule>) -> Efield {
             match pair.as_rule() {
                 Rule::vector3   => {
-                    let token = pair.as_str()
-                        .split(&['{', '}'])
-                        .nth(1)
-                        .unwrap();
-                    Efield::Vector3(Efield::string_to_vec3(token))
+                    let vec = pair.clone().into_inner()
+                        .skip(1)
+                        .next().unwrap()
+                        .into_inner()
+                        .filter_map(|tok| {
+                            if tok.as_rule() == Rule::float {
+                                tok.as_str().parse::<f64>().ok()
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<f64>>()
+                        .chunks_exact(3)
+                        .map(|v| [v[0], v[1], v[2]])
+                        .collect();
+
+                    Efield::Vector3(vec)
                 },
                 Rule::function3 => {
                     let token = pair.as_str()
@@ -328,6 +324,42 @@ impl Efield {
         let efield = Efield::parse(Rule::efield, s).unwrap().next().unwrap();
         Ok(parse_internal(efield))
     }
+
+
+    /// Substitute the 't' with actual time, and get the real-time electric field.
+    ///
+    /// - For Function3, the result is exact;
+    /// - For Vector3, the result is linearly interpolated if the time index is not integer.
+    pub fn eval(&self, t: f64, dt: f64) -> [f64; 3] {
+        use Efield::*;
+
+        match self {
+            Function3([f1, f2, f3]) => {
+                [
+                    f1.eval(t),
+                    f2.eval(t),
+                    f3.eval(t),
+                ]
+            },
+            Vector3(vec) => {
+                let t = t / dt;
+
+                if t == (t as u32) as f64 {
+                    let t = t as usize;
+                    return vec[t];
+                }
+
+                let t0 = t.floor() as usize;
+                let t1 = t0 + 1;
+                let tmt0 = t - t0 as f64;
+                [
+                    (vec[t1][0] - vec[t0][0]) * tmt0 + vec[t0][0],
+                    (vec[t1][1] - vec[t0][1]) * tmt0 + vec[t0][1],
+                    (vec[t1][2] - vec[t0][2]) * tmt0 + vec[t0][2],
+                ]
+            },
+        }
+    }
 }
 
 
@@ -335,15 +367,6 @@ impl Efield {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_string_to_vec3() {
-        let s = r#"
-        1 2 3,
-        3 2 1 "#;
-        let vec3 = Efield::string_to_vec3(s);
-        assert_eq!(vec3, &[[1.0, 2.0, 3.0], [3.0, 2.0, 1.0]]);
-    }
 
     #[test]
     fn test_string_to_function() {
@@ -361,16 +384,14 @@ mod tests {
             e^(-0.001 * (t - 500)^2) * cos(t);
             0
         }"#;
-        match Efield::from_str(s).unwrap() {
-            Efield::Function3(f) => {
-                assert!((f[0].eval(498.0) - 0.9943582286).abs() < 1E-8);
-                assert!((f[1].eval(498.0) + 0.05730294897).abs() < 1E-8);
-                assert!((f[2].eval(498.0) - 0.0).abs() < 1E-8);
-            },
-            _ => panic!("Parse failed.")
-        }
-    }
 
+        let efield = Efield::from_str(s).unwrap();
+        let evaluated = efield.eval(498.0, 1.0);
+
+        assert!((evaluated[0] - 0.9943582286).abs() < 1E-8);
+        assert!((evaluated[1] + 0.05730294897).abs() < 1E-8);
+        assert!((evaluated[2] - 0.0).abs() < 1E-8);
+    }
 
     #[test]
     fn test_parse_efield_vector3() {
@@ -378,6 +399,25 @@ mod tests {
         Vector3 {
             1 2 3,
             3 2 1,
+        }"#;
+
+        let efield = Efield::from_str(s).unwrap();
+        let evaluated0 = efield.eval(0.0, 1.0);
+        let evaluated1 = efield.eval(0.5, 1.0);
+        let evaluated2 = efield.eval(1.0, 1.0);
+
+        assert_eq!(evaluated0, [1.0, 2.0, 3.0]);
+        assert_eq!(evaluated1, [2.0, 2.0, 2.0]);
+        assert_eq!(evaluated2, [3.0, 2.0, 1.0]);
+    }
+
+    #[test]
+    fn test_parse_efield_vector3_with_comment() {
+        let s = r#"
+        Vector3 {
+        #   x y z  time
+            1 2 3, # 0fs
+            3 2 1, # 1fs
         }"#;
         match Efield::from_str(s).unwrap() {
             Efield::Vector3(vec3) => {

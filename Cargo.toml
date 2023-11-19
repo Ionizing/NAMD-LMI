@@ -5,3 +5,5 @@ members = [
     "shared",
     "namd",
 ]
+
+resolver = "2"

@@ -114,7 +114,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_efield() {
+    fn test_parse_input() {
         let raw = r#"
         rundir       = "~/"
         ikpoint      = 1
@@ -146,5 +146,41 @@ mod tests {
 
         let input: Input = toml::from_str(raw).unwrap();
         assert_eq!(input.efield.unwrap().0, "tests/1.5eV.txt");
+    }
+
+
+    #[test]
+    fn test_parse_input2() {
+        let raw = r#"
+        rundir       = "~/"
+        ikpoint      = 1
+        brange       = [50, 100]
+        basis_up     = [60, 90]
+        basis_dn     = [0, 0]
+        nsw          = 3000
+        ndigit       = 4
+        namdtime     = 1000
+        dt           = 0.1
+        nsample      = 100
+        ntraj        = 10000
+        propmethod   = "exact"
+        shmethod     = "fssh"
+        nelm         = 10
+        lreal        = false
+        lprint_input = true
+        lexcitation  = true
+        lreorder     = false
+        nacfname     = "NAC.h5"
+        temperature  = 300
+        lcycle       = false
+        efield       = "tests/2.0eV.txt"
+
+        inibands     = [114, 114]
+        inispins     = [1, 1]
+        inisteps     = [514, 810]
+            "#;
+
+        let input: Input = toml::from_str(raw).unwrap();
+        assert_eq!(input.efield.unwrap().0, "tests/2.0eV.txt");
     }
 }

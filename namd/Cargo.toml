@@ -18,7 +18,7 @@ serde        = { version = "1.0.163", features = ["derive"] }
 shared       = { path = "../shared" }
 toml         = "0.7.4"
 vasp_parsers = { path = "../vasp_parsers" }
-specialfunctions = { git = "ssh://git@github.com/Ionizing/SpecialFunctions-rs.git" }
+#specialfunctions = { git = "ssh://git@github.com/Ionizing/SpecialFunctions-rs.git" }
 
 [[bin]]
 name = "namd_lumi"
