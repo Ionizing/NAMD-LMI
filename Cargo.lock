@@ -1011,6 +1011,7 @@ version = "0.1.0"
 dependencies = [
  "hdf5",
  "hdf5-sys",
+ "katexit",
  "mpi",
  "once_cell",
  "pest",
