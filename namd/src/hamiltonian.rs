@@ -187,7 +187,7 @@ impl Hamiltonian {
         }
 
         // NAC = -ihbar * <i|d/dt|j> / 2, in eV
-        nac_t *= c64::new(0.0, -1.0).scale(HBAR / (2.0 * dt));
+        nac_t *= c64::new(0.0, -1.0) * HBAR / (2.0 * dt);
         eig_t -= nac.efermi;
 
         // apply the scissor operator
@@ -362,7 +362,7 @@ impl Hamiltonian {
         // non-diagonal part: NAC
         // nac_t is in eV alrady
         self.hamil = self.nac_t.slice(s![rtime, .., ..]).to_owned() +
-                     self.delta_nac.mapv(|v| v.scale(iele as f64));
+                     self.delta_nac.mapv(|v| v * iele as f64);
 
         // if electric field exists
         if self.efield.is_some() {
@@ -373,7 +373,7 @@ impl Hamiltonian {
             for ii in 0 .. 3 {
                 lmi += &((
                     self.pij_t.slice(s![rtime, ii, .., ..]).to_owned() +
-                    self.delta_pij.mapv(|v| v.scale(iele as f64 * vecpot[ii]))
+                    self.delta_pij.mapv(|v| v * iele as f64 * vecpot[ii])
                     ) / MASS_E);
             }
             self.hamil += &lmi;
@@ -428,32 +428,18 @@ impl Hamiltonian {
 
 
     fn get_vecpot(&mut self, iion: usize, iele: usize) -> [f64; 3] {
-        let ef = match self.efield.as_ref().unwrap() {
-            Efield::Vector3(v) => {
-                let mut ret = [0.0f64; 3];
-                for i in 0 .. 3 {
-                    // perform interpolating
-                    ret[i] = v[iion][i] + (v[iion+1][i] - v[iion][i]) * (iele as f64) / (self.nelm as f64);
-                }
-                ret
-            },
-            Efield::Function3(f) => {
-                // convert indices to real time value
-                let t = iion as f64 * self.dt + iele as f64 * self.edt;
-                [
-                    f[0].eval(t),
-                    f[1].eval(t),
-                    f[2].eval(t),
-                ]
+        if let Some(efield) = self.efield.as_ref() {
+            let t  = iion as f64 * self.dt + iele as f64 * self.edt;
+            let ef = efield.eval(t, self.dt);
+
+            for i in 0 .. 3 {
+                self.vecpot[i] -= ef[i] * self.edt;
             }
-        };
 
-        // vecpot = \int_0^t dt -\vec{E}
-        for i in 0 .. 3 {
-            self.vecpot[i] -= ef[i] * self.edt;
+            return self.vecpot;
+        } else {
+            return [0.0; 3];
         }
-
-        self.vecpot
     }
 
 
