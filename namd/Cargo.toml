@@ -2,6 +2,8 @@
 name = "namd"
 version = "0.1.0"
 edition = "2021"
+authors = ["Ionizing"]
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -27,3 +29,7 @@ path = "src/main.rs"
 
 [dev-dependencies]
 tempfile = "3.5.0"
+
+[build-dependencies]
+#built = { version = "0.7.1", features = ["cargo-lock", "dependency-tree", "git2", "chrono", "semver"] }
+built = { version = "0.7.1", features = ["chrono", "git2"] }

@@ -9,6 +9,8 @@ use mpi::{
     topology::Communicator,
 };
 
+use namd::version::Version;
+
 fn main() -> Result<()> {
     let universe = mpi::initialize()
         .with_context(|| "MPI initialization failed!")?;
@@ -19,6 +21,10 @@ fn main() -> Result<()> {
 
     if 0 == irank {
         println!("MPI initialized with {nrank} ranks.");
+
+        let version = Version::new();
+        println!("{:#}", version);
+
         if nrank != 1 {
             bail!("MPI parallelism not implemented yet, exiting ...");
         }
