@@ -9,7 +9,13 @@ use mpi::{
     topology::Communicator,
 };
 
-use namd::version::Version;
+use namd::{
+    version::Version,
+    input::Input,
+    nac::Nac,
+    hamiltonian::Hamiltonian,
+    surface_hopping::SurfaceHopping,
+};
 
 fn main() -> Result<()> {
     let universe = mpi::initialize()
@@ -29,6 +35,8 @@ fn main() -> Result<()> {
             bail!("MPI parallelism not implemented yet, exiting ...");
         }
     }
+
+
 
 
     Ok(())
