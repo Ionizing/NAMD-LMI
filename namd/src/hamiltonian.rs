@@ -10,6 +10,7 @@ use shared::{
     ndarray::Array4,
     ndarray_linalg::EighInplace,
     ndarray_linalg::UPLO,
+    tracing::{self, instrument},
 };
 use hdf5::File as H5File;
 
@@ -79,7 +80,7 @@ impl Hamiltonian {
             inp.dt,
             inp.inisteps[inicon_idx],
             inp.inibands[inicon_idx],
-            inp.inispins[inicon_idx],
+            inp.inispins[inicon_idx] - 1,
             inp.namdtime,
             inp.nelm,
             inp.temperature,
@@ -115,31 +116,31 @@ impl Hamiltonian {
         nb[0] = if basis_up.contains(&0) {
             0
         } else {
-            basis_up[1] - basis_up[0]
+            basis_up[1] - basis_up[0] + 1
         };
         nb[1] = if basis_dn.contains(&0) {
             0
         } else {
-            basis_dn[1] - basis_dn[0]
+            basis_dn[1] - basis_dn[0] + 1
         };
         if nb[0] != 0 {
             assert!(
                 (basis_up[0] >= nac.brange[0]) && (basis_up[1] <= nac.brange[1]),
                 "Selected spin up band range overflows: ({}, {}) not in ({}, {})",
-                basis_up[0]+1, basis_up[1],
-                nac.brange[0]+1, nac.brange[1],
+                basis_up[0],   basis_up[1],
+                nac.brange[0], nac.brange[1],
                 );
         }
         if nb[1] != 0 {
             assert!(
                 (basis_dn[0] >= nac.brange[0]) && (basis_dn[1] <= nac.brange[1]),
                 "Selected spin down band range overflows: ({}, {}) not in ({}, {})",
-                basis_dn[0]+1, basis_dn[1],
-                nac.brange[0]+1, nac.brange[1],
+                basis_dn[0],   basis_dn[1],
+                nac.brange[0], nac.brange[1],
                 );
         }
         let nbasis = nb[0] + nb[1];
-        assert!(nbasis <= 1, "nbasis too small: {}, please use a larger basis set.", nbasis);
+        assert!(nbasis > 1, "nbasis too small: {}, please use a larger basis set.", nbasis);
 
         assert!(temperature > 0.001, "Temperature too low: {}, please use higher temperature.", temperature);
 
@@ -164,26 +165,26 @@ impl Hamiltonian {
         psi_c[basisini] = c64::new(1.0, 0.0);
         psi_t.slice_mut(s![0, ..]).assign(&psi_c);
 
-        let bup = [basis_up[0] - nac.brange[0], basis_up[1] - nac.brange[1]];
-        let bdn = [basis_dn[0] - nac.brange[0], basis_dn[1] - nac.brange[1]];
+        let bup = [basis_up[0] - nac.brange[0], basis_up[1] - nac.brange[0]];
+        let bdn = [basis_dn[0] - nac.brange[0], basis_dn[1] - nac.brange[0]];
 
         if nb[1] == 0 {         // spin up only
-            eig_t.assign(&nac.eigs .slice(s![.., 0,     bup[0] .. bup[1]]));
-            nac_t.assign(&nac.olaps.slice(s![.., 0,     bup[0] .. bup[1], bup[0] .. bup[1]]));
-            pij_t.assign(&nac.pij  .slice(s![.., 0, .., bup[0] .. bup[1], bup[0] .. bup[1]]));
+            eig_t.assign(&nac.eigs .slice(s![.., 0,     bup[0] ..= bup[1]]));
+            nac_t.assign(&nac.olaps.slice(s![.., 0,     bup[0] ..= bup[1], bup[0] ..= bup[1]]));
+            pij_t.assign(&nac.pij  .slice(s![.., 0, .., bup[0] ..= bup[1], bup[0] ..= bup[1]]));
         } else if nb[0] == 0 {  // spin down only
-            eig_t.assign(&nac.eigs .slice(s![.., 1,     bdn[0] .. bdn[1]]));
-            nac_t.assign(&nac.olaps.slice(s![.., 1,     bdn[0] .. bdn[1], bdn[0] .. bdn[1]]));
-            pij_t.assign(&nac.pij  .slice(s![.., 1, .., bdn[0] .. bdn[1], bdn[0] .. bdn[1]]));
+            eig_t.assign(&nac.eigs .slice(s![.., 1,     bdn[0] ..= bdn[1]]));
+            nac_t.assign(&nac.olaps.slice(s![.., 1,     bdn[0] ..= bdn[1], bdn[0] ..= bdn[1]]));
+            pij_t.assign(&nac.pij  .slice(s![.., 1, .., bdn[0] ..= bdn[1], bdn[0] ..= bdn[1]]));
         } else {                // spin up and spin down
-            eig_t.slice_mut(s![.., .. nb[0]]).assign(&nac.eigs.slice(s![.., 0, bup[0] .. bup[1]]));
-            eig_t.slice_mut(s![.., nb[0] ..]).assign(&nac.eigs.slice(s![.., 1, bdn[0] .. bdn[1]]));
+            eig_t.slice_mut(s![.., .. nb[0]]).assign(&nac.eigs.slice(s![.., 0, bup[0] ..= bup[1]]));
+            eig_t.slice_mut(s![.., nb[0] ..]).assign(&nac.eigs.slice(s![.., 1, bdn[0] ..= bdn[1]]));
 
-            nac_t.slice_mut(s![.., .. nb[0], .. nb[0]]).assign(&nac.olaps.slice(s![.., 0, bup[0] .. bup[1], bup[0] .. bup[1]]));
-            nac_t.slice_mut(s![.., nb[0] .., nb[0] ..]).assign(&nac.olaps.slice(s![.., 1, bdn[0] .. bdn[1], bdn[0] .. bdn[1]]));
+            nac_t.slice_mut(s![.., .. nb[0], .. nb[0]]).assign(&nac.olaps.slice(s![.., 0, bup[0] ..= bup[1], bup[0] ..= bup[1]]));
+            nac_t.slice_mut(s![.., nb[0] .., nb[0] ..]).assign(&nac.olaps.slice(s![.., 1, bdn[0] ..= bdn[1], bdn[0] ..= bdn[1]]));
 
-            pij_t.slice_mut(s![.., .., .. nb[0], .. nb[0]]).assign(&nac.pij.slice(s![.., 0, .., bup[0] .. bup[1], bup[0] .. bup[1]]));
-            pij_t.slice_mut(s![.., .., nb[0] .., nb[0] ..]).assign(&nac.pij.slice(s![.., 1, .., bdn[0] .. bdn[1], bdn[0] .. bdn[1]]));
+            pij_t.slice_mut(s![.., .., .. nb[0], .. nb[0]]).assign(&nac.pij.slice(s![.., 0, .., bup[0] ..= bup[1], bup[0] ..= bup[1]]));
+            pij_t.slice_mut(s![.., .., nb[0] .., nb[0] ..]).assign(&nac.pij.slice(s![.., 1, .., bdn[0] ..= bdn[1], bdn[0] ..= bdn[1]]));
         }
 
         // NAC = -ihbar * <i|d/dt|j> / 2, in eV
@@ -371,10 +372,13 @@ impl Hamiltonian {
             let     vecpot  = self.get_vecpot(iion, iele);
             let mut lmi     = Array2::<c64>::zeros((self.nbasis, self.nbasis));
             for ii in 0 .. 3 {
-                lmi += &((
-                    self.pij_t.slice(s![rtime, ii, .., ..]).to_owned() +
-                    self.delta_pij.mapv(|v| v * iele as f64 * vecpot[ii])
-                    ) / MASS_E);
+                //lmi += &((
+                    //self.pij_t.slice(s![rtime, ii, .., ..]).to_owned() +
+                    //self.delta_pij.mapv(|v| v * iele as f64 * vecpot[ii])
+                    //) / MASS_E);
+
+                lmi += &((self.pij_t.slice(s![rtime, ii, .., ..]).to_owned() +
+                          self.delta_pij.slice(s![ii, .., ..]).mapv(|v| v * iele as f64)) * vecpot[ii]);
             }
             self.hamil += &lmi;
 
@@ -414,6 +418,7 @@ impl Hamiltonian {
     }
 
 
+    #[instrument(ret, level="debug")]
     fn iniband_index_convert(
         basis_up: &[usize; 2], basis_dn: &[usize; 2], inispin: usize, iniband: usize
         ) -> usize {
@@ -421,12 +426,13 @@ impl Hamiltonian {
         if 0 == inispin {
             iniband - basis_up[0]
         } else {
-            let nbup = basis_up[1] - basis_up[0];
+            let nbup = basis_up[1] - basis_up[0] + 1;
             iniband - basis_dn[0] + nbup
         }
     }
 
 
+    #[instrument(skip(self), ret, level="debug")]
     fn get_vecpot(&mut self, iion: usize, iele: usize) -> [f64; 3] {
         if let Some(efield) = self.efield.as_ref() {
             let t  = iion as f64 * self.dt + iele as f64 * self.edt;

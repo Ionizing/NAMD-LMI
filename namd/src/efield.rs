@@ -304,13 +304,16 @@ impl Efield {
                     Efield::Vector3(vec)
                 },
                 Rule::function3 => {
-                    let token = pair.as_str()
-                        .split(&['{', '}'])
-                        .nth(1)
-                        .unwrap();
-                    let tokens = token.split(";")
-                        .map(|x| x.trim())
+                    let tokens = pair.clone().into_inner()
+                        .filter_map(|tok| {
+                            if tok.as_rule() == Rule::functionbody {
+                                Some(tok.as_str())
+                            } else {
+                                None
+                            }
+                        })
                         .collect::<Vec<&str>>();
+
                     Efield::Function3([
                         fnparse::str2expr(tokens[0]),
                         fnparse::str2expr(tokens[1]),
@@ -383,6 +386,28 @@ mod tests {
             e^(-0.001 * (t - 500)^2) * sin(t);
             e^(-0.001 * (t - 500)^2) * cos(t);
             0
+        }"#;
+
+        let efield = Efield::from_str(s).unwrap();
+        let evaluated = efield.eval(498.0, 1.0);
+
+        assert!((evaluated[0] - 0.9943582286).abs() < 1E-8);
+        assert!((evaluated[1] + 0.05730294897).abs() < 1E-8);
+        assert!((evaluated[2] - 0.0).abs() < 1E-8);
+    }
+
+    #[test]
+    fn test_parse_efield_function3_with_comment() {
+        let s = r#"
+        Function3 {
+            # test
+            e^(-0.001 * (t - 500)^2) * sin(t);  # test
+
+            # test
+            e^(-0.001 * (t - 500)^2) * cos(t);  # test
+            
+            # test
+            0;
         }"#;
 
         let efield = Efield::from_str(s).unwrap();

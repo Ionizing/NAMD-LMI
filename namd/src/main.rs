@@ -4,12 +4,13 @@ use shared::{
     Context,
     bail,
     info,
+    tracing::{self, Level},
 };
 use mpi::{
     self,
     topology::Communicator,
 };
-use env_logger::init_from_env;
+use tracing_subscriber::FmtSubscriber;
 
 use namd::version::Version;
 
@@ -17,7 +18,7 @@ fn main() -> Result<()> {
     let universe = mpi::initialize()
         .with_context(|| "MPI initialization failed!")?;
     let world    = universe.world();
-    let nrank     = world.size();
+    let nrank    = world.size();
     let irank    = world.rank();
     //let root_rank = world.process_at_rank(0);
 
@@ -38,7 +39,14 @@ fn main() -> Result<()> {
     }
 
     let now = std::time::Instant::now();
-    init_from_env(env_logger::Env::new().filter_or("RSGRAD_LOG", "info"));
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::INFO)
+        .with_thread_ids(true)
+        .with_thread_names(true)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Setting default subscriber failed.");
+
 
     {
         use clap::Parser;

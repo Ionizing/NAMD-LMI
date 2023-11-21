@@ -6,6 +6,7 @@ use shared::{
     Array1,
     Array2,
     Array3,
+    info,
 };
 use hdf5::File as H5File;
 use rand::{thread_rng, Rng};
@@ -25,7 +26,7 @@ use crate::{
 };
 
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SHMethod {
     FSSH,
     DISH,
@@ -94,6 +95,7 @@ impl SurfaceHopping {
 
 
     pub fn run(&mut self) {
+        info!("Running surface hopping with namdini = {} ...", self.hamil.namdinit);
         match self.shmethod {
             SHMethod::FSSH => self.fssh(),
             SHMethod::DISH => self.dish(),

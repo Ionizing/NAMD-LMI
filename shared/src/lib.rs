@@ -13,7 +13,7 @@ pub use ndarray::{
 pub use ndarray_linalg;
 pub use regex::Regex;
 pub use clap::Parser;
-pub use log::{
+pub use tracing::{
     self,
     warn,
     info,

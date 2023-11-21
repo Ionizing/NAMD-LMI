@@ -28,7 +28,7 @@ use shared::{
     },
 };
 #[cfg(not(test))]
-use shared::log::{info};
+use shared::{info, warn};
 #[cfg(test)]
 use std::{println as info, println as warn};
 
@@ -39,14 +39,14 @@ use vasp_parsers::{
 
 use crate::input::Input;
 
-/// All the indices are counted from 0
+// All the indices are counted from 1, and use closed inverval
 #[derive(PartialEq, Debug)]
 pub struct Nac {
     pub ikpoint: usize,
     pub nspin:   usize,
     pub nbands:  usize,
 
-    /// stores `(brange[0] .. brange[1])` where `brange[1]` is not included
+    /// stores `(brange[0] ..= brange[1])` where `brange[1]` is included
     pub brange:  [usize; 2],
     pub nbrange: usize,
     pub nsw:     usize,
@@ -144,12 +144,14 @@ impl Nac {
         info!("No pre-calculated NAC available, start calculating from scratch in {:?}/.../WAVECARs ...", inp.rundir);
         let rundir  = Path::new(&inp.rundir);
         let nsw     = inp.nsw;
-        let ikpoint = inp.ikpoint;
-        let brange  = Range { start: inp.brange[0], end: inp.brange[1] };
+        let ikpoint = inp.ikpoint - 1;
+        let brange  = Range { start: inp.brange[0] - 1, end: inp.brange[1] };
         let nbrange = brange.len();
         let ndigit  = inp.ndigit;
         let dt      = inp.dt;
         let lreal   = inp.lreal;
+
+        warn!("154");
 
         // get nspin and nbands
         let path_1  = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
@@ -160,7 +162,7 @@ impl Nac {
 
         let (olaps, eigs, pij, efermi) = Self::from_wavecars( &rundir, nsw, ikpoint, brange, ndigit, nspin, &gvecs)?;
 
-        Ok(Self {
+        let ret = Self {
             ikpoint,
             nspin,
             nbands,
@@ -174,7 +176,10 @@ impl Nac {
             olaps,
             eigs,
             pij,
-        })
+        };
+
+        ret.save_to_h5(&inp.nacfname)?;
+        Ok(ret)
     }
 
 
@@ -234,7 +239,7 @@ impl Nac {
     {
         let wi = Wavecar::from_file(&path_i.join("WAVECAR"))?;
         let wj = Wavecar::from_file(&path_j.join("WAVECAR"))?;
-        
+
         let nplw     = wi.nplws[ikpoint] as usize;
         let nbrange  = brange.clone().count();
         let nspin    = wi.nspin as usize;

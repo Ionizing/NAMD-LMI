@@ -21,6 +21,7 @@ use crate::efield::Efield;
 use crate::hamiltonian::PropagateMethod;
 use crate::surface_hopping::SHMethod;
 
+// All indices starst from 1
 #[derive(Deserialize)]
 pub struct Input {
     pub rundir:       PathBuf,
