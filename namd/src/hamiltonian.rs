@@ -10,7 +10,7 @@ use shared::{
     ndarray::Array4,
     ndarray_linalg::EighInplace,
     ndarray_linalg::UPLO,
-    tracing::{self, instrument},
+    tracing::{self, instrument, info},
 };
 use hdf5::File as H5File;
 
@@ -241,6 +241,12 @@ impl Hamiltonian {
 
 
     pub fn propagate(&mut self, iion: usize, method: PropagateMethod) {
+        let (rtime, _xtime) = self.get_rtime_xtime(iion);
+
+        self.pop_t.slice_mut(s![iion, ..]).assign(&self.psi_c.mapv(|v| v.norm_sqr()));
+        self.psi_t.slice_mut(s![iion, ..]).assign(&self.psi_c);
+        self.prop_eigs[iion] = (self.pop_t.slice(s![iion, ..]).to_owned() * self.eig_t.slice(s![rtime, ..])).sum();
+
         match method {
             PropagateMethod::FiniteDifference => self.propagate_finite_difference(iion),
             PropagateMethod::Exact            => self.propagate_exact(iion),
@@ -251,7 +257,7 @@ impl Hamiltonian {
 
 
     fn propagate_finite_difference(&mut self, iion: usize) {
-        for iele in 0 .. iion {
+        for iele in 0 .. self.nelm {
             self.make_hamil(iion, iele);
             self.psi_h = self.hamil.dot(&self.psi_c);
 
@@ -270,7 +276,7 @@ impl Hamiltonian {
     fn propagate_exact(&mut self, iion: usize) {
         let mut lambda_expv = Array2::<c64>::zeros(self.hamil.dim());
 
-        for iele in 0 .. iion {
+        for iele in 0 .. self.nelm {
             self.make_hamil(iion, iele);
             self.hamil.mapv_inplace(|v| v * (-self.edt / HBAR)); // -edt*H/hbar
 
@@ -346,24 +352,29 @@ impl Hamiltonian {
     }
 
 
+    #[instrument(skip(self), level="info")]
     fn make_hamil(&mut self, iion: usize, iele: usize) {
-        let rtime: usize = (iion + self.namdinit) % (self.nsw - 1);
-        let xtime: usize = rtime + 1;
+        let (rtime, xtime) = self.get_rtime_xtime(iion);
+        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
 
         // first electronic step inside ionic step
         if 0 == iele {
             self.delta_eig = (self.eig_t.slice(s![xtime, ..]).to_owned() -
-                              self.eig_t.slice(s![rtime,   ..]) ) / self.nelm as f64 ;
+                              self.eig_t.slice(s![rtime, ..])) / self.nelm as f64 ;
             self.delta_nac = (self.nac_t.slice(s![xtime, .., ..]).to_owned() -
-                              self.nac_t.slice(s![rtime,   .., ..]) ) / self.nelm as f64;
+                              self.nac_t.slice(s![rtime, .., ..])) / self.nelm as f64;
             self.delta_pij = (self.pij_t.slice(s![xtime, .., .., ..]).to_owned() -
-                              self.pij_t.slice(s![rtime,   .., .., ..]) ) / self.nelm as f64;
+                              self.pij_t.slice(s![rtime, .., .., ..]) ) / self.nelm as f64;
         }
+
+        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
 
         // non-diagonal part: NAC
         // nac_t is in eV alrady
         self.hamil = self.nac_t.slice(s![rtime, .., ..]).to_owned() +
                      self.delta_nac.mapv(|v| v * iele as f64);
+
+        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
 
         // if electric field exists
         if self.efield.is_some() {
@@ -372,11 +383,6 @@ impl Hamiltonian {
             let     vecpot  = self.get_vecpot(iion, iele);
             let mut lmi     = Array2::<c64>::zeros((self.nbasis, self.nbasis));
             for ii in 0 .. 3 {
-                //lmi += &((
-                    //self.pij_t.slice(s![rtime, ii, .., ..]).to_owned() +
-                    //self.delta_pij.mapv(|v| v * iele as f64 * vecpot[ii])
-                    //) / MASS_E);
-
                 lmi += &((self.pij_t.slice(s![rtime, ii, .., ..]).to_owned() +
                           self.delta_pij.slice(s![ii, .., ..]).mapv(|v| v * iele as f64)) * vecpot[ii]);
             }
@@ -387,9 +393,13 @@ impl Hamiltonian {
             }
         }
 
+        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
+
         if 0 == iele {
             self.ham_t.slice_mut(s![iion, .., ..]).assign(&self.hamil);
         }
+
+        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
 
         // dagonal part: eigenvalue of ks orbits, in eV
         // rustc refuses to compile `struct.method() = somethingelse;`
@@ -397,6 +407,8 @@ impl Hamiltonian {
             self.eig_t.slice(s![rtime, ..]).mapv(|v| c64::new(v, 0.0)) +
             self.delta_eig.mapv(|v| c64::new(v * iele as f64, 0.0))
             ));
+
+        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
     }
 
 
@@ -429,6 +441,13 @@ impl Hamiltonian {
             let nbup = basis_up[1] - basis_up[0] + 1;
             iniband - basis_dn[0] + nbup
         }
+    }
+
+
+    fn get_rtime_xtime(&self, iion: usize) -> (usize, usize) {
+        let rtime = (iion + self.namdinit) % (self.nsw - 2);
+        let xtime = rtime + 1;
+        (rtime, xtime)
     }
 
 
