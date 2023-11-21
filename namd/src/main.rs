@@ -11,13 +11,7 @@ use mpi::{
 };
 use env_logger::init_from_env;
 
-use namd::{
-    version::Version,
-    input::Input,
-    nac::Nac,
-    hamiltonian::Hamiltonian,
-    surface_hopping::SurfaceHopping,
-};
+use namd::version::Version;
 
 fn main() -> Result<()> {
     let universe = mpi::initialize()
@@ -27,15 +21,20 @@ fn main() -> Result<()> {
     let irank    = world.rank();
     //let root_rank = world.process_at_rank(0);
 
+    if nrank != 1 {
+        if 0 == irank {
+            bail!("MPI parallelism not implemented yet, exiting ...");
+        } else {
+            return Ok(());
+        }
+    }
+
     if 0 == irank {
         println!("MPI initialized with {nrank} ranks.");
 
         let version = Version::new();
         println!("{:#}", version);
 
-        if nrank != 1 {
-            bail!("MPI parallelism not implemented yet, exiting ...");
-        }
     }
 
     let now = std::time::Instant::now();
