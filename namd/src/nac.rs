@@ -136,6 +136,12 @@ impl Nac {
 
 
     pub fn from_inp(inp: &Input) -> Result<Self> {
+        if inp.nacfname.is_file() {
+            info!("Found pre-calculated NAC available in {:?}, reading NAC from it ...", inp.nacfname);
+            return Self::from_h5(&inp.nacfname);
+        }
+
+        info!("No pre-calculated NAC available, start calculating from scratch in {:?}/.../WAVECARs ...", inp.rundir);
         let rundir  = Path::new(&inp.rundir);
         let nsw     = inp.nsw;
         let ikpoint = inp.ikpoint;

@@ -1,7 +1,13 @@
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::fs::read_to_string;
 
-use shared::Result;
+use shared::{
+    bail,
+    Result,
+};
 
 use toml;
 use serde::{
@@ -17,7 +23,7 @@ use crate::surface_hopping::SHMethod;
 
 #[derive(Deserialize)]
 pub struct Input {
-    pub rundir:       String,
+    pub rundir:       PathBuf,
     pub ikpoint:      usize,
     pub brange:       [usize; 2],
     pub basis_up:     [usize; 2],
@@ -39,7 +45,7 @@ pub struct Input {
     pub lprint_input: bool,
     pub lexcitation:  bool,
     pub lreorder:     bool,
-    pub nacfname:     String,
+    pub nacfname:     PathBuf,
     pub temperature:  f64,
 
     #[serde(default)]
@@ -51,7 +57,7 @@ pub struct Input {
 
     #[serde(default)]
     #[serde(deserialize_with = "Input::efield_from_file")]
-    pub efield:       Option<(String, Efield)>,
+    pub efield:       Option<(PathBuf, Efield)>,
     pub lcycle:       bool,
 }
 
@@ -61,18 +67,21 @@ impl Input {
     where
         P: AsRef<Path> + ?Sized
     {
+        if !fname.as_ref().is_file() {
+            bail!("Input file {:?} not available.", fname.as_ref());
+        }
         let raw         = read_to_string(fname)?;
         let input: Self = toml::from_str(&raw)?;
         Ok(input)
     }
 
-    fn efield_from_file<'de, D>(deserializer: D) -> Result<Option<(String, Efield)>, D::Error>
+    fn efield_from_file<'de, D>(deserializer: D) -> Result<Option<(PathBuf, Efield)>, D::Error>
     where D: Deserializer<'de>
     {
         let s = String::deserialize(deserializer)?;
         let txt = read_to_string(&s).map_err(D::Error::custom)?;
         Ok(Some((
-                s.to_string(),
+                PathBuf::from(s),
                 Efield::from_str(&txt).map_err(D::Error::custom)?
                 )))
     }
@@ -145,7 +154,7 @@ mod tests {
             "#;
 
         let input: Input = toml::from_str(raw).unwrap();
-        assert_eq!(input.efield.unwrap().0, "tests/1.5eV.txt");
+        assert_eq!(input.efield.unwrap().0, PathBuf::from("tests/1.5eV.txt"));
     }
 
 
@@ -181,6 +190,6 @@ mod tests {
             "#;
 
         let input: Input = toml::from_str(raw).unwrap();
-        assert_eq!(input.efield.unwrap().0, "tests/2.0eV.txt");
+        assert_eq!(input.efield.unwrap().0, PathBuf::from("tests/2.0eV.txt"));
     }
 }

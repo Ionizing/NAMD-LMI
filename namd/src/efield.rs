@@ -212,7 +212,7 @@ mod fnparse {
 
 
 /// Example of input external-field data:
-/// ```ignore
+/// ```no_rust
 /// # comments
 /// lcycle = false # or true
 ///
