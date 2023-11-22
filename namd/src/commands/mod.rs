@@ -4,6 +4,7 @@ pub use shared::Result;
 
 pub mod generate;
 pub mod run;
+pub mod scripts;
 pub mod tutorial;
 
 

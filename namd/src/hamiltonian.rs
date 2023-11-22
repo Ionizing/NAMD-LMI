@@ -59,6 +59,7 @@ pub struct Hamiltonian {
     pub nac_t:         Array3<c64>,     // [nsw-1, nbasis, nbasis]
     pub pij_t:         Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     pub efield:        Option<Efield>,
+    pub proj:          Array4<f64>,     // [nsw-1, nbasis, nions, nproj]
 
     // Auxiliary variables used by `make_hamil method`
     delta_eig:         Array1<f64>,     // [nbasis]
@@ -147,6 +148,8 @@ impl Hamiltonian {
         let nsw   = nac.nsw;
         let lreal = nac.lreal;
         let edt   = dt / nelm as f64;
+        let nions = nac.proj.shape()[3];
+        let nproj = nac.proj.shape()[4];
 
         let     psi_p = Array1::<c64>::zeros(nbasis);
         let mut psi_c = psi_p.clone();
@@ -160,6 +163,7 @@ impl Hamiltonian {
         let     prop_eigs = Array1::<f64>::zeros(namdtime);
         let mut nac_t     = Array3::<c64>::zeros((nsw-1, nbasis, nbasis));
         let mut pij_t     = Array4::<c64>::zeros((nsw-1, 3, nbasis, nbasis));
+        let mut proj      = Array4::<f64>::zeros((nsw-1, nbasis, nions, nproj));
 
         let basisini = Self::iniband_index_convert(&basis_up, &basis_dn, inispin, iniband);
         psi_c[basisini] = c64::new(1.0, 0.0);
@@ -172,10 +176,12 @@ impl Hamiltonian {
             eig_t.assign(&nac.eigs .slice(s![.., 0,     bup[0] ..= bup[1]]));
             nac_t.assign(&nac.olaps.slice(s![.., 0,     bup[0] ..= bup[1], bup[0] ..= bup[1]]));
             pij_t.assign(&nac.pij  .slice(s![.., 0, .., bup[0] ..= bup[1], bup[0] ..= bup[1]]));
+            proj .assign(&nac.proj .slice(s![.., 0,     bup[0] ..= bup[1], .., ..]));
         } else if nb[0] == 0 {  // spin down only
             eig_t.assign(&nac.eigs .slice(s![.., 1,     bdn[0] ..= bdn[1]]));
             nac_t.assign(&nac.olaps.slice(s![.., 1,     bdn[0] ..= bdn[1], bdn[0] ..= bdn[1]]));
             pij_t.assign(&nac.pij  .slice(s![.., 1, .., bdn[0] ..= bdn[1], bdn[0] ..= bdn[1]]));
+            proj .assign(&nac.proj .slice(s![.., 1,     bdn[0] ..= bdn[1], .., ..]));
         } else {                // spin up and spin down
             eig_t.slice_mut(s![.., .. nb[0]]).assign(&nac.eigs.slice(s![.., 0, bup[0] ..= bup[1]]));
             eig_t.slice_mut(s![.., nb[0] ..]).assign(&nac.eigs.slice(s![.., 1, bdn[0] ..= bdn[1]]));
@@ -185,6 +191,9 @@ impl Hamiltonian {
 
             pij_t.slice_mut(s![.., .., .. nb[0], .. nb[0]]).assign(&nac.pij.slice(s![.., 0, .., bup[0] ..= bup[1], bup[0] ..= bup[1]]));
             pij_t.slice_mut(s![.., .., nb[0] .., nb[0] ..]).assign(&nac.pij.slice(s![.., 1, .., bdn[0] ..= bdn[1], bdn[0] ..= bdn[1]]));
+
+            proj.slice_mut(s![.., .. nb[0], .., ..]).assign(&nac.proj.slice(s![.., 0, bup[0] ..= bup[1], .., ..]));
+            proj.slice_mut(s![.., nb[0] .., .., ..]).assign(&nac.proj.slice(s![.., 1, bdn[0] ..= bdn[1], .., ..]));
         }
 
         // NAC = -ihbar * <i|d/dt|j> / 2, in eV
@@ -229,6 +238,7 @@ impl Hamiltonian {
             nac_t,
             pij_t,
             efield,
+            proj,
 
             delta_eig,
             delta_nac,
@@ -425,6 +435,8 @@ impl Hamiltonian {
 
         f.new_dataset_builder().with_data(&self.pij_t.mapv(|v| v.im)).create("pij_t_r")?;
         f.new_dataset_builder().with_data(&self.pij_t.mapv(|v| v.im)).create("pij_t_i")?;
+
+        f.new_dataset_builder().with_data(&self.proj).create("proj")?;
 
         Ok(())
     }

@@ -35,6 +35,7 @@ use std::{println as info, println as warn};
 use vasp_parsers::{
     Wavecar,
     WavecarType,
+    procar::Procar,
 };
 
 use crate::input::Input;
@@ -54,9 +55,12 @@ pub struct Nac {
     pub dt:      f64,
     pub lreal:   bool,
 
-    pub olaps:   Array4<c64>,
-    pub eigs:    Array3<f64>,
-    pub pij:     Array5<c64>,
+    pub olaps:   Array4<c64>,   // istep, ispin, iband, iband
+    pub eigs:    Array3<f64>,   // istep, ispin, iband
+    pub pij:     Array5<c64>,   // istep, ispin, ixyz, iband, iband
+
+    // projections in PROCAR
+    pub proj:    Array5<f64>,   // istep ispin, iband, iion, iorbit
 }
 
 impl Nac {
@@ -90,6 +94,8 @@ impl Nac {
             pij_r.mapv(|v| c64::new(v, 0.0)) + pij_i.mapv(|v| c64::new(0.0, v))
         };
 
+        let proj: Array5<f64> = f.dataset("proj")?.read()?;
+
         Ok(Self {
             ikpoint,
             nspin,
@@ -103,6 +109,7 @@ impl Nac {
             olaps,
             eigs,
             pij,
+            proj,
         })
     }
 
@@ -131,6 +138,8 @@ impl Nac {
         f.new_dataset_builder().with_data(&self.pij.mapv(|v| v.re)).create("pij_r")?;
         f.new_dataset_builder().with_data(&self.pij.mapv(|v| v.im)).create("pij_i")?;
 
+        f.new_dataset_builder().with_data(&self.proj).create("proj")?;
+
         Ok(())
     }
 
@@ -151,16 +160,20 @@ impl Nac {
         let dt      = inp.dt;
         let lreal   = inp.lreal;
 
-        warn!("154");
-
         // get nspin and nbands
         let path_1  = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
         let w1      = Wavecar::from_file(&path_1).unwrap();
         let nspin   = w1.nspin as usize;
         let nbands  = w1.nbands as usize;
+
+        let procar_1 = rundir.join(format!("{:0ndigit$}", 1)).join("PROCAR");
+        let p1      = Procar::from_file(&procar_1).unwrap();
+        let nions   = p1.pdos.nions as usize;
+        let nproj   = p1.pdos.projected.shape()[4];
+
         let gvecs   = arr2(&w1.generate_fft_grid_cart(ikpoint as u64)).mapv(|v| c64::new(v, 0.0));
 
-        let (olaps, eigs, pij, efermi) = Self::from_wavecars( &rundir, nsw, ikpoint, brange, ndigit, nspin, &gvecs)?;
+        let (olaps, eigs, pij, proj, efermi) = Self::from_wavecars( &rundir, nsw, ikpoint, brange, ndigit, nspin, nions, nproj, &gvecs)?;
 
         let ret = Self {
             ikpoint,
@@ -176,6 +189,8 @@ impl Nac {
             olaps,
             eigs,
             pij,
+
+            proj,
         };
 
         ret.save_to_h5(&inp.nacfname)?;
@@ -185,8 +200,8 @@ impl Nac {
 
     /// This function calculates non-adiabatic coupling (NAC), and transition dipole moment (TDM)
     /// 
-    fn from_wavecars(rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize, nspin: usize, gvecs: &Array2<c64>)
-        -> Result<(Array4<c64>, Array3<f64>, Array5<c64>, f64)>
+    fn from_wavecars(rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize, nspin: usize, nions: usize, nproj: usize, gvecs: &Array2<c64>)
+        -> Result<(Array4<c64>, Array3<f64>, Array5<c64>, Array5<f64>, f64)>
     {
         let nbrange = brange.clone().count();
 
@@ -199,6 +214,9 @@ impl Nac {
         let ret_p_ij = Arc::new(Mutex::new(
                 Array5::<c64>::zeros((nsw-1, nspin, 3, nbrange, nbrange))
                 ));
+        let ret_proj = Arc::new(Mutex::new(
+                Array5::<f64>::zeros((nsw-1, nspin, nbrange, nions, nproj))
+                ));
         let efermi_sum = Arc::new(Mutex::new(0.0f64));
 
         (0 .. nsw-1).into_par_iter().for_each(|isw| {
@@ -207,7 +225,7 @@ impl Nac {
 
             info!(" Calculating couplings between {:?} and {:?} ...", &path_i, &path_j);
 
-            let (c_ij, e_ij, p_ij, efermi) = Self::coupling_ij(
+            let (c_ij, e_ij, p_ij, proj, efermi) = Self::coupling_ij(
                 path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs
                 ).unwrap();
 
@@ -220,14 +238,20 @@ impl Nac {
             ret_p_ij.lock().unwrap()
                 .slice_mut(s![isw, .., .., .., ..]).assign(&p_ij);
 
+            ret_proj.lock().unwrap()
+                .slice_mut(s![isw, .., .., .., ..]).assign(&proj);
+
             let mut sum = efermi_sum.lock().unwrap();
             *sum += efermi;
+
+            // Read procars
         });
 
         Ok((
             Arc::try_unwrap(ret_c_ij).unwrap().into_inner()?,
             Arc::try_unwrap(ret_e_ij).unwrap().into_inner()?,
             Arc::try_unwrap(ret_p_ij).unwrap().into_inner()?,
+            Arc::try_unwrap(ret_proj).unwrap().into_inner()?,
             Arc::try_unwrap(efermi_sum).unwrap().into_inner()? / (nsw - 1) as f64,
                 ))
 
@@ -235,7 +259,7 @@ impl Nac {
 
 
     fn coupling_ij(path_i: &Path, path_j: &Path, ikpoint: usize, brange: Range<usize>, gvecs: &Array2<c64>)
-        -> Result<(Array3<c64>, Array2<f64>, Array4<c64>, f64)>
+        -> Result<(Array3<c64>, Array2<f64>, Array4<c64>, Array4<f64>, f64)>
     {
         let wi = Wavecar::from_file(&path_i.join("WAVECAR"))?;
         let wj = Wavecar::from_file(&path_j.join("WAVECAR"))?;
@@ -288,12 +312,18 @@ impl Nac {
             }
         }
 
+        // read PROCAR
+        let proj = {
+            let proj_i = Procar::from_file(&path_i.join("PROCAR")).unwrap();
+            proj_i.pdos.projected.slice(s![.., ikpoint, brange.clone(), .., ..]).to_owned()
+        };
+
         e_ij.slice_mut(s![.., ..]).assign(&(
             ( wi.band_eigs.slice(s![.., ikpoint, brange.clone()]).to_owned() + 
               wj.band_eigs.slice(s![.., ikpoint, brange.clone()]) ) / 2.0
         ));
 
-        Ok((c_ij, e_ij, p_ij, wi.efermi))
+        Ok((c_ij, e_ij, p_ij, proj, wi.efermi))
     }
 }
 
@@ -333,6 +363,7 @@ mod tests {
         let efermi  = 1.14514f64;
         let dt      = 1.0f64;
         let lreal   = true;
+        let proj    = Array5::zeros((nsw-1, nspin, nbands, 3, 3));
 
         let nac = Nac {
             ikpoint,
@@ -348,6 +379,8 @@ mod tests {
             olaps: Array4::<c64>::zeros((nsw-1, nspin, nbrange, nbrange)),
             eigs: Array3::<f64>::zeros((nsw-1, nspin, nbrange)),
             pij: Array5::<c64>::zeros((nsw-1, nspin, 3, nbrange, nbrange)),
+
+            proj,
         };
 
         let dir = tempdir().unwrap();
