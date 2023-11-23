@@ -7,6 +7,8 @@ import h5py
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.use('agg')
 
 
 HBAR = 0.6582119281559802
@@ -19,50 +21,6 @@ class Input:
             self.data = data
             for k, v in data.items():
                 setattr(self, k, v)
-
-    # @property
-    # def rundir(self) -> str:
-        # return self.data['rundir']
-
-    # @property
-    # def ikpoint(self) -> int:
-        # return self.data['ikpoint']
-
-    # @property
-    # def brange(self):
-        # return self.data['brange']
-
-    # @property
-    # def basis_up(self):
-        # return self.data['basis_up']
-
-    # @property
-    # def basis_dn(self):
-        # return self.data['basis_dn']
-
-    # @property
-    # def nsw(self):
-        # return self.data['nsw']
-
-    # @property
-    # def ndigit(self):
-        # return self.data['ndigit']
-
-    # @property
-    # def namdtime(self):
-        # return self.data['namdtime']
-
-    # @property
-    # def dt(self):
-        # return float(self.data['dt'])
-
-    # @property
-    # def nsample(self):
-        # return self.data['nsample']
-
-    # @property
-    # def nacfname(self):
-        # return self.data['nacfname']
 
 
 class Couplings:
@@ -83,7 +41,6 @@ class Couplings:
                 self.data[k] = f[k][()]
 
 
-
 class Hamiltonian:
     def __init__(self, fname="HAMIL.h5"):
         self.data = {}
@@ -98,6 +55,8 @@ class Hamiltonian:
                 VBM and CBM indices should be set manually, and then comment out this line.
                 Now VBM = {} , CBM = {} .
                 """.format(self.vbm, self.cbm))
+
+        self.nsw = self.data['eig_t'][()].shape[0]
 
 
     def plot_nac(self, pngfname="nac.png"):
@@ -191,11 +150,119 @@ class Hamiltonian:
         pass
 
 
+    def plot_bands(self, pngfname="bands.png"):
+        vbm = self.vbm
+        cbm = self.cbm
+
+        eigs = self.data['eig_t']
+        T    = np.arange(eigs.shape[0])
+
+        fig = plt.figure(figsize=(5,3))
+        ax = fig.add_subplot()
+
+        ax.plot(T, eigs, color='gray')
+        ax.plot(T, eigs[:, vbm], color='r', lw=2, label='VBM')
+        ax.plot(T, eigs[:, cbm], color='b', lw=2, label='CBM')
+
+        ax.legend()
+        ax.set_xlabel("Time (fs)")
+        ax.set_ylabel("E-Ef (eV)")
+        ax.set_title("Band energy")
+
+        fig.tight_layout(pad=0.5)
+        fig.savefig(pngfname, dpi=400)
+        pass
+
+
 class Results():
-    def __init__(self, inp: Input):   
+    def __init__(self, inp: Input, hamilfname: str="HAMIL.h5"):
+        hamil = Hamiltonian(hamilfname)
+
         fmt = 'result_{:0' + str(inp.ndigit) + '}.h5'
         fnames = [ fmt.format(idx) for idx in inp.inisteps ]
 
+        prop_energy = []
+        sh_energy   = []
+        psi_t       = []
+        shpops      = []
+        # time        = None
+
+        for fname in fnames:
+            with h5py.File(fname) as f:
+                prop_energy.append(f['/prop_energy'][()])
+                sh_energy.append(f['/sh_energy'][()])
+                shpops.append(f['/shpops'][()])
+                psi_t.append(np.abs(f['/psi_t_r'][()] + 1j * f['/psi_t_i'][()]) ** 2)
+                time = f['/time'][()]
+                pass
+            pass
+
+        prop_energy = np.mean(prop_energy, axis=0)
+        sh_energy   = np.mean(sh_energy,   axis=0)
+        psi_t       = np.mean(psi_t,       axis=0)
+        shpops      = np.mean(shpops,      axis=0)
+
+        self.prop_energy = prop_energy
+        self.sh_energy   = sh_energy
+        self.psi_t       = psi_t
+        self.shpops      = shpops
+        self.time        = time
+
+        namdtime                  = int(inp.data['namdtime'])
+        (_, nbasis, nions, nproj) = hamil.data['proj'][()].shape
+
+        proj_nac = hamil.data['proj']
+        eigs_nac = hamil.data['eig_t']
+
+        proj = np.zeros((namdtime, nbasis, nions, nproj))
+        eigs = np.zeros((namdtime, nbasis))
+        nsw = inp.data['nsw']
+
+        for namdinit in inp.inisteps:
+            for iion in range(namdtime):
+                idx = Results.get_rtime(iion, nsw, namdinit)
+                proj[iion, :, :, :] = proj_nac[idx, :, :, :]
+                eigs[iion, :]       = eigs_nac[idx, :]
+                pass
+
+        self.proj = proj / len(inp.inisteps)
+        self.eigs = eigs / len(inp.inisteps)
+        pass
+
+
+    @staticmethod
+    def get_rtime(iion: int, nsw: int, namdinit: int):
+        return (iion + namdinit) % (nsw - 2)
+
+
+    def plot_shpops(self, pngfname="namd.png"):
+        nbasis = self.eigs.shape[1]
+        T      = np.array([self.time for _ in range(nbasis)])
+        eigs   = self.eigs
+
+        fig, axs = plt.subplots(nrows=2, figsize=(6, 8), sharex=True, sharey=True)
+
+        # psict
+        c    = self.psi_t * np.sum(self.proj, axis=(2,3))
+        kmap = axs[0].scatter(T, eigs, c=c, cmap='Reds', s=15, lw=0.0, rasterized=True,
+                              vmin=0, vmax=1)
+        cb = fig.colorbar(kmap, fraction=0.046, pad=0.01)
+
+        # shpops
+        c    = self.shpops * np.sum(self.proj, axis=(2,3))
+        kmap = axs[1].scatter(T, eigs, c=c, cmap='Reds', s=15, lw=0.0, rasterized=True,
+                              vmin=0, vmax=1)
+        cb = fig.colorbar(kmap, fraction=0.046, pad=0.01)
+
+        axs[1].set_title("Surface Hopping (FSSH)")
+        axs[0].set_title("Wavefunction Propagation")
+
+        axs[1].set_xlabel('Time (fs)')
+        axs[0].set_ylabel('E-Ef (eV)')
+        axs[1].set_ylabel('E-Ef (eV)')
+
+        fig.tight_layout(pad=0.5)
+        fig.savefig(pngfname, dpi=400)
         pass
     pass
 
@@ -207,3 +274,6 @@ if "__main__" == __name__:
     hamil.plot_nac()
     hamil.plot_pij()
     hamil.plot_phase()
+    hamil.plot_bands()
+    ret = Results(inp)
+    ret.plot_shpops()
