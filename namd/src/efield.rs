@@ -377,6 +377,11 @@ mod tests {
         let f = Efield::string_to_function(s);
         assert_eq!(2.0, f(0.0));
         assert!( (1.8225281546 - f(1.0)) < 1e-8 );
+
+        let s = "1e-3 * sin(3.1415926535897932 * t)";
+        let f = Efield::string_to_function(s);
+        assert_eq!(1E-3f64, f(0.5));
+        assert!( (0.0 - f(1.0)) < 1e-8 );
     }
 
     #[test]

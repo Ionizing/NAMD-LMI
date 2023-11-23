@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::fmt;
 
 use shared::{
     Result,
@@ -28,6 +29,19 @@ pub enum PropagateMethod {
     Exact,
     Expm,
     LiouvilleTrotter,
+}
+
+
+impl fmt::Display for PropagateMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use PropagateMethod::*;
+        write!(f, "{}", match self {
+            FiniteDifference => "FiniteDifference",
+            Exact            => "Exact",
+            Expm             => "Expm",
+            LiouvilleTrotter => "LiouvilleTrotter",
+        })
+    }
 }
 
 

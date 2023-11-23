@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::fmt;
 
 use shared::{
     ndarray::s,
@@ -33,6 +34,19 @@ pub enum SHMethod {
     DCSH,
     GFSH,
 }
+
+impl fmt::Display for SHMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use SHMethod::*;
+        write!(f, "{}", match self {
+            FSSH => "FSSH",
+            DISH => "DISH",
+            DCSH => "DCSH",
+            GFSH => "GFSH",
+        })
+    }
+}
+
 
 pub struct SurfaceHopping {
     pub shmethod:    SHMethod,

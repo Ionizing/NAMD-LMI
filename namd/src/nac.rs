@@ -345,10 +345,12 @@ mod tests {
         let nsw     = 300;
         let ikpoint = 0;
         let brange  = 0 .. 150;
+        let nions   = 4usize;
+        let nproj   = 9usize;
         let gvecs   = arr2(&w1.generate_fft_grid_cart(ikpoint as u64)).mapv(|v| c64::new(v, 0.0));
 
         let now = Instant::now();
-        let (_c_ij, _e_ij, _p_ij, efermi) = Nac::from_wavecars(&rundir, nsw, ikpoint, brange, ndigit, 1, &gvecs).unwrap();
+        let (_c_ij, _e_ij, _p_ij, proj, efermi) = Nac::from_wavecars(&rundir, nsw, ikpoint, brange, ndigit, 1, nions, nproj, &gvecs).unwrap();
         println!("efermi = {}, time used: {:?}", efermi, now.elapsed());
     }
 
