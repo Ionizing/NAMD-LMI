@@ -20,11 +20,13 @@ use shared::{
     ndarray::{
         s,
         arr2,
+        Array1,
         Array2,
         Array3,
         Array4,
         Array5,
         NewAxis,
+        Axis,
     },
 };
 #[cfg(not(test))]
@@ -166,6 +168,27 @@ impl Nac {
         let nspin   = w1.nspin as usize;
         let nbands  = w1.nbands as usize;
 
+        let phi_1s = {
+            let nplw = w1.nplws[ikpoint] as usize;
+            let mut phi = Array3::<c64>::zeros((nspin, nbrange, nplw));
+            let nspinor = match w1.wavecar_type {
+                WavecarType::NonCollinear => 2,
+                _ => 1usize,
+            };
+
+            for ispin in 0 .. nspin {
+                for iband in brange.clone().into_iter() {
+                    phi.slice_mut(s![ispin, iband - brange.start, ..]).assign(
+                        &w1._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw)
+                            .into_shape((nspinor * nplw,))
+                            .with_context(|| format!("Wavefunction reshape failed."))?
+                    );
+                }
+            }
+
+            phi
+        };
+
         let procar_1 = rundir.join(format!("{:0ndigit$}", 1)).join("PROCAR");
         let p1      = Procar::from_file(&procar_1).unwrap();
         let nions   = p1.pdos.nions as usize;
@@ -173,7 +196,7 @@ impl Nac {
 
         let gvecs   = arr2(&w1.generate_fft_grid_cart(ikpoint as u64)).mapv(|v| c64::new(v, 0.0));
 
-        let (olaps, eigs, pij, proj, efermi) = Self::from_wavecars( &rundir, nsw, ikpoint, brange, ndigit, nspin, nions, nproj, &gvecs)?;
+        let (olaps, eigs, pij, proj, efermi) = Self::from_wavecars(&phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, nions, nproj, &gvecs)?;
 
         let ret = Self {
             ikpoint,
@@ -200,8 +223,11 @@ impl Nac {
 
     /// This function calculates non-adiabatic coupling (NAC), and transition dipole moment (TDM)
     /// 
-    fn from_wavecars(rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize, nspin: usize, nions: usize, nproj: usize, gvecs: &Array2<c64>)
-        -> Result<(Array4<c64>, Array3<f64>, Array5<c64>, Array5<f64>, f64)>
+    fn from_wavecars(
+        phi_1s: &Array3<c64>,
+        rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize,
+        nspin: usize, nions: usize, nproj: usize, gvecs: &Array2<c64>
+        ) -> Result<(Array4<c64>, Array3<f64>, Array5<c64>, Array5<f64>, f64)>
     {
         let nbrange = brange.clone().count();
 
@@ -226,7 +252,7 @@ impl Nac {
             info!(" Calculating couplings between {:?} and {:?} ...", &path_i, &path_j);
 
             let (c_ij, e_ij, p_ij, proj, efermi) = Self::coupling_ij(
-                path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs
+                phi_1s, path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs
                 ).unwrap();
 
             ret_c_ij.lock().unwrap()
@@ -258,7 +284,7 @@ impl Nac {
     }
 
 
-    fn coupling_ij(path_i: &Path, path_j: &Path, ikpoint: usize, brange: Range<usize>, gvecs: &Array2<c64>)
+    fn coupling_ij(phi_1s: &Array3<c64>, path_i: &Path, path_j: &Path, ikpoint: usize, brange: Range<usize>, gvecs: &Array2<c64>)
         -> Result<(Array3<c64>, Array2<f64>, Array4<c64>, Array4<f64>, f64)>
     {
         let wi = Wavecar::from_file(&path_i.join("WAVECAR"))?;
@@ -281,6 +307,9 @@ impl Nac {
         let mut phi_i = Array2::<c64>::zeros((nbrange, nplw));
         let mut phi_j = phi_i.clone();
 
+        let mut phase_i = Array1::<c64>::zeros(nbrange);
+        let mut phase_j = phase_i.clone();
+
         for ispin in 0 .. nspin {
             for iband in brange.clone().into_iter() {
                 phi_i.slice_mut(s![iband - brange.start, ..]).assign(
@@ -294,6 +323,25 @@ impl Nac {
                         .with_context(|| format!("Wavefunction reshape failed."))?
                 );
             }
+
+            // phase correction:
+            //             < phi_0 | phi_i >
+            // phase_0i = -------------------
+            //            |< phi_0 | phi_i >|
+            // phi_i[:] *= conj(phase_0i)
+
+            phase_i.assign( &(phi_1s.slice(s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_i).sum_axis(Axis(1)) );
+            phase_i.mapv_inplace(|x| x.conj() / x.norm());
+            phi_i.axis_iter_mut(Axis(0)).zip(phase_i.iter())
+                .par_bridge()
+                .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
+
+            phase_j.assign( &(phi_1s.slice(s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_j).sum_axis(Axis(1)) );
+            phase_j.mapv_inplace(|x| x.conj() / x.norm());
+            phi_j.axis_iter_mut(Axis(0)).zip(phase_j.iter())
+                .par_bridge()
+                .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
+
 
             let phi_ij = phi_i.mapv(|v| v.conj()).dot(&phi_j.t());
             let phi_ji = phi_ij.t().mapv(|v| v.conj());  // phi_ji = phi_ij^H
@@ -345,12 +393,15 @@ mod tests {
         let nsw     = 300;
         let ikpoint = 0;
         let brange  = 0 .. 150;
+        let nbrange = brange.len();
+        let nplw    = w1.nplws[ikpoint] as usize;
         let nions   = 4usize;
         let nproj   = 9usize;
         let gvecs   = arr2(&w1.generate_fft_grid_cart(ikpoint as u64)).mapv(|v| c64::new(v, 0.0));
+        let phi_1s  = Array3::<c64>::zeros((1, nbrange, nplw));
 
         let now = Instant::now();
-        let (_c_ij, _e_ij, _p_ij, proj, efermi) = Nac::from_wavecars(&rundir, nsw, ikpoint, brange, ndigit, 1, nions, nproj, &gvecs).unwrap();
+        let (_c_ij, _e_ij, _p_ij, _proj, efermi) = Nac::from_wavecars(&phi_1s, &rundir, nsw, ikpoint, brange, ndigit, 1, nions, nproj, &gvecs).unwrap();
         println!("efermi = {}, time used: {:?}", efermi, now.elapsed());
     }
 

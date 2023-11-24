@@ -134,7 +134,7 @@ class Hamiltonian:
         nac_t = self.data['nac_t_r'][:, vbm, cbm]
         pij_t = self.data['pij_t_r'][:, :, vbm, cbm]
         
-        fig, ax = plt.subplots(nrows=2, figsize=(6,6))
+        fig, ax = plt.subplots(nrows=2, figsize=(6,6), sharex=True)
 
         ax[0].plot(nac_t)
         ax[0].set_title('Real part of NAC')
@@ -144,6 +144,8 @@ class Hamiltonian:
         ax[1].plot(pij_t[:, 2], label='z')
         ax[1].legend()
         ax[1].set_title('Real part of NAC')
+
+        ax[1].set_xlim(0, 100)
         
         fig.tight_layout(pad=0.5)
         fig.savefig(pngfname, dpi=400)
