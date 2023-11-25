@@ -223,8 +223,8 @@ class Results():
         for namdinit in inp.inisteps:
             for iion in range(namdtime):
                 idx = Results.get_rtime(iion, nsw, namdinit)
-                proj[iion, :, :, :] = proj_nac[idx, :, :, :]
-                eigs[iion, :]       = eigs_nac[idx, :]
+                proj[iion, :, :, :] += proj_nac[idx, :, :, :]
+                eigs[iion, :]       += eigs_nac[idx, :]
                 pass
 
         self.proj = proj / len(inp.inisteps)
@@ -237,7 +237,7 @@ class Results():
         return (iion + namdinit) % (nsw - 2)
 
 
-    def plot_shpops(self, pngfname="namd.png"):
+    def plot_namd(self, pngfname="namd.png"):
         nbasis = self.eigs.shape[1]
         T      = np.array([self.time for _ in range(nbasis)])
         eigs   = self.eigs
@@ -246,22 +246,27 @@ class Results():
 
         # psict
         c    = self.psi_t * np.sum(self.proj, axis=(2,3))
-        kmap = axs[0].scatter(T, eigs, c=c, cmap='Reds', s=15, lw=0.0, rasterized=True,
+
+        kmap = axs[0].scatter(T.T, eigs, c=c, cmap='Reds', s=15, lw=0.0, rasterized=True,
                               vmin=0, vmax=1)
         cb = fig.colorbar(kmap, fraction=0.046, pad=0.01)
+        axs[0].plot(T[0], self.prop_energy)
 
         # shpops
         c    = self.shpops * np.sum(self.proj, axis=(2,3))
-        kmap = axs[1].scatter(T, eigs, c=c, cmap='Reds', s=15, lw=0.0, rasterized=True,
+        kmap = axs[1].scatter(T.T, eigs, c=c, cmap='Reds', s=15, lw=0.0, rasterized=True,
                               vmin=0, vmax=1)
         cb = fig.colorbar(kmap, fraction=0.046, pad=0.01)
+        axs[1].plot(T[0], self.sh_energy)
 
-        axs[1].set_title("Surface Hopping (FSSH)")
         axs[0].set_title("Wavefunction Propagation")
+        axs[1].set_title("Surface Hopping (FSSH)")
 
         axs[1].set_xlabel('Time (fs)')
         axs[0].set_ylabel('E-Ef (eV)')
         axs[1].set_ylabel('E-Ef (eV)')
+
+        axs[1].set_xlim(0, 100)
 
         fig.tight_layout(pad=0.5)
         fig.savefig(pngfname, dpi=400)
@@ -278,4 +283,4 @@ if "__main__" == __name__:
     hamil.plot_phase()
     hamil.plot_bands()
     ret = Results(inp)
-    ret.plot_shpops()
+    ret.plot_namd()
