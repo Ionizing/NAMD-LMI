@@ -48,9 +48,7 @@ pub struct Input {
     pub lreorder:     bool,
     pub nacfname:     PathBuf,
     pub temperature:  f64,
-
-    #[serde(default)]
-    pub scissor:      f64,
+    pub scissor:      Option<f64>,
 
     pub inibands:     Vec<usize>,
     pub inispins:     Vec<usize>,
@@ -148,6 +146,7 @@ mod tests {
         temperature  = 300
         lcycle       = false
         efield       = "tests/1.5eV.txt"
+        scissor      = 1.14  # eV
 
         inibands     = [114, 114]
         inispins     = [1, 1]
@@ -156,6 +155,7 @@ mod tests {
 
         let input: Input = toml::from_str(raw).unwrap();
         assert_eq!(input.efield.unwrap().0, PathBuf::from("tests/1.5eV.txt"));
+        assert_eq!(input.scissor, Some(1.14f64));
     }
 
 
@@ -192,5 +192,6 @@ mod tests {
 
         let input: Input = toml::from_str(raw).unwrap();
         assert_eq!(input.efield.unwrap().0, PathBuf::from("tests/2.0eV.txt"));
+        assert_eq!(input.scissor, None);
     }
 }

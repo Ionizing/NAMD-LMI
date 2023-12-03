@@ -11,7 +11,7 @@ use shared::{
     ndarray::Array4,
     ndarray_linalg::EighInplace,
     ndarray_linalg::UPLO,
-    tracing::{self, instrument, info},
+    tracing::{self, instrument, info, debug},
 };
 use hdf5::File as H5File;
 
@@ -116,7 +116,7 @@ impl Hamiltonian {
         namdtime:      usize,
         nelm:          usize,
         temperature:   f64,
-        scissor:       f64,
+        scissor:       Option<f64>,
         efield_lcycle: bool,
         ) -> Self {
         
@@ -215,7 +215,10 @@ impl Hamiltonian {
         eig_t -= nac.efermi;
 
         // apply the scissor operator
-        eig_t.mapv_inplace(|e| if e > 0.0 { e + scissor } else { e });
+        if let Some(scissor) = scissor {
+            info!("Applying scissor operator of {} eV ...", scissor);
+            eig_t.mapv_inplace(|e| if e > 0.0 { e + scissor } else { e });
+        }
 
         // initial auxiliary vars
         let delta_eig    = Array1::<f64>::zeros(nbasis);
@@ -264,6 +267,7 @@ impl Hamiltonian {
     }
 
 
+    #[instrument(skip(self, method))]
     pub fn propagate(&mut self, iion: usize, method: PropagateMethod) {
         let (rtime, _xtime) = self.get_rtime_xtime(iion);
 
@@ -277,6 +281,12 @@ impl Hamiltonian {
             PropagateMethod::Expm             => self.propagate_expm(iion),
             PropagateMethod::LiouvilleTrotter => self.propagate_liouvilletrotter(iion),
         }
+
+        //{
+            //let norm = self.psi_c.mapv(|x| x.norm_sqr()).sum();
+            //info!(" norm = {}", norm);
+        //}
+        assert!( (self.psi_c.mapv(|x| x.norm_sqr()).sum() - 1.0).abs() < 1E-3 , "Propagation failed, norm not conserved.");
     }
 
 
@@ -417,13 +427,9 @@ impl Hamiltonian {
             }
         }
 
-        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
-
         if 0 == iele {
             self.ham_t.slice_mut(s![iion, .., ..]).assign(&self.hamil);
         }
-
-        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
 
         // dagonal part: eigenvalue of ks orbits, in eV
         // rustc refuses to compile `struct.method() = somethingelse;`
@@ -431,8 +437,6 @@ impl Hamiltonian {
             self.eig_t.slice(s![rtime, ..]).mapv(|v| c64::new(v, 0.0)) +
             self.delta_eig.mapv(|v| c64::new(v * iele as f64, 0.0))
             ));
-
-        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
     }
 
 

@@ -20,6 +20,7 @@ nacfname     = "NAC.h5"
 temperature  = 300
 lcycle       = false
 efield       = "tests/2.0eV.txt"
+scissor      = 1.0  # eV
 
 inibands     = [114, 114]
 inispins     = [1, 1]
