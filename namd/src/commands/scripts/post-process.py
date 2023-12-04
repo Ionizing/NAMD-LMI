@@ -145,7 +145,7 @@ class Hamiltonian:
         ax[1].legend()
         ax[1].set_title('Real part of NAC')
 
-        ax[1].set_xlim(0, 100)
+        ax[1].set_xlim(0, 1000)
         
         fig.tight_layout(pad=0.5)
         fig.savefig(pngfname, dpi=400)
@@ -163,8 +163,8 @@ class Hamiltonian:
         ax = fig.add_subplot()
 
         ax.plot(T, eigs, color='gray')
-        ax.plot(T, eigs[:, vbm], color='r', lw=2, label='VBM')
         ax.plot(T, eigs[:, cbm], color='b', lw=2, label='CBM')
+        ax.plot(T, eigs[:, vbm], color='r', lw=2, label='VBM')
 
         ax.legend()
         ax.set_xlabel("Time (fs)")
@@ -266,7 +266,7 @@ class Results():
         axs[0].set_ylabel('E-Ef (eV)')
         axs[1].set_ylabel('E-Ef (eV)')
 
-        axs[1].set_xlim(0, 100)
+        axs[1].set_xlim(0, 10000)
 
         fig.tight_layout(pad=0.5)
         fig.savefig(pngfname, dpi=400)

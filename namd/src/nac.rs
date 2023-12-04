@@ -324,6 +324,15 @@ impl Nac {
                 );
             }
 
+            // TODO: impl reordering
+            //
+            // Reorder band indices to solve band crossing issues.
+            //
+            // This is a linear assignment problem, use kuhn munkres or hungarian algorithm to
+            // solve it
+            //     use pathfinding::kuhn_munkres::kuhn_munkres (or hungarian algorithm)
+
+
             // phase correction:
             //             < phi_0 | phi_i >
             // phase_0i = -------------------

@@ -14,6 +14,7 @@ hdf5-sys     = { version = "0.8.1", features   = ["static"] }
 #katexit = "0.1.4"
 mpi          = { version = "0.6.0", features   = ["derive"] }
 once_cell    = "1.17.2"
+pathfinding = "4.4.0"
 pest         = "2.6.0"
 pest_derive  = "2.6.0"
 rand         = "0.8.5"

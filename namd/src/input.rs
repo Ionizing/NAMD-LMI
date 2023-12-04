@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::{
     Path,
     PathBuf,
@@ -115,6 +116,15 @@ impl Input {
         }
     }
 }
+
+
+impl fmt::Display for Input {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+
 
 
 #[cfg(test)]

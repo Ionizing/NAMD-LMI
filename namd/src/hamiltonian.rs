@@ -307,12 +307,13 @@ impl Hamiltonian {
     }
 
 
+    // Perform |psi'> = exp(-iHt/hbar) |psi>
     fn propagate_exact(&mut self, iion: usize) {
         let mut lambda_expv = Array2::<c64>::zeros(self.hamil.dim());
 
         for iele in 0 .. self.nelm {
             self.make_hamil(iion, iele);
-            self.hamil.mapv_inplace(|v| v * (-self.edt / HBAR)); // -edt*H/hbar
+            self.hamil.mapv_inplace(|v| v * (-self.edt / HBAR)); // -edt*H/hbar is still hermitian
 
             // P, Lambda = eigh(-edt*H/hbar)
             let (eigvals, eigvecs) = self.hamil.eigh_inplace(UPLO::Upper).unwrap();
@@ -389,7 +390,6 @@ impl Hamiltonian {
     #[instrument(skip(self), level="info")]
     fn make_hamil(&mut self, iion: usize, iele: usize) {
         let (rtime, xtime) = self.get_rtime_xtime(iion);
-        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
 
         // first electronic step inside ionic step
         if 0 == iele {
@@ -400,8 +400,6 @@ impl Hamiltonian {
             self.delta_pij = (self.pij_t.slice(s![xtime, .., .., ..]).to_owned() -
                               self.pij_t.slice(s![rtime, .., .., ..]) ) / self.nelm as f64;
         }
-
-        //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
 
         // non-diagonal part: NAC
         // nac_t is in eV alrady

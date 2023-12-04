@@ -172,6 +172,7 @@ impl SurfaceHopping {
                 let hop_dest = prob.slice(s![iion, curstate, ..])
                     .as_slice().unwrap()
                     .partition_point(|v| v < &randnum);
+                //info!("curstate = {}, hop_dest = {}, randnum = {}", curstate, hop_dest, randnum);
                 curstate = if hop_dest < self.hamil.nbasis { hop_dest } else { curstate };
                 self.pops[(iion, curstate)] += 1.0;
             }
