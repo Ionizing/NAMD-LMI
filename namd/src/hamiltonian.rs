@@ -58,7 +58,7 @@ pub struct Hamiltonian {
     pub nelm:          usize,
     pub lreal:         bool,
     pub temperature:   f64,
-    pub efield_lcycle: bool,
+    //pub efield_lcycle: bool,
 
     pub psi_p:         Array1<c64>,     // [nbasis]
     pub psi_c:         Array1<c64>,     // [nbasis]
@@ -100,7 +100,7 @@ impl Hamiltonian {
             inp.nelm,
             inp.temperature,
             inp.scissor,
-            inp.lcycle,
+            //inp.lcycle,
         )
     }
 
@@ -117,7 +117,7 @@ impl Hamiltonian {
         nelm:          usize,
         temperature:   f64,
         scissor:       Option<f64>,
-        efield_lcycle: bool,
+        //efield_lcycle: bool,
         ) -> Self {
         
         assert!(namdtime > 1,        "!!!!!\nnamdtime should be greater than 1.\n!!!!!");
@@ -240,7 +240,7 @@ impl Hamiltonian {
             nelm,
             lreal,
             temperature,
-            efield_lcycle,
+            //efield_lcycle,
 
             psi_p,
             psi_c,

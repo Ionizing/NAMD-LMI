@@ -58,7 +58,6 @@ pub struct Input {
     #[serde(default)]
     #[serde(deserialize_with = "Input::efield_from_file")]
     pub efield:       Option<(PathBuf, Efield)>,
-    pub lcycle:       bool,
 }
 
 
@@ -120,7 +119,58 @@ impl Input {
 
 impl fmt::Display for Input {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        writeln!(f, "# NAMD-lumi input in toml format.")?;
+
+        writeln!(f, " {:>20} = {:?}",   "rundir",     self.rundir)?;
+        writeln!(f, " {:>20} = {}",     "ikpoint",    self.ikpoint)?;
+        writeln!(f, " {:>20} = {:?}",   "brange",     self.brange)?;
+        writeln!(f, " {:>20} = {:?}",   "basis_up",   self.basis_up)?;
+        writeln!(f, " {:>20} = {:?}",   "basis_dn",   self.basis_dn)?;
+        writeln!(f, " {:>20} = {}",     "nsw",        self.nsw)?;
+        writeln!(f, " {:>20} = {}",     "ndigit",     self.ndigit)?;
+        writeln!(f, " {:>20} = {}",     "namdtime",   self.namdtime)?;
+        writeln!(f, " {:>20} = {}",     "dt",         self.dt)?;
+        writeln!(f, " {:>20} = {}",     "nsample",    self.nsample)?;
+        writeln!(f, " {:>20} = {}",     "ntraj",      self.ntraj)?;
+        writeln!(f, " {:>20} = \"{}\"", "propmethod", self.propmethod)?;
+        writeln!(f, " {:>20} = \"{}\"", "shmethod",   self.shmethod)?;
+
+        writeln!(f, " {:>20} = {}", "nelm",         self.nelm)?;
+        writeln!(f, " {:>20} = {}", "lreal",        self.lreal)?;
+        writeln!(f, " {:>20} = {}", "lprint_input", self.lprint_input)?;
+        writeln!(f, " {:>20} = {}", "lexcitation",  self.lexcitation)?;
+        writeln!(f, " {:>20} = {}", "lreorder",     self.lreorder)?;
+
+        writeln!(f, " {:>20} = {:?}", "nacfname",    self.nacfname)?;
+        writeln!(f, " {:>20} = {}",   "temperature", self.temperature)?;
+
+        if let Some(s) = self.scissor {
+            writeln!(f, " {:>20} = {}", "scissor", s)?;
+        }
+
+        if let Some(e) = self.efield.as_ref() {
+            writeln!(f, " {:>20} = {:?}", "efield", e.0)?;
+        }
+
+        let nsample = self.inibands.len();
+        writeln!(f, "# There are {} samples", nsample)?;
+        let mut inibands = String::from("[");
+        let mut inispins = String::from("[");
+        let mut inisteps = String::from("[");
+        for i in 0 .. nsample - 1 {
+            inibands += &format!("{:5},", self.inibands[i]);
+            inispins += &format!("{:5},", self.inispins[i]);
+            inisteps += &format!("{:5},", self.inisteps[i]);
+        }
+        inibands += &format!("{:5}]", self.inibands[nsample - 1]);
+        inispins += &format!("{:5}]", self.inispins[nsample - 1]);
+        inisteps += &format!("{:5}]", self.inisteps[nsample - 1]);
+
+        writeln!(f, " {:>10} = {}", "inibands", inibands)?;
+        writeln!(f, " {:>10} = {}", "inispins", inispins)?;
+        writeln!(f, " {:>10} = {}", "inisteps", inisteps)?;
+
+        Ok(())
     }
 }
 
@@ -154,7 +204,6 @@ mod tests {
         lreorder     = false
         nacfname     = "NAC.h5"
         temperature  = 300
-        lcycle       = false
         efield       = "tests/1.5eV.txt"
         scissor      = 1.14  # eV
 
@@ -164,6 +213,7 @@ mod tests {
             "#;
 
         let input: Input = toml::from_str(raw).unwrap();
+        println!("{}", &input);
         assert_eq!(input.efield.unwrap().0, PathBuf::from("tests/1.5eV.txt"));
         assert_eq!(input.scissor, Some(1.14f64));
     }
@@ -192,7 +242,6 @@ mod tests {
         lreorder     = false
         nacfname     = "NAC.h5"
         temperature  = 300
-        lcycle       = false
         efield       = "tests/2.0eV.txt"
 
         inibands     = [114, 114]

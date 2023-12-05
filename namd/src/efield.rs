@@ -214,7 +214,6 @@ mod fnparse {
 /// Example of input external-field data:
 /// ```no_rust
 /// # comments
-/// lcycle = false # or true
 ///
 /// # Vector3 data
 /// efield = Vector3 {
