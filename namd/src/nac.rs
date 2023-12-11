@@ -12,6 +12,11 @@ use std::sync::{
 use rayon::prelude::*;
 //use mpi::traits::*;
 use hdf5::File as H5File;
+use pathfinding::prelude::{
+    kuhn_munkres,
+    Matrix as pfMatrix
+};
+use ordered_float::OrderedFloat;
 
 use shared::{
     Context,
@@ -20,6 +25,7 @@ use shared::{
     ndarray::{
         s,
         arr2,
+        ArrayBase,
         Array1,
         Array2,
         Array3,
@@ -27,8 +33,12 @@ use shared::{
         Array5,
         NewAxis,
         Axis,
+        Data,
+        //Dimension,
+        Ix2,
     },
 };
+
 #[cfg(not(test))]
 use shared::{info, warn};
 #[cfg(test)]
@@ -332,6 +342,13 @@ impl Nac {
             // solve it
             //     use pathfinding::kuhn_munkres::kuhn_munkres (or hungarian algorithm)
 
+            // Reordering i, u1i = <phi_1 | phi_i>
+            let order_i = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_i);
+            // Reordering j
+            let order_j = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_j);
+
+            info!("path = {:?}, order_i = {:?}", path_i, order_i);
+            //info!("path = {:?}, order_j = {:?}", path_j, order_j);
 
             // phase correction:
             //             < phi_0 | phi_i >
@@ -381,6 +398,23 @@ impl Nac {
         ));
 
         Ok((c_ij, e_ij, p_ij, proj, wi.efermi))
+    }
+
+
+    fn find_order<R1, R2>(phi_i: &ArrayBase<R1, Ix2>, phi_j: &ArrayBase<R2, Ix2>) -> Vec<usize>
+    where
+        R1: Data<Elem = c64>,
+        R2: Data<Elem = c64>,
+    {
+
+        let uij = phi_i.mapv(|x| x.conj())
+            .dot(&phi_j.t())
+            .mapv(|x| OrderedFloat(x.norm_sqr()));
+
+        let weights = pfMatrix::square_from_vec(uij.into_raw_vec()).unwrap();
+        let (_maxcoup, order) = kuhn_munkres(&weights);
+
+        return order;
     }
 }
 

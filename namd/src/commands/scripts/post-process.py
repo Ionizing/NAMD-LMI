@@ -41,6 +41,24 @@ class Couplings:
                 self.data[k] = f[k][()]
 
 
+    def plot_bands(self, pngfname="total_bands.png"):
+        eigs = self.data['eigs']
+        T    = np.arange(eigs.shape[0])
+
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot()
+
+        ax.plot(T, eigs[:,0,:])
+        # ax.plot(T, eigs[:,1,:])
+        ax.set_xlabel("Time (fs)")
+        ax.set_ylabel("E-Ef (eV)")
+        ax.set_title("Band energy")
+
+        fig.tight_layout(pad=0.5)
+        fig.savefig(pngfname, dpi=400)
+        pass
+
+
 class Hamiltonian:
     def __init__(self, fname="HAMIL.h5"):
         self.data = {}
@@ -277,6 +295,7 @@ class Results():
 if "__main__" == __name__:
     inp = Input("input.toml")
     coup = Couplings(inp=inp)
+    coup.plot_bands()
     hamil = Hamiltonian()
     hamil.plot_nac()
     hamil.plot_pij()

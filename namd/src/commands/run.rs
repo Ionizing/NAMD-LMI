@@ -1,7 +1,10 @@
 use clap::Args;
 
 //use shared::bail;
-use rayon::prelude::*;
+use rayon::{
+    ThreadPoolBuilder,
+    prelude::*
+};
 use crate::{
     input::Input,
     nac::Nac,
@@ -18,11 +21,17 @@ pub struct Run {
     #[arg(default_value_t = String::from("./input.toml") )]
     /// Specify the input file name for namd_lumi.
     input: String,
+
+    #[arg(long, default_value_t = 0)]
+    /// Set the number of threads for parallel calculation.
+    nthreads: usize,
 }
 
 
 impl OptProcess for Run {
     fn process(&self) -> Result<()> {
+        ThreadPoolBuilder::new().num_threads(self.nthreads).build_global().unwrap();
+
         let input = Input::from_file(&self.input)?;
         let nac = Nac::from_inp(&input)?;
         let ninibands = input.inibands.len();
