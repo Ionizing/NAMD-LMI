@@ -1,7 +1,19 @@
 use std::fmt;
+use once_cell::sync::OnceCell;
 
 pub mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
+
+fn built_time() -> &'static str {
+    static INSTANCE: OnceCell<String> = OnceCell::new();
+    INSTANCE.get_or_init(|| {
+        built::util::strptime(built_info::BUILT_TIME_UTC)
+            .with_timezone(&built::chrono::offset::Local)
+            .to_string()
+    })
+    .as_str()
 }
 
 
@@ -12,7 +24,7 @@ pub struct Version<'a> {
     logo:           &'a str,
     version_str:    &'a str,
     authors:        &'a str,
-    build_time:     &'a str,
+    built_time:     &'a str,
     git_hash_long:  Option<&'a str>,
     git_hash_short: Option<&'a str>,
     git_dirty:      Option<bool>,
@@ -32,7 +44,7 @@ impl<'a> Version<'a> {
             logo:           include_str!("./logo.txt"),
             version_str:    built_info::PKG_VERSION,
             authors:        built_info::PKG_AUTHORS,
-            build_time:     built_info::BUILT_TIME_UTC,
+            built_time:     built_time(),
             git_hash_long:  built_info::GIT_COMMIT_HASH,
             git_hash_short: built_info::GIT_COMMIT_HASH_SHORT,
             git_dirty:      built_info::GIT_DIRTY,
@@ -54,7 +66,7 @@ impl<'a> fmt::Display for Version<'a> {
         writeln!(f, "    git hash:           {}", self.git_hash_short.unwrap_or("NO GIT INFO"))?;
         writeln!(f, "    authors:            {}", self.authors)?;
         writeln!(f, "    host:               {}", self.host)?;
-        writeln!(f, "    build time:         {}", self.build_time)?;
+        writeln!(f, "    build time:         {}", self.built_time)?;
 
         if f.alternate() {
             writeln!(f, "        git_hash_long:  {}", self.git_hash_long.unwrap_or("NO GIT INFO"))?;

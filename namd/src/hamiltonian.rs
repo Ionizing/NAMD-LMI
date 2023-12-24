@@ -482,8 +482,8 @@ impl Hamiltonian {
     #[instrument(skip(self), ret, level="debug")]
     fn get_vecpot(&mut self, iion: usize, iele: usize) -> [f64; 3] {
         if let Some(efield) = self.efield.as_ref() {
-            let t  = iion as f64 * self.dt + iele as f64 * self.edt;
-            let ef = efield.eval(t, self.dt);
+            //let t  = iion as f64 * self.dt + iele as f64 * self.edt;
+            let ef = efield.get_afield(iion, iele);
 
             for i in 0 .. 3 {
                 self.vecpot[i] -= ef[i] * self.edt;
@@ -493,14 +493,5 @@ impl Hamiltonian {
         } else {
             return [0.0; 3];
         }
-    }
-
-
-    pub fn get_efield(&self, iion: usize) -> Option<[f64; 3]> {
-        let t = iion as f64 * self.dt;
-        self.efield.as_ref().map(|e| match e {
-            Efield::Vector3(v) => v[iion],
-            Efield::Function3(f) => [f[0].eval(t), f[1].eval(t), f[2].eval(t)],
-        })
     }
 }

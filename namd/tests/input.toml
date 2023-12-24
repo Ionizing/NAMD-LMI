@@ -19,7 +19,7 @@ lreorder     = false
 nacfname     = "NAC.h5"
 temperature  = 300
 lcycle       = false
-efield       = "tests/2.0eV.txt"
+efield       = "tests/1.5eV.rhai"
 scissor      = 1.0  # eV
 
 inibands     = [114, 114]

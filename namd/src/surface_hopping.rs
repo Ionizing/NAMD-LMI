@@ -193,7 +193,12 @@ impl SurfaceHopping {
             .mapv(|v| if v.re > 0.0 { v.re } else { 0.0 });
 
         // determine if the electric field is still present
-        let has_efield = self.hamil.get_efield(iion).map(|v| v[0]*v[0] + v[1]*v[1] + v[2]*v[2]).unwrap_or(0.0) > EPS;
+        let has_efield = self.hamil.efield.as_ref()
+            .map(|e| {
+            let v = e.get_efield(iion, 0);
+            v[0] * v[0] + v[1] * v[1] + v[2] * v[2]
+            })
+            .unwrap_or(0.0) > EPS;
 
         // balance factor to restrict upward hops
         // upward hops is restricted only when

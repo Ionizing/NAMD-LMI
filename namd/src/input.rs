@@ -78,10 +78,10 @@ impl Input {
     where D: Deserializer<'de>
     {
         let s = String::deserialize(deserializer)?;
-        let txt = read_to_string(&s).map_err(D::Error::custom)?;
+        let path = PathBuf::from(s);
         Ok(Some((
-                PathBuf::from(s),
-                Efield::from_str(&txt).map_err(D::Error::custom)?
+                path.to_owned(),
+                Efield::from_file(path),
                 )))
     }
 
@@ -204,7 +204,7 @@ mod tests {
         lreorder     = false
         nacfname     = "NAC.h5"
         temperature  = 300
-        efield       = "tests/1.5eV.txt"
+        efield       = "tests/1.5eV.rhai"
         scissor      = 1.14  # eV
 
         inibands     = [114, 114]
@@ -214,7 +214,7 @@ mod tests {
 
         let input: Input = toml::from_str(raw).unwrap();
         println!("{}", &input);
-        assert_eq!(input.efield.unwrap().0, PathBuf::from("tests/1.5eV.txt"));
+        assert_eq!(input.efield.unwrap().0, PathBuf::from("tests/1.5eV.rhai"));
         assert_eq!(input.scissor, Some(1.14f64));
     }
 
@@ -242,7 +242,7 @@ mod tests {
         lreorder     = false
         nacfname     = "NAC.h5"
         temperature  = 300
-        efield       = "tests/2.0eV.txt"
+        efield       = "tests/2.0eV.rhai"
 
         inibands     = [114, 114]
         inispins     = [1, 1]
@@ -250,7 +250,7 @@ mod tests {
             "#;
 
         let input: Input = toml::from_str(raw).unwrap();
-        assert_eq!(input.efield.unwrap().0, PathBuf::from("tests/2.0eV.txt"));
+        assert_eq!(input.efield.unwrap().0, PathBuf::from("tests/2.0eV.rhai"));
         assert_eq!(input.scissor, None);
     }
 }

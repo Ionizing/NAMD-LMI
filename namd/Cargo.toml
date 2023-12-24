@@ -8,6 +8,7 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+built = { version = "0.7.1", features = ["chrono", "git2"] }
 clap         = { version = "4.4.8", features   = ["derive"] }
 hdf5         = "0.8.1"
 hdf5-sys     = { version = "0.8.1", features   = ["static"] }
@@ -20,6 +21,7 @@ pest         = "2.6.0"
 pest_derive  = "2.6.0"
 rand         = "0.8.5"
 rayon        = "1.7.0"
+rhai = "1.16.3"
 serde        = { version = "1.0.163", features = ["derive"] }
 shared       = { path    = "../shared" }
 toml         = "0.7.4"
@@ -35,5 +37,4 @@ path = "src/main.rs"
 tempfile = "3.5.0"
 
 [build-dependencies]
-#built = { version = "0.7.1", features = ["cargo-lock", "dependency-tree", "git2", "chrono", "semver"] }
 built = { version = "0.7.1", features = ["chrono", "git2"] }
