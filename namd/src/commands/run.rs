@@ -5,6 +5,7 @@ use rayon::{
     ThreadPoolBuilder,
     prelude::*
 };
+use shared::info;
 use crate::{
     input::Input,
     nac::Nac,
@@ -35,7 +36,20 @@ impl OptProcess for Run {
         let input = Input::from_file(&self.input)?;
         let nac = Nac::from_inp(&input)?;
         let ninibands = input.inibands.len();
-        Hamiltonian::from_input(&nac, &input, 0).save_to_h5("HAMIL.h5")?;
+
+        {
+            let hamil = Hamiltonian::from_input(&nac, &input, 0);
+            hamil.save_to_h5("HAMIL.h5")?;
+
+            if let Some(e) = hamil.efield.as_ref() {
+                info!("Writing TDEFIELD.txt ...");
+                e.print_efield_to_file("TDEFIELD.txt")?;
+
+                info!("Writing TDAFIELD.txt ...");
+                e.print_afield_to_file("TDAFIELD.txt")?;
+            }
+        }
+
         for iniband_idx in 0 .. ninibands {
             let hamil = Hamiltonian::from_input(&nac, &input, iniband_idx);
             let mut sh = SurfaceHopping::from_input(hamil, &input);

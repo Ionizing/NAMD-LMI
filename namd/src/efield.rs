@@ -23,7 +23,7 @@ use rhai::{
 #[derive(Clone)]
 pub struct Efield {
     ast: AST,
-    nsw: usize,
+    namdtime: usize,
     nelm: usize,
     dt: f64,
     t: Vec<f64>,
@@ -40,7 +40,7 @@ impl Efield {
 
         Self {
             ast,
-            nsw: 0,
+            namdtime: 0,
             nelm: 0,
             dt: 0.0,
             t: vec![],
@@ -50,18 +50,17 @@ impl Efield {
     }
 
 
-    pub fn initialize(&mut self, nsw: usize, nelm: usize, dt: f64) {
-        if self.nsw == nsw  &&
+    pub fn initialize(&mut self, namdtime: usize, nelm: usize, dt: f64) {
+        if self.namdtime == namdtime  &&
            self.nelm == nelm &&
            self.dt == dt   &&
-           self.t.len() == nsw * nelm &&
-           self.efield.len() == nsw * nelm &&
-           self.afield.len() == nsw * nelm {
+           self.t.len() == namdtime * nelm &&
+           self.efield.len() == namdtime * nelm &&
+           self.afield.len() == namdtime * nelm {
             return;
-       }
+        }
 
-
-        self.nsw  = nsw;
+        self.namdtime  = namdtime;
         self.nelm = nelm;
         self.dt   = dt;
 
@@ -86,7 +85,7 @@ impl Efield {
         let edt = dt / nelm as f64;
 
         // get electric field
-        for iion in 0 .. nsw {
+        for iion in 0 .. namdtime {
             let t0 = dt * iion as f64;
             for ielm in 0 .. nelm {
                 let t = t0 + edt * ielm as f64;

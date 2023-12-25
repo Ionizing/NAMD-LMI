@@ -69,8 +69,13 @@ impl Input {
         if !fname.as_ref().is_file() {
             bail!("Input file {:?} not available.", fname.as_ref());
         }
-        let raw         = read_to_string(fname)?;
-        let input: Self = toml::from_str(&raw)?;
+        let raw = read_to_string(fname)?;
+        let mut input: Self = toml::from_str(&raw)?;
+
+        if let Some(e) = input.efield.as_mut() {
+            e.1.initialize(input.namdtime, input.nelm, input.dt);
+        }
+
         Ok(input)
     }
 
