@@ -17,6 +17,7 @@ pub use tracing::{
     self,
     warn,
     info,
+    debug,
 };
 
 #[allow(non_camel_case_types)]

@@ -11,7 +11,7 @@ use shared::{
     ndarray::Array4,
     ndarray_linalg::EighInplace,
     ndarray_linalg::UPLO,
-    tracing::{self, instrument, info, debug},
+    tracing::{self, instrument, info},
 };
 use hdf5::File as H5File;
 
@@ -79,7 +79,6 @@ pub struct Hamiltonian {
     delta_eig:         Array1<f64>,     // [nbasis]
     delta_nac:         Array2<c64>,     // [nbasis, nbasis]
     delta_pij:         Array3<c64>,     // [3, nbasis, nbasis]
-    vecpot:            [f64; 3],        // [x, y, z]
     pub lmi_t:         Array3<c64>,     // [namdtime, nbasis, nbasis]
     pub ham_t:         Array3<c64>,     // [namdtime, nbasis, nbasis]
 }
@@ -260,7 +259,6 @@ impl Hamiltonian {
             delta_eig,
             delta_nac,
             delta_pij,
-            vecpot: [0.0; 3],
             lmi_t,
             ham_t,
         }
@@ -404,20 +402,23 @@ impl Hamiltonian {
         // non-diagonal part: NAC
         // nac_t is in eV alrady
         self.hamil = self.nac_t.slice(s![rtime, .., ..]).to_owned() +
-                     self.delta_nac.mapv(|v| v * iele as f64);
+                     self.delta_nac.to_owned() * (iele as f64);
 
         //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
 
         // if electric field exists
         if self.efield.is_some() {
             // light matter interaction
-            // vecpot .dot. <i|p|j> / m_e, in eV
-            let     vecpot  = self.get_vecpot(iion, iele);
-            let mut lmi     = Array2::<c64>::zeros((self.nbasis, self.nbasis));
+            // afield .dot. <i|p|j> / m_e, in eV
+            let afield  = self.efield.as_ref().map(|e| e.get_afield(iion, iele)).unwrap_or([0.0; 3]);
+            let mut lmi = Array2::<c64>::zeros((self.nbasis, self.nbasis));
             for ii in 0 .. 3 {
                 lmi += &((self.pij_t.slice(s![rtime, ii, .., ..]).to_owned() +
-                          self.delta_pij.slice(s![ii, .., ..]).mapv(|v| v * iele as f64)) * vecpot[ii]);
+                          self.delta_pij.slice(s![ii, .., ..]).to_owned() * (iele as f64)) * afield[ii]);
             }
+
+            lmi.map_inplace(|x| { *x *= FACT_PA; });
+
             self.hamil += &lmi;
 
             if 0 == iele {
@@ -433,7 +434,7 @@ impl Hamiltonian {
         // rustc refuses to compile `struct.method() = somethingelse;`
         self.hamil.diag_mut().assign(&(
             self.eig_t.slice(s![rtime, ..]).mapv(|v| c64::new(v, 0.0)) +
-            self.delta_eig.mapv(|v| c64::new(v * iele as f64, 0.0))
+            self.delta_eig.to_owned() * (iele as f64)
             ));
     }
 
@@ -472,26 +473,9 @@ impl Hamiltonian {
     }
 
 
-    fn get_rtime_xtime(&self, iion: usize) -> (usize, usize) {
+    pub fn get_rtime_xtime(&self, iion: usize) -> (usize, usize) {
         let rtime = (iion + self.namdinit) % (self.nsw - 2);
         let xtime = rtime + 1;
         (rtime, xtime)
-    }
-
-
-    #[instrument(skip(self), ret, level="debug")]
-    fn get_vecpot(&mut self, iion: usize, iele: usize) -> [f64; 3] {
-        if let Some(efield) = self.efield.as_ref() {
-            //let t  = iion as f64 * self.dt + iele as f64 * self.edt;
-            let ef = efield.get_afield(iion, iele);
-
-            for i in 0 .. 3 {
-                self.vecpot[i] -= ef[i] * self.edt;
-            }
-
-            return self.vecpot;
-        } else {
-            return [0.0; 3];
-        }
     }
 }

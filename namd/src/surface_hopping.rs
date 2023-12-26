@@ -145,6 +145,16 @@ impl SurfaceHopping {
             f.new_dataset_builder().with_data(&self.recomb).create("dish_recomb")?;
         }
 
+        {
+            info!("DEBUG: Writing hamil_t");
+            f.new_dataset_builder().with_data(&self.hamil.ham_t.mapv(|v| v.re)).create("ham_t_r")?;
+            f.new_dataset_builder().with_data(&self.hamil.ham_t.mapv(|v| v.im)).create("ham_t_i")?;
+
+            info!("DEBUG: Writing lmi_t");
+            f.new_dataset_builder().with_data(&self.hamil.lmi_t.mapv(|v| v.re)).create("lmi_t_r")?;
+            f.new_dataset_builder().with_data(&self.hamil.lmi_t.mapv(|v| v.im)).create("lmi_t_i")?;
+        }
+
         Ok(())
     }
 
@@ -179,6 +189,14 @@ impl SurfaceHopping {
         }
 
         self.pops /= self.ntraj as f64;
+
+        for iion in 0 .. self.hamil.namdtime {
+            let (rtime, _) = self.hamil.get_rtime_xtime(iion);
+            self.energy[iion] = (
+                self.pops.slice(s![iion, ..]).to_owned() *
+                self.hamil.eig_t.slice(s![rtime, ..])
+                ).sum();
+        }
     }
 
     fn fssh_hop_prob(&self, iion: usize, istate: usize) -> Array1<f64> {

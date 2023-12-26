@@ -292,6 +292,39 @@ class Results():
     pass
 
 
+def plot_efield_helper(ax, T, E, ylabel, legends):
+    ax.plot(T, E[0], label=legends[0])
+    ax.plot(T, E[1], label=legends[1])
+    ax.plot(T, E[2], label=legends[2])
+    ax.legend()
+    ax.set_xlabel('Time (fs)')
+    ax.set_ylabel(ylabel)
+    pass
+
+
+def plot_efield():
+    efield = np.loadtxt('./TDEFIELD.txt')
+    afield = np.loadtxt('./TDAFIELD.txt')
+
+    T = efield[:, 0]
+    Ex = efield[:, 1]
+    Ey = efield[:, 2]
+    Ez = efield[:, 3]
+
+    Ax = afield[:, 1]
+    Ay = afield[:, 2]
+    Az = afield[:, 3]
+
+    fig, axs = plt.subplots(nrows=2, sharex=True, figsize=(8, 6))
+    plot_efield_helper(axs[0], T, [Ex, Ey, Ez], '$E(t)$ (V/Å)', ['$E_x$', '$E_y$', '$E_z$'])
+    plot_efield_helper(axs[1], T, [Ax, Ay, Az], '$A(t)$ (V$\\cdot$fs/Å)', ['$A_x$', '$A_y$', '$A_z$'])
+
+    axs[0].set_xlim(0, 10)
+
+    fig.savefig('efield.png', dpi=400)
+    pass
+
+
 if "__main__" == __name__:
     inp = Input("input.toml")
     coup = Couplings(inp=inp)
@@ -303,3 +336,5 @@ if "__main__" == __name__:
     hamil.plot_bands()
     ret = Results(inp)
     ret.plot_namd()
+
+    plot_efield()

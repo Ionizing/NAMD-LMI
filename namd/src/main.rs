@@ -1,16 +1,25 @@
+use std::io::IsTerminal;
+
 use shared::{
     //ndarray,
     Result,
     Context,
     bail,
     info,
+    debug,
     tracing::{self, Level},
 };
 use mpi::{
     self,
     topology::Communicator,
 };
-use tracing_subscriber::FmtSubscriber;
+
+use tracing_subscriber::{
+    fmt,
+    layer::SubscriberExt,
+    FmtSubscriber,
+};
+use tracing_appender;
 
 use namd::version::Version;
 
@@ -39,14 +48,8 @@ fn main() -> Result<()> {
     }
 
     let now = std::time::Instant::now();
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::INFO)
-        .with_thread_ids(true)
-        .with_thread_names(true)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("Setting default subscriber failed.");
 
+    init_tracing();
 
     {
         use clap::Parser;
@@ -60,4 +63,24 @@ fn main() -> Result<()> {
 
     info!("Time used: {:?}", now.elapsed());
     Ok(())
+}
+
+
+fn init_tracing() {
+    let file_appender = tracing_appender::rolling::never("./", "runlog.txt");
+    let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let isatty = std::io::stderr().is_terminal();
+
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::INFO)
+        .with_writer(std::io::stderr)
+        .with_ansi(isatty)
+        .finish()
+        .with(fmt::Layer::default().with_writer(file_writer));
+
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Setting global tracing subscriber failed.");
+
+    debug!("Tracing initialized.");
 }
