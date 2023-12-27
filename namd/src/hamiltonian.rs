@@ -315,7 +315,7 @@ impl Hamiltonian {
             // P, Lambda = eigh(-edt*H/hbar)
             let (eigvals, eigvecs) = self.hamil.eigh_inplace(UPLO::Upper).unwrap();
 
-            let expie = eigvals.mapv(|v| (v*IMGUNIT).exp());
+            let expie = eigvals.mapv(|v| c64::new(v.cos(), v.sin()));
 
             self.psi_c.assign(&eigvecs.dot(&Array2::from_diag(&expie))
                                       .dot(&eigvecs.t().mapv(|v| v.conj()))
