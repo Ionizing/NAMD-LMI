@@ -308,8 +308,6 @@ impl Hamiltonian {
 
     // Perform |psi'> = exp(-iHt/hbar) |psi>
     fn propagate_exact(&mut self, iion: usize) {
-        let mut lambda_expv = Array2::<c64>::zeros(self.hamil.dim());
-
         for iele in 0 .. self.nelm {
             self.make_hamil(iion, iele);
             self.hamil.mapv_inplace(|v| v * (-self.edt / HBAR)); // -edt*H/hbar is still hermitian
@@ -319,16 +317,9 @@ impl Hamiltonian {
 
             let expie = eigvals.mapv(|v| (v*IMGUNIT).exp());
 
-            // P @ diag(exp(i * Lambda))
-            for i in 0 .. self.nbasis {
-                lambda_expv.slice_mut(s![i, ..]).assign(&(
-                    eigvecs.slice(s![i, ..]).to_owned() * expie[i]
-                    ));
-            }
-
-            self.psi_c = lambda_expv
-                .dot(&eigvecs.t().mapv(|v| v.conj()))       // exp(-i*H*dt/hbar) = P @ diag(exp(i*Lambda)) @ conj(P^T)
-                .dot(&self.psi_c);                          // psi' = exp(-i*H*dt/hbar) @ psi
+            self.psi_c.assign(&eigvecs.dot(&Array2::from_diag(&expie))
+                                      .dot(&eigvecs.t().mapv(|v| v.conj()))
+                                      .dot(&self.psi_c));
         }
     }
 
