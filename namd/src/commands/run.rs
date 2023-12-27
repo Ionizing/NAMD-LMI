@@ -50,11 +50,12 @@ impl OptProcess for Run {
             }
         }
 
-        for iniband_idx in 0 .. ninibands {
-            let hamil = Hamiltonian::from_input(&nac, &input, iniband_idx);
-            let mut sh = SurfaceHopping::from_input(hamil, &input);
-            sh.run();
-        }
+        (0 .. ninibands).into_par_iter()
+            .for_each(move |iniband_idx| {
+                let hamil = Hamiltonian::from_input(&nac, &input, iniband_idx);
+                let mut sh = SurfaceHopping::from_input(hamil, &input);
+                sh.run();
+            });
         Ok(())
     }
 }

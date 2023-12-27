@@ -1,5 +1,8 @@
 use std::fs::File;
-use std::io::Write as _;
+use std::io::{
+    Write as _,
+    BufWriter,
+};
 use std::path::{
     Path,
     PathBuf,
@@ -135,11 +138,12 @@ impl Efield {
             warn!("File {:?} already exists, overwriting ...", fname.as_ref());
         }
 
-        let mut f = File::options()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(fname)?;
+        let mut f = BufWriter::new(
+            File::options().write(true)
+                           .create(true)
+                           .truncate(true)
+                           .open(fname)?
+            );
 
         writeln!(f, "# Time(fs) Ex Ey Ez(V/Å)")?;
         
@@ -160,11 +164,12 @@ impl Efield {
             warn!("File {:?} already exists, overwriting ...", fname.as_ref());
         }
 
-        let mut f = File::options()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(fname)?;
+        let mut f = BufWriter::new(
+            File::options().write(true)
+                           .create(true)
+                           .truncate(true)
+                           .open(fname)?
+            );
 
         writeln!(f, "# Time(fs) Ax Ay Az(V*fs/Å)")?;
         

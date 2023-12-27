@@ -284,7 +284,7 @@ class Results():
         axs[0].set_ylabel('E-Ef (eV)')
         axs[1].set_ylabel('E-Ef (eV)')
 
-        axs[1].set_xlim(0, 10000)
+        axs[1].set_xlim(0, 1000)
 
         fig.tight_layout(pad=0.5)
         fig.savefig(pngfname, dpi=400)

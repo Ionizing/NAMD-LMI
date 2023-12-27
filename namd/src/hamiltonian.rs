@@ -284,7 +284,8 @@ impl Hamiltonian {
             //let norm = self.psi_c.mapv(|x| x.norm_sqr()).sum();
             //info!(" norm = {}", norm);
         //}
-        assert!( (self.psi_c.mapv(|x| x.norm_sqr()).sum() - 1.0).abs() < 1E-3 , "Propagation failed, norm not conserved.");
+        let norm = self.psi_c.mapv(|x| x.norm_sqr()).sum();
+        assert!( (norm - 1.0).abs() < 1E-3 , "Propagation failed, norm not conserved: norm = {}", norm);
     }
 
 

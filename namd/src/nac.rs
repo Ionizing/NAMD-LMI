@@ -53,7 +53,7 @@ use vasp_parsers::{
 use crate::input::Input;
 
 // All the indices are counted from 1, and use closed inverval
-#[derive(PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Nac {
     pub ikpoint: usize,
     pub nspin:   usize,
@@ -356,17 +356,17 @@ impl Nac {
             //            |< phi_0 | phi_i >|
             // phi_i[:] *= conj(phase_0i)
 
-            //phase_i.assign( &(phi_1s.slice(s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_i).sum_axis(Axis(1)) );
-            //phase_i.mapv_inplace(|x| x.conj() / x.norm());
-            //phi_i.axis_iter_mut(Axis(0)).zip(phase_i.iter())
-                //.par_bridge()
-                //.for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
+            phase_i.assign( &(phi_1s.slice(s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_i).sum_axis(Axis(1)) );
+            phase_i.mapv_inplace(|x| x.conj() / x.norm());
+            phi_i.axis_iter_mut(Axis(0)).zip(phase_i.iter())
+                .par_bridge()
+                .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
 
-            //phase_j.assign( &(phi_1s.slice(s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_j).sum_axis(Axis(1)) );
-            //phase_j.mapv_inplace(|x| x.conj() / x.norm());
-            //phi_j.axis_iter_mut(Axis(0)).zip(phase_j.iter())
-                //.par_bridge()
-                //.for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
+            phase_j.assign( &(phi_1s.slice(s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_j).sum_axis(Axis(1)) );
+            phase_j.mapv_inplace(|x| x.conj() / x.norm());
+            phi_j.axis_iter_mut(Axis(0)).zip(phase_j.iter())
+                .par_bridge()
+                .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
 
 
             let phi_ij = phi_i.mapv(|v| v.conj()).dot(&phi_j.t());
