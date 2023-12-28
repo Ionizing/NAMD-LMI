@@ -280,10 +280,6 @@ impl Hamiltonian {
             PropagateMethod::LiouvilleTrotter => self.propagate_liouvilletrotter(iion),
         }
 
-        //{
-            //let norm = self.psi_c.mapv(|x| x.norm_sqr()).sum();
-            //info!(" norm = {}", norm);
-        //}
         let norm = self.psi_c.mapv(|x| x.norm_sqr()).sum();
         assert!( (norm - 1.0).abs() < 1E-3 , "Propagation failed, norm not conserved: norm = {}", norm);
     }
@@ -314,9 +310,7 @@ impl Hamiltonian {
 
             // P, Lambda = eigh(-edt*H/hbar)
             let (eigvals, eigvecs) = self.hamil.eigh_inplace(UPLO::Upper).unwrap();
-
             let expie = eigvals.mapv(|v| c64::new(v.cos(), v.sin()));
-
             self.psi_c.assign(&eigvecs.dot(&Array2::from_diag(&expie))
                                       .dot(&eigvecs.t().mapv(|v| v.conj()))
                                       .dot(&self.psi_c));
@@ -374,6 +368,16 @@ impl Hamiltonian {
                 }
             }
         } // iele
+    }
+
+
+    fn propagate_runge_kutta_4(&mut self, iion: usize) {
+        todo!("Runge-Kutta method not implemented");
+    }
+
+
+    fn propagate_crank_nicolson(&mut self, iion: usize) {
+        todo!("Crank-Nicolson method not implemented");
     }
 
 
