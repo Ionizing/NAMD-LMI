@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use clap::Args;
 
 //use shared::bail;
@@ -52,9 +54,13 @@ impl OptProcess for Run {
 
         (0 .. ninibands).into_par_iter()
             .for_each(move |iniband_idx| {
+                let now = Instant::now();
+
                 let hamil = Hamiltonian::from_input(&nac, &input, iniband_idx);
                 let mut sh = SurfaceHopping::from_input(hamil, &input);
                 sh.run();
+
+                info!("Time used for {}(th/st) inicon: {:?}", iniband_idx + 1, now.elapsed());
             });
         Ok(())
     }

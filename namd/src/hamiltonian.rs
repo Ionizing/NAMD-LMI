@@ -9,8 +9,11 @@ use shared::{
     Array2,
     Array3,
     ndarray::Array4,
-    ndarray_linalg::EighInplace,
-    ndarray_linalg::UPLO,
+    ndarray_linalg::{
+        EighInplace,
+        UPLO,
+        expm,
+    },
     tracing::{self, instrument, info},
 };
 use hdf5::File as H5File;
@@ -318,9 +321,13 @@ impl Hamiltonian {
     }
 
 
-    fn propagate_expm(&mut self, _iion: usize) {
-        todo!("This method is not implemented since the PR below is not merged yet.\n\
-              https://github.com/rust-ndarray/ndarray-linalg/pull/352.");
+    fn propagate_expm(&mut self, iion: usize) {
+        for iele in 0 .. self.nelm {
+            self.make_hamil(iion, iele);
+            self.hamil.mapv_inplace(|x| x * (-self.edt / HBAR) * IMGUNIT);
+            self.psi_c.assign(&expm(&self.hamil).expect("Matrix exponentiation failed during propagate_expm.")
+                                                .dot(&self.psi_c));
+        }
     }
 
 

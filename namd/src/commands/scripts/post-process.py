@@ -264,7 +264,6 @@ class Results():
 
         # psict
         c    = self.psi_t * np.sum(self.proj, axis=(2,3))
-
         kmap = axs[0].scatter(T.T, eigs, c=c, cmap='Reds', s=15, lw=0.0, rasterized=True,
                               vmin=0, vmax=1)
         cb = fig.colorbar(kmap, fraction=0.046, pad=0.01)
@@ -284,7 +283,7 @@ class Results():
         axs[0].set_ylabel('E-Ef (eV)')
         axs[1].set_ylabel('E-Ef (eV)')
 
-        axs[1].set_xlim(0, 1000)
+        axs[1].set_xlim(0, T.max())
 
         fig.tight_layout(pad=0.5)
         fig.savefig(pngfname, dpi=400)
