@@ -213,7 +213,7 @@ pub struct Wavecar {
 
 impl Wavecar {
 
-    pub fn from_file(path: &(impl AsRef<Path> + ?Sized)) -> Result<Self> {
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let mut file = File::open(path)?;
         let file_len = file.metadata()?.len();
 

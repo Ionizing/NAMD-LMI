@@ -70,9 +70,9 @@ pub struct Input {
 
 
 impl Input {
-    pub fn from_file<P>(fname: &P) -> Result<Self>
+    pub fn from_file<P>(fname: P) -> Result<Self>
     where
-        P: AsRef<Path> + ?Sized
+        P: AsRef<Path>,
     {
         if !fname.as_ref().is_file() {
             bail!("Input file {:?} not available.", fname.as_ref());

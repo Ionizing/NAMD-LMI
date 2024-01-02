@@ -130,9 +130,9 @@ impl SurfaceHopping {
     }
 
 
-    pub fn save_to_h5<P>(&self, fname: &P) -> Result<()>
+    pub fn save_to_h5<P>(&self, fname: P) -> Result<()>
     where
-        P: AsRef<Path> + ?Sized,
+        P: AsRef<Path>,
     {
         let f = H5File::create(fname)?;
 

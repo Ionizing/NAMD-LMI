@@ -111,7 +111,7 @@ pub struct ChargeDensity {
 
 impl ChargeDensity {
     /// Read CHGCAR like volumetric data from file.
-    pub fn from_file(path: &(impl AsRef<Path> + ?Sized), chgtype: ChargeType) -> Result<Self> {
+    pub fn from_file(path: impl AsRef<Path>, chgtype: ChargeType) -> Result<Self> {
         let txt = fs::read_to_string(path)?;
         Self::from_txt(&txt, chgtype)
     }
@@ -171,7 +171,7 @@ impl ChargeDensity {
     }
 
 
-    pub fn to_file(&self, path: &(impl AsRef<Path> + ?Sized)) -> Result<()> {
+    pub fn to_file(&self, path: impl AsRef<Path>) -> Result<()> {
         fs::write(path, self.to_string())?;
         Ok(())
     }

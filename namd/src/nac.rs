@@ -76,9 +76,9 @@ pub struct Nac {
 }
 
 impl Nac {
-    pub fn from_h5<P>(fname: &P) -> Result<Self>
+    pub fn from_h5<P>(fname: P) -> Result<Self>
     where
-        P: AsRef<Path> + ?Sized,
+        P: AsRef<Path>,
     {
         let f = H5File::open(fname)?;
 
@@ -126,9 +126,9 @@ impl Nac {
     }
 
 
-    pub fn save_to_h5<P>(&self, fname: &P) -> Result<()>
+    pub fn save_to_h5<P>(&self, fname: P) -> Result<()>
     where
-        P: AsRef<Path> + ?Sized,
+        P: AsRef<Path>,
     {
         let f = H5File::create(fname)?;
 

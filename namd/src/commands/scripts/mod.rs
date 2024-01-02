@@ -11,9 +11,9 @@ pub const INIBANDS_PY:     &'static str = include_str!("./inibands.py");
 pub const POST_PROCESS_PY: &'static str = include_str!("./post-process.py");
 
 
-fn write_file_to_dir<P>(dir: &P, fname: &str, content: &str) -> Result<()>
+fn write_file_to_dir<P>(dir: P, fname: &str, content: &str) -> Result<()>
 where
-    P: AsRef<Path> + ?Sized,
+    P: AsRef<Path>,
 {
     assert!(dir.as_ref().is_dir());
 
@@ -35,9 +35,9 @@ pub enum Scripts {
 }
 
 
-pub fn write_script<P>(dir: &P, script: Scripts) -> Result<()>
+pub fn write_script<P>(dir: P, script: Scripts) -> Result<()>
 where
-    P: AsRef<Path> + ?Sized,
+    P: AsRef<Path>,
 {
     use Scripts::*;
 

@@ -104,10 +104,10 @@ pub fn range_parse(input: &str) -> Result<Vec<i32>> {
 ///
 /// If `to` will be overwritten if it exists. If `to` does not exists, a file with same name of
 /// `from` will be created and written.
-pub fn copy_file_to<P, Q>(from: &P, to: &Q) -> Result<u64>
+pub fn copy_file_to<P, Q>(from: P, to: Q) -> Result<u64>
 where
-    P: AsRef<Path> + ?Sized,
-    Q: AsRef<Path> + ?Sized,
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
 {
     assert!(from.as_ref().is_file());
 
@@ -121,10 +121,10 @@ where
 }
 
 
-pub fn link_file_to<P, Q>(from: &P, to: &Q) -> Result<()>
+pub fn link_file_to<P, Q>(from: P, to: Q) -> Result<()>
 where
-    P: AsRef<Path> + ?Sized,
-    Q: AsRef<Path> + ?Sized,
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
 {
     assert!(from.as_ref().is_file());
     assert!(to.as_ref().is_dir());

@@ -35,7 +35,7 @@ pub struct Poscar {  // I have no plan to support vasp4 format
 
 
 impl Poscar {
-    pub fn from_file(path: &(impl AsRef<Path> + ?Sized)) -> Result<Self> {
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         //  Read to the first emtpy line then parse it.
         let f = fs::File::open(path)?;
         let txt = BufReader::new(f).lines()
@@ -399,7 +399,7 @@ impl<'a> PoscarFormatter<'a> {
         self
     }
 
-    pub fn to_file(&self, path: &(impl AsRef<Path> + ?Sized)) -> Result<()> {
+    pub fn to_file(&self, path: impl AsRef<Path>) -> Result<()> {
         fs::write(path, self.to_string())?;
         Ok(())
     }

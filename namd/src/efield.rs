@@ -129,9 +129,9 @@ impl Efield {
     }
 
 
-    pub fn print_efield_to_file<P>(&self, fname: &P) -> Result<()>
+    pub fn print_efield_to_file<P>(&self, fname: P) -> Result<()>
     where
-        P: AsRef<Path> + ?Sized,
+        P: AsRef<Path>,
     {
         info!("Writing electric field to {:?} ...", fname.as_ref());
         if fname.as_ref().is_file() {
@@ -155,9 +155,9 @@ impl Efield {
     }
 
 
-    pub fn print_afield_to_file<P>(&self, fname: &P) -> Result<()>
+    pub fn print_afield_to_file<P>(&self, fname: P) -> Result<()>
     where
-        P: AsRef<Path> + ?Sized,
+        P: AsRef<Path>,
     {
         info!("Writing integrated vector potential to {:?} ...", fname.as_ref());
         if fname.as_ref().is_file() {

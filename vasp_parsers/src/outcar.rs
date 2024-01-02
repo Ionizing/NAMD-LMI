@@ -117,7 +117,7 @@ pub struct Outcar {
 
 
 impl Outcar {
-    pub fn from_file(path: &(impl AsRef<Path> + ?Sized)) -> Result<Self> {
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let context: String = fs::read_to_string(path)?;
 
         let mut lsorbit         = false;
@@ -881,7 +881,7 @@ impl Outcar {
         }
     }
 
-    pub fn save_ionic_step_as_xsf(&self, index: usize, path: &(impl AsRef<Path> + ?Sized)) -> Result<()> {
+    pub fn save_ionic_step_as_xsf(&self, index: usize, path: impl AsRef<Path>) -> Result<()> {
         // index starts from 1
         let len = self.ion_iters.len();
         assert!(1 <= index && index <= len, "Index out of bound.");
@@ -904,7 +904,7 @@ impl Outcar {
 pub struct Trajectory(pub Vec<Structure>);
 
 impl Trajectory {
-    pub fn save_as_xdatcar(&self, path: &(impl AsRef<Path> + ?Sized)) -> Result<()> {
+    pub fn save_as_xdatcar(&self, path: impl AsRef<Path>) -> Result<()> {
         let mut fname = PathBuf::new();
         fname.push(path);
         if !fname.is_dir() {
@@ -967,7 +967,7 @@ impl Trajectory {
         Ok(())
     }
 
-    pub fn save_as_poscar(&self, index: usize, path: &(impl AsRef<Path> + ?Sized), frac: bool, constr: bool, symbol: bool) -> Result<()> {
+    pub fn save_as_poscar(&self, index: usize, path: impl AsRef<Path>, frac: bool, constr: bool, symbol: bool) -> Result<()> {
         // index starts from 1
         let len = self.0.len();
         assert!(1 <= index && index <=len, "Index out of bound.");
@@ -995,7 +995,7 @@ impl Trajectory {
         Ok(())
     }
 
-    pub fn _save_into_seperated_dirs(self, _path: &(impl AsRef<Path> + ?Sized)) -> Result<()> {
+    pub fn _save_into_seperated_dirs(self, _path: impl AsRef<Path>) -> Result<()> {
         todo!();
     }
 }
@@ -1050,7 +1050,7 @@ impl From<Outcar> for Vibrations {
 
 impl Vibrations {
     /// Index starts from 1
-    pub fn save_as_xsf(&self, index: usize, path: &(impl AsRef<Path> + ?Sized)) -> Result<()> {
+    pub fn save_as_xsf(&self, index: usize, path: impl AsRef<Path>) -> Result<()> {
         let len = self.modes.len();
         assert!(1 <= index && index <= len, "Index out of bound.");
         let index = index - 1;
@@ -1074,7 +1074,7 @@ impl Vibrations {
 
     /// Index starts from 1
     pub fn modulate(&self, index: usize, amplitude: f64, fracpos: bool, 
-                    constrants: Option<Vec<[bool; 3]>>, path: &(impl AsRef<Path> + ?Sized)) -> Result<()> {
+                    constrants: Option<Vec<[bool; 3]>>, path: impl AsRef<Path>) -> Result<()> {
         let len = self.modes.len();
         assert!(1 <= index && index <= len, "Index out of bound.");
         let index = index - 1;
