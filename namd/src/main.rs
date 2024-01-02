@@ -85,6 +85,5 @@ fn init_tracing() -> WorkerGuard {
         .expect("Setting global tracing subscriber failed.");
 
     debug!("Tracing initialized.");
-
     return guard;
 }

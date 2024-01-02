@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::fmt;
 
 use shared::{
@@ -54,6 +57,7 @@ pub struct SurfaceHopping {
     pub ntraj:       usize,
     pub lexcitation: bool,
     pub hamil:       Hamiltonian,
+    pub outdir:      PathBuf,
 
     pub ndigit:      usize,
     pub pops:        Array2<f64>,       // [namdtime, nbasis]
@@ -74,6 +78,7 @@ impl SurfaceHopping {
             inp.ndigit,
             inp.ntraj,
             inp.lexcitation,
+            inp.outdir.to_owned()
         )
     }
 
@@ -85,6 +90,7 @@ impl SurfaceHopping {
         ndigit:      usize,
         ntraj:       usize,
         lexcitation: bool,
+        outdir:      PathBuf,
     ) -> Self {
         let namdtime = hamil.namdtime;
         let nbasis   = hamil.nbasis;
@@ -99,11 +105,12 @@ impl SurfaceHopping {
             ntraj,
             lexcitation,
             hamil,
+            outdir,
 
             ndigit,
             pops,
             recomb,
-            energy
+            energy,
         }
     }
 
@@ -118,7 +125,7 @@ impl SurfaceHopping {
         }
 
         let ndigit = self.ndigit;
-        let fname = format!("result_{:0ndigit$}.h5", self.hamil.namdinit);
+        let fname = self.outdir.join(format!("result_{:0ndigit$}.h5", self.hamil.namdinit));
         self.save_to_h5(&fname).unwrap();
     }
 

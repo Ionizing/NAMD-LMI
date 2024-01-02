@@ -91,7 +91,7 @@ impl Hamiltonian {
     pub fn from_input(nac: &Nac, inp: &Input, inicon_idx: usize) -> Self {
         Self::init_with_nac(
             nac,
-            inp.efield.clone().map(|x| x.1),
+            inp.efield.clone().map(|x| x.2),
             inp.basis_up.clone(),
             inp.basis_dn.clone(),
             inp.dt,
@@ -378,12 +378,12 @@ impl Hamiltonian {
     }
 
 
-    fn propagate_runge_kutta_4(&mut self, iion: usize) {
+    fn _propagate_runge_kutta_4(&mut self, _iion: usize) {
         todo!("Runge-Kutta method not implemented");
     }
 
 
-    fn propagate_crank_nicolson(&mut self, iion: usize) {
+    fn _propagate_crank_nicolson(&mut self, _iion: usize) {
         todo!("Crank-Nicolson method not implemented");
     }
 

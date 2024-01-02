@@ -231,8 +231,7 @@ impl Nac {
     }
 
 
-    /// This function calculates non-adiabatic coupling (NAC), and transition dipole moment (TDM)
-    /// 
+    // This function calculates non-adiabatic coupling (NAC), and transition dipole moment (TDM)
     fn from_wavecars(
         phi_1s: &Array3<c64>,
         rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize,
@@ -279,8 +278,6 @@ impl Nac {
 
             let mut sum = efermi_sum.lock().unwrap();
             *sum += efermi;
-
-            // Read procars
         });
 
         Ok((
@@ -342,10 +339,10 @@ impl Nac {
             // solve it
             //     use pathfinding::kuhn_munkres::kuhn_munkres (or hungarian algorithm)
 
-            // Reordering i, u1i = <phi_1 | phi_i>
-            let order_i = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_i);
-            // Reordering j
-            let order_j = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_j);
+            //// Reordering i, u1i = <phi_1 | phi_i>
+            //let order_i = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_i);
+            //// Reordering j
+            //let order_j = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_j);
 
             //info!("path = {:?}, order_i = {:?}", path_i, order_i);
             //info!("path = {:?}, order_j = {:?}", path_j, order_j);
@@ -401,7 +398,7 @@ impl Nac {
     }
 
 
-    fn find_order<R1, R2>(phi_i: &ArrayBase<R1, Ix2>, phi_j: &ArrayBase<R2, Ix2>) -> Vec<usize>
+    fn _find_order<R1, R2>(phi_i: &ArrayBase<R1, Ix2>, phi_j: &ArrayBase<R2, Ix2>) -> Vec<usize>
     where
         R1: Data<Elem = c64>,
         R2: Data<Elem = c64>,

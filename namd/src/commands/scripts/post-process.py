@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import warnings
+import os
 
 import tomllib
 import h5py
@@ -127,7 +128,7 @@ class Hamiltonian:
                             edgecolor='none')
 
         cb = fig.colorbar(img, fraction=0.046, pad=0.01)
-        cb.ax.set_title('(eV/c)')
+        cb.ax.set_title('(eV·fs/Å)')
 
         if pij.shape[0] <= 15:
             for (i, j), z in np.ndenumerate(pij):
@@ -302,6 +303,9 @@ def plot_efield_helper(ax, T, E, ylabel, legends):
 
 
 def plot_efield():
+    if not os.path.isfile('./TDEFIELD.txt'):
+        return
+
     efield = np.loadtxt('./TDEFIELD.txt')
     afield = np.loadtxt('./TDAFIELD.txt')
 

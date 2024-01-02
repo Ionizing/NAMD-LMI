@@ -3,11 +3,16 @@ use std::path::{
     Path,
     PathBuf,
 };
-use std::fs::read_to_string;
+use std::fs::{
+    create_dir_all,
+    read_to_string,
+};
 
 use shared::{
     bail,
     Result,
+    info,
+    warn,
 };
 
 use toml;
@@ -51,13 +56,16 @@ pub struct Input {
     pub temperature:  f64,
     pub scissor:      Option<f64>,
 
+    #[serde(default = "Input::default_outputdir")]
+    pub outdir:       PathBuf,
+
     pub inibands:     Vec<usize>,
     pub inispins:     Vec<usize>,
     pub inisteps:     Vec<usize>,
 
     #[serde(default)]
     #[serde(deserialize_with = "Input::efield_from_file")]
-    pub efield:       Option<(PathBuf, Efield)>,
+    pub efield:       Option<(PathBuf, String, Efield)>,
 }
 
 
@@ -73,22 +81,31 @@ impl Input {
         let mut input: Self = toml::from_str(&raw)?;
 
         if let Some(e) = input.efield.as_mut() {
-            e.1.initialize(input.namdtime, input.nelm, input.dt);
+            e.2.initialize(input.namdtime, input.nelm, input.dt);
         }
+
+        let input_print = format!("{}", &input);
+        let hashtag_line = "#".repeat(120);
+        info!("Input file loaded. The formatted input is:\n\n{hashtag_line}\n{}\n{hashtag_line}\n\n", input_print);
+
+        Self::create_outputdir(&mut input.outdir)?;
 
         Ok(input)
     }
 
-    fn efield_from_file<'de, D>(deserializer: D) -> Result<Option<(PathBuf, Efield)>, D::Error>
+
+    fn efield_from_file<'de, D>(deserializer: D) -> Result<Option<(PathBuf, String, Efield)>, D::Error>
     where D: Deserializer<'de>
     {
         let s = String::deserialize(deserializer)?;
         let path = PathBuf::from(s);
         Ok(Some((
                 path.to_owned(),
+                read_to_string(&path).unwrap(),
                 Efield::from_file(path),
                 )))
     }
+
 
     fn parse_propmethod<'de, D>(deserializer: D) -> Result<PropagateMethod, D::Error>
     where D: Deserializer<'de>
@@ -105,6 +122,7 @@ impl Input {
         }
     }
 
+
     fn parse_shmethod<'de, D>(deserializer: D) -> Result<SHMethod, D::Error>
     where D: Deserializer<'de>
     {
@@ -119,12 +137,57 @@ impl Input {
                     )),
         }
     }
+
+
+    fn default_outputdir() -> PathBuf {
+        PathBuf::from("output")
+    }
+
+
+    fn create_outputdir(dir: &mut PathBuf) -> Result<()> {
+        if dir.is_file() {
+            bail!("The output dir {:?} exists as a regular file, please change.", dir);
+        }
+
+        if dir.file_name().is_none() {
+            bail!("The output dir {:?} cannot be current working dir, please change.", dir);
+        }
+
+        if dir.is_dir() {
+            let parent = dir.parent().unwrap();
+            let subdir = dir.file_name().unwrap().to_str().unwrap();
+            let mut newdir: Option<PathBuf> = None;
+            let mut tmpdir = PathBuf::new();
+
+            for i in 1 ..= 99 {
+                let dirstr = format!("{}_{:02}", &subdir, i);
+                tmpdir = parent.join(&dirstr);
+                if !tmpdir.is_file() && !tmpdir.is_dir() {
+                    newdir = Some(tmpdir.clone());
+                    break;
+                }
+            }
+
+            if let Some(newdir) = newdir {
+                warn!("The outdir {:?} is already exists and will be switched to {:?} for this run.", dir, newdir);
+                *dir = newdir;
+            } else {
+                bail!("Existed outdir reached maximum homonymy outdirs: {:?}", tmpdir);
+            }
+        }
+
+        info!("The output files will be stored in {:?} .", dir);
+        create_dir_all(dir)?;
+
+        Ok(())
+    }
 }
 
 
 impl fmt::Display for Input {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "# NAMD-lumi input in toml format.")?;
+        writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}",   "rundir",     self.rundir)?;
         writeln!(f, " {:>20} = {}",     "ikpoint",    self.ikpoint)?;
@@ -139,22 +202,31 @@ impl fmt::Display for Input {
         writeln!(f, " {:>20} = {}",     "ntraj",      self.ntraj)?;
         writeln!(f, " {:>20} = \"{}\"", "propmethod", self.propmethod)?;
         writeln!(f, " {:>20} = \"{}\"", "shmethod",   self.shmethod)?;
+        writeln!(f)?;
 
         writeln!(f, " {:>20} = {}", "nelm",         self.nelm)?;
         writeln!(f, " {:>20} = {}", "lreal",        self.lreal)?;
         writeln!(f, " {:>20} = {}", "lprint_input", self.lprint_input)?;
         writeln!(f, " {:>20} = {}", "lexcitation",  self.lexcitation)?;
         writeln!(f, " {:>20} = {}", "lreorder",     self.lreorder)?;
+        writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "nacfname",    self.nacfname)?;
         writeln!(f, " {:>20} = {}",   "temperature", self.temperature)?;
+        writeln!(f)?;
 
         if let Some(s) = self.scissor {
             writeln!(f, " {:>20} = {}", "scissor", s)?;
+            writeln!(f)?;
         }
 
         if let Some(e) = self.efield.as_ref() {
             writeln!(f, " {:>20} = {:?}", "efield", e.0)?;
+            writeln!(f, "## Content of {:?} :", e.0)?;
+            for l in e.1.lines() {
+                writeln!(f, "##     {}", l)?;
+            }
+            writeln!(f)?;
         }
 
         let nsample = self.inibands.len();
@@ -163,13 +235,13 @@ impl fmt::Display for Input {
         let mut inispins = String::from("[");
         let mut inisteps = String::from("[");
         for i in 0 .. nsample - 1 {
-            inibands += &format!("{:5},", self.inibands[i]);
-            inispins += &format!("{:5},", self.inispins[i]);
-            inisteps += &format!("{:5},", self.inisteps[i]);
+            inibands += &format!("{:6},", self.inibands[i]);
+            inispins += &format!("{:6},", self.inispins[i]);
+            inisteps += &format!("{:6},", self.inisteps[i]);
         }
-        inibands += &format!("{:5}]", self.inibands[nsample - 1]);
-        inispins += &format!("{:5}]", self.inispins[nsample - 1]);
-        inisteps += &format!("{:5}]", self.inisteps[nsample - 1]);
+        inibands += &format!("{:6}]", self.inibands[nsample - 1]);
+        inispins += &format!("{:6}]", self.inispins[nsample - 1]);
+        inisteps += &format!("{:6}]", self.inisteps[nsample - 1]);
 
         writeln!(f, " {:>10} = {}", "inibands", inibands)?;
         writeln!(f, " {:>10} = {}", "inispins", inispins)?;

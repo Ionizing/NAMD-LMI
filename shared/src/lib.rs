@@ -1,3 +1,6 @@
+use std::fs;
+use std::path::Path;
+
 pub use anyhow::{
     self,
     Result,
@@ -18,6 +21,7 @@ pub use tracing::{
     warn,
     info,
     debug,
+    error,
 };
 
 #[allow(non_camel_case_types)]
@@ -93,6 +97,49 @@ pub fn range_parse(input: &str) -> Result<Vec<i32>> {
     let ret = ret.into_iter().filter(|x| *x != 0).collect::<Vec<_>>();
 
     Ok(ret)
+}
+
+
+/// Copies the contents of one file to another. Permission bits are preserved.
+///
+/// If `to` will be overwritten if it exists. If `to` does not exists, a file with same name of
+/// `from` will be created and written.
+pub fn copy_file_to<P, Q>(from: &P, to: &Q) -> Result<u64>
+where
+    P: AsRef<Path> + ?Sized,
+    Q: AsRef<Path> + ?Sized,
+{
+    assert!(from.as_ref().is_file());
+
+    if to.as_ref().is_file() {
+        return Ok(fs::copy(from, to)?);
+    }
+
+    let fname = from.as_ref().file_name().unwrap();
+    let target = to.as_ref().join(&fname);
+    return Ok(fs::copy(from, target)?);
+}
+
+
+pub fn link_file_to<P, Q>(from: &P, to: &Q) -> Result<()>
+where
+    P: AsRef<Path> + ?Sized,
+    Q: AsRef<Path> + ?Sized,
+{
+    assert!(from.as_ref().is_file());
+    assert!(to.as_ref().is_dir());
+
+    let from = from.as_ref().canonicalize().unwrap();
+    let fname = from.file_name().unwrap();
+    let target = to.as_ref().join(&fname);
+
+    #[cfg(target_os = "windows")]
+    std::os::winodws::fs::symlink_file(from, &target)?;
+
+    #[cfg(not(target_os = "windows"))]
+    std::os::unix::fs::symlink(from, &target)?;
+
+    Ok(())
 }
 
 
