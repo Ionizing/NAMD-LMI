@@ -6,11 +6,13 @@ use std::fmt;
 
 use shared::{
     ndarray::s,
+    ndarray_linalg as nl,
     Result,
     Array1,
     Array2,
     Array3,
     info,
+    c64,
 };
 use hdf5::File as H5File;
 use rand::{thread_rng, Rng};
@@ -205,6 +207,70 @@ impl SurfaceHopping {
                 ).sum();
         }
     }
+
+
+    // Pjk <==> probability: j hop to k
+    // Pjk = max(0, -2( Im(rhojk Hjk)/hbar ) / rhojj)
+    #[allow(non_snake_case)]
+    fn fssh_prob(&self, iion: usize) -> Array2<f64> {
+        let dt  = self.hamil.dt;
+        let T   = self.hamil.temperature;
+        let psi = self.hamil.psi_t.slice(s![iion, ..]);
+        let Hjk = self.hamil.ham_t.slice(s![iion, .., ..]);
+
+        let row = nl::into_row(psi.to_owned());
+        let mut rho_jk = row.t().mapv(|x| x.conj()).dot(&row);
+        let rho_diag   = rho_jk.diag().mapv(|x| x.re);          // convert c64 to f64
+        rho_jk.diag_mut().fill(c64::new(0.0, 0.0));
+        let rho_jk = rho_jk;                                    // cancel mutability
+
+        let nbasis  = self.hamil.nbasis;
+        let mut Pjk = Array2::<f64>::zeros((nbasis, nbasis));
+
+        for j in 0 .. nbasis {
+            let rho_jj = rho_diag[j];
+            for k in j+1 .. nbasis {
+                Pjk[(j,k)] = -2.0 / HBAR * dt * (rho_jk[(j,k)] * Hjk[(j,k)]).im / rho_jj;
+                Pjk[(k,j)] = - Pjk[(j,k)];
+            }
+        }
+
+        Pjk.mapv_inplace(|x| f64::max(x, 0.0));
+
+
+        // Boltzmann factor
+        let Ejj = Hjk.diag().mapv(|v| v.re);
+        for j in 0 .. nbasis {
+            let Ej = Ejj[j];
+            for k in j+1 .. nbasis {
+                let Ejk = Ej - Ejj[k];
+                let B = f64::exp(-f64::abs(Ejk) / (BOLKEV * T));
+
+                if Ejk > 0.0 {
+                    // Ej > Ek, j can hop to k, does nothing for Pjk
+                    Pjk[(k,j)] *= B;
+                } else {
+                    Pjk[(j,k)] *= B;
+                    // Ej < Ek, k can hop to j, does nothing for Pkj
+                }
+            }
+        }
+
+
+        // Perform cumsum
+        for mut row in Pjk.rows_mut() {
+            let cumsum = row.iter()
+                .scan(0.0, |acc, x| {
+                    *acc += x;
+                    Some(*acc)
+                })
+                .collect::<Array1<_>>();
+            row.assign(&cumsum);
+        }
+
+        Pjk
+    }
+
 
     fn fssh_hop_prob(&self, iion: usize, istate: usize) -> Array1<f64> {
         let rtime: usize = (iion + self.hamil.namdinit) % (self.hamil.nsw - 1);
