@@ -3,7 +3,10 @@ use std::fmt;
 
 use shared::{
     Result,
-    ndarray::s,
+    ndarray::{
+        s,
+        Axis,
+    },
     c64,
     Array1,
     Array2,
@@ -218,8 +221,14 @@ impl Hamiltonian {
 
         // apply the scissor operator
         if let Some(scissor) = scissor {
-            info!("Applying scissor operator of {} eV ...", scissor);
-            eig_t.mapv_inplace(|e| if e > 0.0 { e + scissor } else { e });
+            let eigs_avg = eig_t.mean_axis(Axis(0)).unwrap().to_vec();
+            let cbm = eigs_avg.partition_point(|&x| x < 0.0);
+            let vbm = cbm - 1;
+            let gap = eigs_avg[cbm] -  eigs_avg[vbm];
+
+            info!("Applying scissor operator, setting gap from {:8.4} to {:8.4} eV ...", gap, scissor);
+            let shift = scissor - gap;
+            eig_t.slice_mut(s![.., cbm ..]).mapv_inplace(|x| x + shift);
         }
 
         // initial auxiliary vars
