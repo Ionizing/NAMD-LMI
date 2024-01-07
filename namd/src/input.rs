@@ -84,12 +84,7 @@ impl Input {
             e.2.initialize(input.namdtime, input.nelm, input.dt);
         }
 
-        let input_print = format!("{}", &input);
-        let hashtag_line = "#".repeat(120);
-        info!("Input file loaded. The formatted input is:\n\n{hashtag_line}\n{}\n{hashtag_line}\n\n", input_print);
-
         Self::create_outputdir(&mut input.outdir)?;
-
         Ok(input)
     }
 
@@ -104,6 +99,13 @@ impl Input {
                 read_to_string(&path).unwrap(),
                 Efield::from_file(path),
                 )))
+    }
+
+
+    pub fn print_to_log(&self) {
+        let input_print = format!("{}", self);
+        let hashtag_line = "#".repeat(120);
+        info!("Input file loaded. The formatted input is:\n\n{hashtag_line}\n{}\n{hashtag_line}\n\n", input_print);
     }
 
 
@@ -176,7 +178,7 @@ impl Input {
             }
         }
 
-        info!("The output files will be stored in {:?} .", dir);
+        info!("Log and output files will be stored in {:?} .", dir);
         create_dir_all(dir)?;
 
         Ok(())

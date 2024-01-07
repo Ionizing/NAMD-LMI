@@ -6,3 +6,4 @@ pub mod surface_hopping;
 pub mod efield;
 pub mod constants;
 pub mod version;
+pub mod logging;

@@ -16,6 +16,7 @@ use crate::{
     nac::Nac,
     hamiltonian::Hamiltonian,
     surface_hopping::SurfaceHopping,
+    logging::logger_reset,
 };
 use crate::commands::{
     OptProcess,
@@ -43,6 +44,8 @@ impl OptProcess for Run {
         ThreadPoolBuilder::new().num_threads(self.nthreads).build_global().unwrap();
 
         let input = Input::from_file(&self.input)?;
+        logger_reset(&input.outdir)?;
+
         let nac = Nac::from_inp(&input)?;
         let ninibands = input.inibands.len();
 

@@ -1,6 +1,7 @@
 use clap::Parser;
 
-pub use shared::Result;
+use shared::Result;
+use crate::version::Version;
 
 pub mod generate;
 pub mod run;
@@ -14,9 +15,11 @@ pub trait OptProcess {
 
 
 #[derive(Parser)]
-#[command(author, version, about, long_about=None)]
-#[command(propagate_version = true)]
+#[command(author,
+          version,
+          propagate_version = true,
+          about = Version::new().to_string(),
+          long_about= format!("{:#}", Version::new()) )]
 pub enum Command {
-    //#[command(subcommand)]
     Run(run::Run),
 }

@@ -17,7 +17,7 @@ use shared::{
         UPLO,
         expm,
     },
-    tracing::{self, instrument, info},
+    info,
 };
 use hdf5::File as H5File;
 
@@ -277,7 +277,6 @@ impl Hamiltonian {
     }
 
 
-    #[instrument(skip(self, method))]
     pub fn propagate(&mut self, iion: usize, method: PropagateMethod) {
         let (rtime, _xtime) = self.get_rtime_xtime(iion);
 
@@ -397,7 +396,6 @@ impl Hamiltonian {
     }
 
 
-    #[instrument(skip(self), level="info")]
     fn make_hamil(&mut self, iion: usize, iele: usize) {
         let (rtime, xtime) = self.get_rtime_xtime(iion);
 
@@ -471,7 +469,6 @@ impl Hamiltonian {
     }
 
 
-    #[instrument(ret, level="debug")]
     fn iniband_index_convert(
         basis_up: &[usize; 2], basis_dn: &[usize; 2], inispin: usize, iniband: usize
         ) -> usize {

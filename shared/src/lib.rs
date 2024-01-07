@@ -16,7 +16,7 @@ pub use ndarray::{
 pub use ndarray_linalg;
 pub use regex::Regex;
 pub use clap::Parser;
-pub use tracing::{
+pub use log::{
     self,
     warn,
     info,

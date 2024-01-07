@@ -15,4 +15,3 @@ ndarray-linalg = { git = "https://github.com/matthagan15/ndarray-linalg", rev = 
 ndrustfft = "0.4.0"
 rayon   = "1.7.0"
 regex   = "1.8.1"
-tracing = { version = "0.1.40", features = ["log"] }
