@@ -25,7 +25,11 @@ use log4rs::{
 };
 
 
-pub static HANDLE: Lazy<Mutex<Handle>> = Lazy::new(|| Mutex::new(logger_init().unwrap()) );
+pub static HANDLE: Lazy<Mutex<Handle>> = Lazy::new(|| {
+    let config = gen_logger_config(Option::<&str>::None).unwrap();
+    let handle = init_config(config).unwrap();
+    Mutex::new(handle)
+});
 
 
 fn gen_logger_config(path: Option<impl AsRef<Path>>) -> Result<Config> {
@@ -79,14 +83,12 @@ fn gen_logger_config(path: Option<impl AsRef<Path>>) -> Result<Config> {
 }
 
 
-fn logger_init() -> Result<Handle> {
-    let config = gen_logger_config(Option::<&str>::None)?;
-    let handle = init_config(config)?;
-    return Ok(handle);
+pub fn logger_init() {
+    Lazy::force(&HANDLE);
 }
 
 
-pub fn logger_reset(path: impl AsRef<Path>) -> Result<()> {
+pub fn logger_redirect(path: impl AsRef<Path>) -> Result<()> {
     let config =gen_logger_config(Some(path))?;
     HANDLE.lock().unwrap().set_config(config);
     Ok(())

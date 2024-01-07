@@ -13,7 +13,7 @@ use shared::{
  */
 
 //use namd::version::Version;
-use namd::logging::HANDLE;
+use namd::logging::logger_init;
 
 fn main() -> Result<()> {
 /*
@@ -39,8 +39,8 @@ fn main() -> Result<()> {
  */
 
     let now = std::time::Instant::now();
-    let _handle = HANDLE.lock().unwrap();
-    info!("Global logger initialized and redirected to \"./globalrun.log\"");
+    logger_init();
+    info!("Global logger initialized with targets being stderr and \"./globalrun.log\"");
 
     {
         use clap::Parser;
