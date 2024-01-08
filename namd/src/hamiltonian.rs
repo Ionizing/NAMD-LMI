@@ -173,7 +173,7 @@ impl Hamiltonian {
         let     psi_p = Array1::<c64>::zeros(nbasis);
         let mut psi_c = psi_p.clone();
         let     psi_n = psi_p.clone();
-        let mut psi_t = Array2::<c64>::zeros((namdtime, nbasis));
+        let     psi_t = Array2::<c64>::zeros((namdtime, nbasis));
         let     pop_t = Array2::<f64>::zeros((namdtime, nbasis));
         let     psi_h = psi_p.clone();
 
@@ -186,7 +186,6 @@ impl Hamiltonian {
 
         let basisini = Self::iniband_index_convert(&basis_up, &basis_dn, inispin, iniband);
         psi_c[basisini] = c64::new(1.0, 0.0);
-        psi_t.slice_mut(s![0, ..]).assign(&psi_c);
 
         let bup = [basis_up[0] - nac.brange[0], basis_up[1] - nac.brange[0]];
         let bdn = [basis_dn[0] - nac.brange[0], basis_dn[1] - nac.brange[0]];
@@ -280,10 +279,6 @@ impl Hamiltonian {
     pub fn propagate(&mut self, iion: usize, method: PropagateMethod) {
         let (rtime, _xtime) = self.get_rtime_xtime(iion);
 
-        self.pop_t.slice_mut(s![iion, ..]).assign(&self.psi_c.mapv(|v| v.norm_sqr()));
-        self.psi_t.slice_mut(s![iion, ..]).assign(&self.psi_c);
-        self.prop_eigs[iion] = (self.pop_t.slice(s![iion, ..]).to_owned() * self.eig_t.slice(s![rtime, ..])).sum();
-
         match method {
             PropagateMethod::FiniteDifference => self.propagate_finite_difference(iion),
             PropagateMethod::Exact            => self.propagate_exact(iion),
@@ -293,6 +288,10 @@ impl Hamiltonian {
 
         let norm = self.psi_c.mapv(|x| x.norm_sqr()).sum();
         assert!( (norm - 1.0).abs() < 1E-3 , "Propagation failed, norm not conserved: norm = {}", norm);
+
+        self.pop_t.slice_mut(s![iion, ..]).assign(&self.psi_c.mapv(|v| v.norm_sqr()));
+        self.psi_t.slice_mut(s![iion, ..]).assign(&self.psi_c);
+        self.prop_eigs[iion] = (self.pop_t.slice(s![iion, ..]).to_owned() * self.eig_t.slice(s![rtime, ..])).sum();
     }
 
 

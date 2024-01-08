@@ -159,7 +159,13 @@ impl Nac {
     pub fn from_inp(inp: &Input) -> Result<Self> {
         if inp.nacfname.is_file() {
             info!("Found pre-calculated NAC available in {:?}, reading NAC from it ...", inp.nacfname);
-            return Self::from_h5(&inp.nacfname);
+            let nac = Self::from_h5(&inp.nacfname)?;
+            assert_eq!(inp.ikpoint, nac.ikpoint + 1);
+            assert_eq!(inp.brange, nac.brange);
+            assert_eq!(inp.nsw, nac.nsw);
+            assert_eq!(inp.dt, nac.dt);
+            assert_eq!(inp.lreal, nac.lreal);
+            return Ok(nac);
         }
 
         info!("No pre-calculated NAC available, start calculating from scratch in {:?}/.../WAVECARs ...", inp.rundir);
