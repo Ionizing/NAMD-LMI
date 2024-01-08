@@ -2,6 +2,7 @@
 
 from random import randint
 import tomllib
+import datetime
 
 
 class Input:
@@ -14,18 +15,22 @@ class Input:
 
 
 def gen_rand(xmin, xmax, n: int):
-    return sorted([randint(xmin, xmax) for _ in range(n)])
+    myset = set()
+    while len(myset) < n:
+        myset.add(randint(xmin, xmax))
+    return list(myset)
 
 
 def append_to_file(fname: str, iniband, inispin, inistep):
     assert (len(iniband) == len(inispin)) and (len(inispin) == len(inistep))
-
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    header  = "\n\n## Appended by inibands.py @ {}\n".format(now)
     bandstr = "inibands  = [" + ",".join(map(lambda x: "{:6d}".format(x), iniband)) + "]\n"
     spinstr = "inispins  = [" + ",".join(map(lambda x: "{:6d}".format(x), inispin)) + "]\n"
     stepstr = "inisteps  = [" + ",".join(map(lambda x: "{:6d}".format(x), inistep)) + "]\n"
 
     with open(fname, "a+") as f:
-        f.writelines([bandstr, spinstr, stepstr])
+        f.writelines([header, bandstr, spinstr, stepstr])
 
 
 if '__main__' == __name__:
