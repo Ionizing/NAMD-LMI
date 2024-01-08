@@ -169,13 +169,11 @@ impl SurfaceHopping {
 
 
     fn fssh(&mut self) {
-        self.pops.fill(0.00);
-        let mut prob = Array3::<f64>::zeros((self.hamil.namdtime, self.hamil.nbasis, self.hamil.nbasis));
-
         for iion in 0 .. self.hamil.namdtime {
             self.hamil.propagate(iion, self.propmethod);
         }
 
+        let mut prob = Array3::<f64>::zeros((self.hamil.namdtime, self.hamil.nbasis, self.hamil.nbasis));
         for iion in 0 .. self.hamil.namdtime {
             for istate in 0 .. self.hamil.nbasis {
                 prob.slice_mut(s![iion, istate, ..]).assign(&self.fssh_hop_prob(iion, istate));
@@ -183,7 +181,7 @@ impl SurfaceHopping {
         }
 
         let mut rng = thread_rng();
-
+        self.pops.fill(0.00);
         for _ in 0 .. self.ntraj {
             let mut curstate = self.hamil.basisini;
             for iion in 0 .. self.hamil.namdtime {
@@ -191,7 +189,6 @@ impl SurfaceHopping {
                 let hop_dest = prob.slice(s![iion, curstate, ..])
                     .as_slice().unwrap()
                     .partition_point(|v| v < &randnum);
-                //info!("curstate = {}, hop_dest = {}, randnum = {}", curstate, hop_dest, randnum);
                 curstate = if hop_dest < self.hamil.nbasis { hop_dest } else { curstate };
                 self.pops[(iion, curstate)] += 1.0;
             }
@@ -209,69 +206,6 @@ impl SurfaceHopping {
     }
 
 
-    // Pjk <==> probability: j hop to k
-    // Pjk = max(0, -2( Im(rhojk Hjk)/hbar ) / rhojj)
-    #[allow(non_snake_case)]
-    fn fssh_prob(&self, iion: usize) -> Array2<f64> {
-        let dt  = self.hamil.dt;
-        let T   = self.hamil.temperature;
-        let psi = self.hamil.psi_t.slice(s![iion, ..]);
-        let Hjk = self.hamil.ham_t.slice(s![iion, .., ..]);
-
-        let row = nl::into_row(psi.to_owned());
-        let mut rho_jk = row.t().mapv(|x| x.conj()).dot(&row);
-        let rho_diag   = rho_jk.diag().mapv(|x| x.re);          // convert c64 to f64
-        rho_jk.diag_mut().fill(c64::new(0.0, 0.0));
-        let rho_jk = rho_jk;                                    // cancel mutability
-
-        let nbasis  = self.hamil.nbasis;
-        let mut Pjk = Array2::<f64>::zeros((nbasis, nbasis));
-
-        for j in 0 .. nbasis {
-            let rho_jj = rho_diag[j];
-            for k in j+1 .. nbasis {
-                Pjk[(j,k)] = -2.0 / HBAR * dt * (rho_jk[(j,k)] * Hjk[(j,k)]).im / rho_jj;
-                Pjk[(k,j)] = - Pjk[(j,k)];
-            }
-        }
-
-        Pjk.mapv_inplace(|x| f64::max(x, 0.0));
-
-
-        // Boltzmann factor
-        let Ejj = Hjk.diag().mapv(|v| v.re);
-        for j in 0 .. nbasis {
-            let Ej = Ejj[j];
-            for k in j+1 .. nbasis {
-                let Ejk = Ej - Ejj[k];
-                let B = f64::exp(-f64::abs(Ejk) / (BOLKEV * T));
-
-                if Ejk > 0.0 {
-                    // Ej > Ek, j can hop to k, does nothing for Pjk
-                    Pjk[(k,j)] *= B;
-                } else {
-                    Pjk[(j,k)] *= B;
-                    // Ej < Ek, k can hop to j, does nothing for Pkj
-                }
-            }
-        }
-
-
-        // Perform cumsum
-        for mut row in Pjk.rows_mut() {
-            let cumsum = row.iter()
-                .scan(0.0, |acc, x| {
-                    *acc += x;
-                    Some(*acc)
-                })
-                .collect::<Array1<_>>();
-            row.assign(&cumsum);
-        }
-
-        Pjk
-    }
-
-
     fn fssh_hop_prob(&self, iion: usize, istate: usize) -> Array1<f64> {
         let rtime: usize = (iion + self.hamil.namdinit) % (self.hamil.nsw - 1);
 
@@ -280,8 +214,8 @@ impl SurfaceHopping {
         // phi(j).conj() * phi(k)
         let rho_jk   = self.hamil.psi_t[(iion, istate)].conj() * self.hamil.psi_t.slice(s![iion, ..]).to_owned();
         // \max[\frac{2*\int_t^{t+\Delta t} Re(\rho_{jk}*H_{jk} / -ihbar) dt}{\rho_{jj}}, 0]
-        let mut prob = (IMGUNIT * rho_jk * self.hamil.ham_t.slice(s![iion, istate, ..]) * (2.0 * self.hamil.dt / (HBAR * rho_jj)))
-            .mapv(|v| if v.re > 0.0 { v.re } else { 0.0 });
+        let mut prob = (- rho_jk * self.hamil.ham_t.slice(s![iion, istate, ..]) * (2.0 * self.hamil.dt / (HBAR * rho_jj)))
+            .mapv(|v| if v.im > 0.0 { v.im } else { 0.0 });
 
         // determine if the electric field is still present
         let has_efield = self.hamil.efield.as_ref()
