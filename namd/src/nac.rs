@@ -40,7 +40,7 @@ use shared::{
 };
 
 #[cfg(not(test))]
-use shared::{info, warn};
+use shared::info;
 #[cfg(test)]
 use std::{println as info, println as warn};
 
