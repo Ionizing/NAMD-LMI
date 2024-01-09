@@ -70,6 +70,8 @@ impl Efield {
         let engine = Engine::new();
         let mut scope = Scope::new();
         scope.push_constant("hbar", 0.6582119569);
+        scope.push_constant("pi", std::f64::consts::PI);
+        scope.push_constant("e", std::f64::consts::E);
 
         let mut f = |t: f64| {
             let ret = engine.call_fn::<Dynamic>(&mut scope, &self.ast, "efield", (t,))

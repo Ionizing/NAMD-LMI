@@ -19,7 +19,7 @@ pub trait OptProcess {
           version,
           propagate_version = true,
           about = Version::new().to_string(),
-          long_about= format!("{:#}", Version::new()) )]
+          long_about = format!("{:#}", Version::new()))]
 pub enum Command {
     Run(run::Run),
 }

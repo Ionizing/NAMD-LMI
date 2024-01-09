@@ -6,13 +6,11 @@ use std::fmt;
 
 use shared::{
     ndarray::s,
-    ndarray_linalg as nl,
     Result,
     Array1,
     Array2,
     Array3,
     info,
-    c64,
 };
 use hdf5::File as H5File;
 use rand::{thread_rng, Rng};
@@ -24,7 +22,6 @@ use crate::{
         PropagateMethod,
     },
     constants::{
-        IMGUNIT,
         HBAR,
         BOLKEV,
         EPS,

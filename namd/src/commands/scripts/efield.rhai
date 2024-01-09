@@ -25,8 +25,8 @@
 //
 // Pre-defined constants:
 //
-//      - E: natural constant e
-//      - PI: π
+//      - e: Euler's number, aka the base of natural logarithms
+//      - pi: π
 //
 // Pre-defined mathematical functions:
 //
