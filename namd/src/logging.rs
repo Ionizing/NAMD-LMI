@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::io::IsTerminal;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
@@ -36,16 +37,21 @@ fn gen_logger_config(path: Option<impl AsRef<Path>>) -> Result<Config> {
     const ENCODE_STR: &'static str = "{d(%Y-%m-%d %H:%M:%S)} [{h({l:>5})}] {m}{n}";
 
     let level = LevelFilter::Info;
+    let isatty = std::io::stderr().is_terminal();
 
     let stderr = ConsoleAppender::builder()
         .encoder(Box::new(PatternEncoder::new(ENCODE_STR)))
         .target(Target::Stderr)
         .build();
 
-    let global_log = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new(ENCODE_STR)))
-        .build("./globalrun.log")
-        .unwrap();
+    let global_log = if isatty {
+        Some(FileAppender::builder()
+             .encoder(Box::new(PatternEncoder::new(ENCODE_STR)))
+             .build("./globalrun.log")
+             .unwrap())
+    } else {
+        None
+    };
 
     let logfile = path.map(|p| p.as_ref().join("run.log"))
         .map(|file_path| {
@@ -55,29 +61,51 @@ fn gen_logger_config(path: Option<impl AsRef<Path>>) -> Result<Config> {
                 .unwrap()
         });
 
-    let config = if let Some(logfile) = logfile {
-        Config::builder()
-            .appender(Appender::builder().build("stderr", Box::new(stderr)))
-            .appender(Appender::builder().build("global_log", Box::new(global_log)))
-            .appender(Appender::builder().build("logfile", Box::new(logfile)))
-            .build(
-                Root::builder()
-                    .appender("stderr")
-                    .appender("global_log")
-                    .appender("logfile")
-                    .build(level)
-            )?
+
+    // generate root for config.build()
+    let root = Root::builder().appender("stderr");
+    let root = if isatty { root.appender("global_log") } else { root };
+    let root = if logfile.is_some() { root.appender("logfile") } else { root };
+    let root = root.build(level);
+
+    let builder = Config::builder().appender(Appender::builder().build("stderr", Box::new(stderr)));
+    let builder = if let Some(global_log) = global_log {
+        builder.appender(Appender::builder().build("global_log", Box::new(global_log)))
     } else {
-        Config::builder()
-            .appender(Appender::builder().build("stderr", Box::new(stderr)))
-            .appender(Appender::builder().build("global_log", Box::new(global_log)))
-            .build(
-                Root::builder()
-                    .appender("stderr")
-                    .appender("global_log")
-                    .build(level)
-            )?
+        builder
     };
+    let builder = if let Some(logfile) = logfile {
+        builder.appender(Appender::builder().build("logfile", Box::new(logfile)))
+    } else {
+        builder
+    };
+
+    let config = builder.build(root)?;
+
+
+    //let config = if let Some(logfile) = logfile {
+        //Config::builder()
+            //.appender(Appender::builder().build("stderr", Box::new(stderr)))
+            //.appender(Appender::builder().build("global_log", Box::new(global_log)))
+            //.appender(Appender::builder().build("logfile", Box::new(logfile)))
+            //.build(
+                //Root::builder()
+                    //.appender("stderr")
+                    //.appender("global_log")
+                    //.appender("logfile")
+                    //.build(level)
+            //)?
+    //} else {
+        //Config::builder()
+            //.appender(Appender::builder().build("stderr", Box::new(stderr)))
+            //.appender(Appender::builder().build("global_log", Box::new(global_log)))
+            //.build(
+                //Root::builder()
+                    //.appender("stderr")
+                    //.appender("global_log")
+                    //.build(level)
+            //)?
+    //};
 
     return Ok(config);
 }

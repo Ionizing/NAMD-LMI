@@ -199,29 +199,12 @@ class Results():
     def __init__(self, inp: Input, hamilfname: str="HAMIL.h5"):
         hamil = Hamiltonian(hamilfname)
 
-        fmt = 'result_{:0' + str(inp.ndigit) + '}.h5'
-        fnames = [ fmt.format(idx) for idx in inp.inisteps ]
-
-        prop_energy = []
-        sh_energy   = []
-        psi_t       = []
-        shpops      = []
-        # time        = None
-
-        for fname in fnames:
-            with h5py.File(fname) as f:
-                prop_energy.append(f['/prop_energy'][()])
-                sh_energy.append(f['/sh_energy'][()])
-                shpops.append(f['/shpops'][()])
-                psi_t.append(np.abs(f['/psi_t_r'][()] + 1j * f['/psi_t_i'][()]) ** 2)
-                time = f['/time'][()]
-                pass
-            pass
-
-        prop_energy = np.mean(prop_energy, axis=0)
-        sh_energy   = np.mean(sh_energy,   axis=0)
-        psi_t       = np.mean(psi_t,       axis=0)
-        shpops      = np.mean(shpops,      axis=0)
+        f = h5py.File("results_avg.h5")
+        prop_energy = f['prop_energy'][()]
+        sh_energy   = f['sh_energy'][()]
+        psi_t       = f['psi_t'][()]
+        shpops      = f['shpops'][()]
+        time        = f['time'][()]
 
         self.prop_energy = prop_energy
         self.sh_energy   = sh_energy

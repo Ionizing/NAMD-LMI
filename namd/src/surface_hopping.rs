@@ -55,6 +55,7 @@ pub struct SurfaceHopping {
     pub propmethod:  PropagateMethod,
     pub ntraj:       usize,
     pub lexcitation: bool,
+    pub ldbg_hamil_t: bool,
     pub hamil:       Hamiltonian,
     pub outdir:      PathBuf,
 
@@ -70,7 +71,7 @@ impl SurfaceHopping {
         hamil: Hamiltonian,
         inp:   &Input,
     ) -> Self {
-        Self::init_with_hamiltonian(
+        let mut sh = Self::init_with_hamiltonian(
             hamil,
             inp.propmethod,
             inp.shmethod,
@@ -78,7 +79,9 @@ impl SurfaceHopping {
             inp.ntraj,
             inp.lexcitation,
             inp.outdir.to_owned()
-        )
+        );
+        sh.ldbg_hamil_t = inp.ldbg_hamil_t;
+        sh
     }
 
 
@@ -103,6 +106,7 @@ impl SurfaceHopping {
             propmethod,
             ntraj,
             lexcitation,
+            ldbg_hamil_t: false,
             hamil,
             outdir,
 
@@ -151,12 +155,10 @@ impl SurfaceHopping {
             f.new_dataset_builder().with_data(&self.recomb).create("dish_recomb")?;
         }
 
-        {
-            info!("DEBUG: Writing hamil_t");
+        if self.ldbg_hamil_t {
             f.new_dataset_builder().with_data(&self.hamil.ham_t.mapv(|v| v.re)).create("ham_t_r")?;
             f.new_dataset_builder().with_data(&self.hamil.ham_t.mapv(|v| v.im)).create("ham_t_i")?;
 
-            info!("DEBUG: Writing lmi_t");
             f.new_dataset_builder().with_data(&self.hamil.lmi_t.mapv(|v| v.re)).create("lmi_t_r")?;
             f.new_dataset_builder().with_data(&self.hamil.lmi_t.mapv(|v| v.im)).create("lmi_t_i")?;
         }

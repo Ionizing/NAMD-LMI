@@ -105,7 +105,6 @@ impl Hamiltonian {
             inp.nelm,
             inp.temperature,
             inp.scissor,
-            //inp.lcycle,
         )
     }
 
@@ -122,7 +121,6 @@ impl Hamiltonian {
         nelm:          usize,
         temperature:   f64,
         scissor:       Option<f64>,
-        //efield_lcycle: bool,
         ) -> Self {
         
         assert!(namdtime > 1,        "!!!!!\nnamdtime should be greater than 1.\n!!!!!");
@@ -225,9 +223,18 @@ impl Hamiltonian {
             let vbm = cbm - 1;
             let gap = eigs_avg[cbm] -  eigs_avg[vbm];
 
-            info!("Applying scissor operator, setting gap from {:8.4} to {:8.4} eV ...", gap, scissor);
+            let gaps = eig_t.slice(s![.., cbm]).to_owned() - eig_t.slice(s![.., vbm]);
+            let gap_min = gaps.iter().min_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+            let gap_max = gaps.iter().max_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+
             let shift = scissor - gap;
+            let newgap_min = gap_min + shift;
+            let newgap_max = gap_max + shift;
             eig_t.slice_mut(s![.., cbm ..]).mapv_inplace(|x| x + shift);
+            info!("Found scissor opeartor of {scissor:.4} eV. current system has gap of \
+                  {gap_min:.4} .. {gap:.4} .. {gap_max:.4} (min .. avg .. max) (eV).
+                            Now the gap is set to {newgap_min:.4} .. {scissor:.4} .. {newgap_max:.4} \
+                            (min .. avg .. max) (eV).");
         }
 
         // initial auxiliary vars
