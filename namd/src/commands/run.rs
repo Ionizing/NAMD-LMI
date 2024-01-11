@@ -56,6 +56,13 @@ impl OptProcess for Run {
         info!("\n{:#}", Version::new());
         input.print_to_log();
 
+        info!("Copying & linking essential files for post-processing ...");
+        copy_file_to(&self.input, &input.outdir)?;
+        if let Some(efield) = input.efield.as_ref() {
+            copy_file_to(&efield.0, &input.outdir)?;
+        }
+        link_file_to(&input.nacfname, &input.outdir)?;
+
         let nac = Nac::from_inp(&input)?;
         let ninibands = input.inibands.len();
 
@@ -82,13 +89,6 @@ impl OptProcess for Run {
 
                 info!("Time used for {}(th/st) inicon: {:?}", iniband_idx + 1, now.elapsed());
             });
-
-        info!("Copying & linking essential files for post-processing ...");
-        copy_file_to(&self.input, &input.outdir)?;
-        if let Some(efield) = input.efield.as_ref() {
-            copy_file_to(&efield.0, &input.outdir)?;
-        }
-        link_file_to(&input.nacfname, &input.outdir)?;
 
         if self.write_scripts {
             info!("Writing post-processing Python scripts to result folder ...");
