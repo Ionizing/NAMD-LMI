@@ -87,6 +87,7 @@ pub struct Hamiltonian {
     delta_pij:         Array3<c64>,     // [3, nbasis, nbasis]
     pub lmi_t:         Array3<c64>,     // [namdtime, nbasis, nbasis]
     pub ham_t:         Array3<c64>,     // [namdtime, nbasis, nbasis]
+    pub lvl_t:         Array2<f64>,     // [namdtime, nbasis]
 }
 
 
@@ -243,6 +244,7 @@ impl Hamiltonian {
         let delta_pij    = Array3::<c64>::zeros((3, nbasis, nbasis));
         let lmi_t        = Array3::<c64>::zeros((namdtime, nbasis, nbasis));
         let ham_t        = Array3::<c64>::zeros((namdtime, nbasis, nbasis));
+        let lvl_t        = Array2::<f64>::zeros((namdtime, nbasis));
 
         Self {
             basis_up,
@@ -279,6 +281,7 @@ impl Hamiltonian {
             delta_pij,
             lmi_t,
             ham_t,
+            lvl_t
         }
     }
 
@@ -448,10 +451,13 @@ impl Hamiltonian {
 
         // dagonal part: eigenvalue of ks orbits, in eV
         // rustc refuses to compile `struct.method() = somethingelse;`
-        self.hamil.diag_mut().assign(&(
-            self.eig_t.slice(s![rtime, ..]).mapv(|v| c64::new(v, 0.0)) +
-            self.delta_eig.to_owned() * (iele as f64)
-            ));
+        let lvl_t = self.eig_t.slice(s![rtime, ..]).mapv(|v| c64::new(v, 0.0)) +
+            self.delta_eig.to_owned() * (iele as f64);
+        self.hamil.diag_mut().assign(&lvl_t);
+
+        if 0 == iele {
+            self.lvl_t.slice_mut(s![iion, ..]).assign(&lvl_t.mapv(|x| x.re));
+        }
     }
 
 

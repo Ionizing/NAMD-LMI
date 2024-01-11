@@ -161,6 +161,8 @@ impl SurfaceHopping {
 
             f.new_dataset_builder().with_data(&self.hamil.lmi_t.mapv(|v| v.re)).create("lmi_t_r")?;
             f.new_dataset_builder().with_data(&self.hamil.lmi_t.mapv(|v| v.im)).create("lmi_t_i")?;
+
+            f.new_dataset_builder().with_data(&self.hamil.lvl_t).create("lvl_t")?;
         }
 
         Ok(())
