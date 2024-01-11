@@ -64,7 +64,7 @@ pub struct Hamiltonian {
     pub nelm:          usize,
     pub lreal:         bool,
     pub temperature:   f64,
-    //pub efield_lcycle: bool,
+    pub luse_nac:      bool,
 
     pub psi_p:         Array1<c64>,     // [nbasis]
     pub psi_c:         Array1<c64>,     // [nbasis]
@@ -93,7 +93,7 @@ pub struct Hamiltonian {
 
 impl Hamiltonian {
     pub fn from_input(nac: &Nac, inp: &Input, inicon_idx: usize) -> Self {
-        Self::init_with_nac(
+        let mut nac = Self::init_with_nac(
             nac,
             inp.efield.clone().map(|x| x.2),
             inp.basis_up.clone(),
@@ -106,7 +106,9 @@ impl Hamiltonian {
             inp.nelm,
             inp.temperature,
             inp.scissor,
-        )
+        );
+        nac.luse_nac = inp.luse_nac;
+        nac
     }
 
     fn init_with_nac(
@@ -231,11 +233,17 @@ impl Hamiltonian {
             let shift = scissor - gap;
             let newgap_min = gap_min + shift;
             let newgap_max = gap_max + shift;
+
+            // Without the asterisk, `cbm_min` would be fucking &f64 instead of f64
+            let cbm_min: f64 = *eig_t.slice(s![.., cbm]).iter().min_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+            let vbm_max: f64 = *eig_t.slice(s![.., vbm]).iter().max_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+            let gap_t_min    = cbm_min - vbm_max + shift;
+
             eig_t.slice_mut(s![.., cbm ..]).mapv_inplace(|x| x + shift);
             info!("Found scissor opeartor of {scissor:.4} eV. current system has gap of \
                   {gap_min:.4} .. {gap:.4} .. {gap_max:.4} (min .. avg .. max) (eV).
                             Now the gap is set to {newgap_min:.4} .. {scissor:.4} .. {newgap_max:.4} \
-                            (min .. avg .. max) (eV).");
+                            (min .. avg .. max) (eV). min(CBM_t) - max(VBM_t) = {:8.4}", gap_t_min);
         }
 
         // initial auxiliary vars
@@ -259,7 +267,7 @@ impl Hamiltonian {
             nelm,
             lreal,
             temperature,
-            //efield_lcycle,
+            luse_nac: true,
 
             psi_p,
             psi_c,
@@ -420,8 +428,12 @@ impl Hamiltonian {
 
         // non-diagonal part: NAC
         // nac_t is in eV alrady
-        self.hamil = self.nac_t.slice(s![rtime, .., ..]).to_owned() +
-                     self.delta_nac.to_owned() * (iele as f64);
+        if self.luse_nac {
+            self.hamil = self.nac_t.slice(s![rtime, .., ..]).to_owned() +
+                         self.delta_nac.to_owned() * (iele as f64);
+        } else {
+            self.hamil.fill(c64::new(0.0, 0.0));
+        }
 
         //info!("LINE = {}, RTIME = {}, XTIME = {}", line!(), rtime, xtime);
 

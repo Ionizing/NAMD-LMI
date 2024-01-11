@@ -11,6 +11,7 @@ use shared::{
     ndarray::{
         Array1,
         Array2,
+        Array3,
     },
     info,
     copy_file_to,
@@ -61,9 +62,10 @@ impl OptProcess for Run {
         if let Some(efield) = input.efield.as_ref() {
             copy_file_to(&efield.0, &input.outdir)?;
         }
-        link_file_to(&input.nacfname, &input.outdir)?;
 
         let nac = Nac::from_inp(&input)?;
+        link_file_to(&input.nacfname, &input.outdir)?;
+
         let ninibands = input.inibands.len();
 
         {
@@ -137,8 +139,13 @@ fn collect_results(inp: &Input, collected_fname: &str) -> Result<()> {
         .reduce_with(|acc, e| -> Result<ResultType> {
             let acc = acc?;
             let (time1, prop_energy1, psi_t1, sh_energy1, sh_pops1) = e?;
-            Ok((time1, acc.1+prop_energy1, acc.2+psi_t1, acc.3+sh_energy1, acc.4+sh_pops1))
-        }).context("No results collected")??;
+            Ok((time1,
+                acc.1+prop_energy1,
+                acc.2+psi_t1,
+                acc.3+sh_energy1,
+                acc.4+sh_pops1))
+        })
+        .context("No results collected")??;
 
     let nresults = inp.inisteps.len() as f64;
     let (time, mut prop_energy, mut psi_t, mut sh_energy, mut shpops) = results;
@@ -154,6 +161,47 @@ fn collect_results(inp: &Input, collected_fname: &str) -> Result<()> {
     f.new_dataset_builder().with_data(&psi_t).create("psi_t")?;
     f.new_dataset_builder().with_data(&sh_energy).create("sh_energy")?;
     f.new_dataset_builder().with_data(&shpops).create("shpops")?;
+
+    if inp.ldbg_hamil_t {
+        type DebugInfoType = (Array3<f64>, Array3<f64>, Array2<f64>);
+
+        let dbg_info = inp.inisteps.par_iter()
+            .map(|i| -> Result<DebugInfoType> {
+                let fname = inp.outdir.join(&format!("result_{:0ndigit$}.h5", i));
+                let f = H5File::open(fname)?;
+
+                let ham_t_r: Array3<f64> = f.dataset("ham_t_r")?.read()?;
+                let ham_t_i: Array3<f64> = f.dataset("ham_t_i")?.read()?;
+                let ham_t = ham_t_r.mapv(|x| x*x) + ham_t_i.mapv(|x| x*x);
+
+                let lmi_t_r: Array3<f64> = f.dataset("lmi_t_r")?.read()?;
+                let lmi_t_i: Array3<f64> = f.dataset("lmi_t_i")?.read()?;
+                let lmi_t = lmi_t_r.mapv(|x| x*x) + lmi_t_i.mapv(|x| x*x);
+
+                let lvl_t: Array2<f64> = f.dataset("lvl_t")?.read()?;
+
+                return Ok((ham_t,
+                           lmi_t,
+                           lvl_t))
+            })
+            .reduce_with(|acc, e| -> Result<DebugInfoType> {
+                let acc = acc?;
+                let (ham_t, lmi_t, lvl_t) = e?;
+                Ok((acc.0 + ham_t,
+                    acc.1 + lmi_t,
+                    acc.2 + lvl_t))
+            })
+            .context("No debug info collected")??;
+
+        let (mut ham_t, mut lmi_t, mut lvl_t) = dbg_info;
+        ham_t /= nresults;
+        lmi_t /= nresults;
+        lvl_t /= nresults;
+
+        f.new_dataset_builder().with_data(&ham_t).create("ham_t")?;
+        f.new_dataset_builder().with_data(&lmi_t).create("lmi_t")?;
+        f.new_dataset_builder().with_data(&lvl_t).create("lvl_t")?;
+    }
 
     Ok(())
 }

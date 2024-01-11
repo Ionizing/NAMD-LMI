@@ -60,6 +60,8 @@ pub struct Input {
     pub outdir:       PathBuf,
     #[serde(default = "Input::default_ldbg_hamil_t")]
     pub ldbg_hamil_t: bool,
+    #[serde(default = "Input::default_luse_nac")]
+    pub luse_nac:     bool,
 
     pub inibands:     Vec<usize>,
     pub inispins:     Vec<usize>,
@@ -153,6 +155,11 @@ impl Input {
     }
 
 
+    fn default_luse_nac() -> bool {
+        true
+    }
+
+
     fn create_outputdir(dir: &mut PathBuf) -> Result<()> {
         if dir.is_file() {
             bail!("The output dir {:?} exists as a regular file, please change.", dir);
@@ -231,6 +238,7 @@ impl fmt::Display for Input {
 
         writeln!(f, " {:>20} = {:?}", "outdir",       self.outdir)?;
         writeln!(f, " {:>20} = {}",   "ldbg_hamil_t", self.ldbg_hamil_t)?;
+        writeln!(f, " {:>20} = {}",   "luse_nac",     self.luse_nac)?;
         writeln!(f)?;
 
         if let Some(e) = self.efield.as_ref() {
