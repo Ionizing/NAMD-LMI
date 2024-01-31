@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+from multiprocessing import Pool
+from multiprocessing import cpu_count
+import functools
 import warnings
 import os
 
@@ -56,7 +59,19 @@ class Couplings:
         ax.set_title("Band energy")
 
         fig.tight_layout(pad=0.5)
+        print("Writing {}".format(pngfname))
         fig.savefig(pngfname, dpi=400)
+        pass
+
+
+    def plot_bands_fft(self, pngfname="total_bands_fft.png"):
+        eigs = self.data['eigs']
+        T    = np.arange(eigs.shape[0])
+
+        fig = plt.figure(figsize=(8, 6))
+        ax = fig.add_subplot()
+
+
         pass
 
 
@@ -66,9 +81,9 @@ class Hamiltonian:
         with h5py.File(fname) as f:
             for k in f:
                 self.data[k] = f[k][()]
-        
-        self.vbm = 2
-        self.cbm = 3
+
+        self.vbm = 0
+        self.cbm = 1
         warnings.warn(
                 """
                 VBM and CBM indices should be set manually, and then comment out this line.
@@ -108,6 +123,7 @@ class Hamiltonian:
 
         fig.suptitle("NA Coupling")
         fig.tight_layout(pad=0.5)
+        print("Writing {}".format(pngfname))
         fig.savefig(pngfname, dpi=400)
 
 
@@ -142,6 +158,7 @@ class Hamiltonian:
 
         fig.suptitle("Momentum matrix element")
         fig.tight_layout(pad=0.5)
+        print("Writing {}".format(pngfname))
         fig.savefig(pngfname, dpi=400)
         pass
 
@@ -152,7 +169,7 @@ class Hamiltonian:
 
         nac_t = self.data['nac_t_r'][:, vbm, cbm]
         pij_t = self.data['pij_t_r'][:, :, vbm, cbm]
-        
+
         fig, ax = plt.subplots(nrows=2, figsize=(6,6), sharex=True)
 
         ax[0].plot(nac_t)
@@ -165,8 +182,9 @@ class Hamiltonian:
         ax[1].set_title('Real part of NAC')
 
         ax[1].set_xlim(0, 1000)
-        
+
         fig.tight_layout(pad=0.5)
+        print("Writing {}".format(pngfname))
         fig.savefig(pngfname, dpi=400)
         pass
 
@@ -191,8 +209,105 @@ class Hamiltonian:
         ax.set_title("Band energy")
 
         fig.tight_layout(pad=0.5)
+        print("Writing {}".format(pngfname))
         fig.savefig(pngfname, dpi=400)
         pass
+
+
+class SingleResult():
+    def __init__(self, inp: Input, iniidx: int=0, hamilfname: str="HAMIL.h5", is_plot=False):
+        hamil = Hamiltonian(hamilfname)
+
+        fmtstr = "result_{:0" + str(inp.data['ndigit']) + "d}.h5"
+        fname = fmtstr.format(inp.data['inisteps'][iniidx])
+        self.fname = fname
+        self.pngprefix = fname[:-3]
+
+        self.suptitle = inp.data['outdir'] + '_' + self.pngprefix
+
+        f = h5py.File(fname)
+        prop_energy = f['prop_energy'][()]
+        sh_energy   = f['sh_energy'][()]
+        psi_t_r     = f['psi_t_r'][()]
+        psi_t_i     = f['psi_t_i'][()]
+        psi_t       = psi_t_r**2 + psi_t_i**2
+        shpops      = f['shpops'][()]
+        time        = f['time'][()]
+
+        self.prop_energy = prop_energy
+        self.sh_energy   = sh_energy
+        self.psi_t       = psi_t
+        self.shpops      = shpops
+        self.time        = time
+
+        namdtime                  = int(inp.data['namdtime'])
+        (_, nbasis, nions, nproj) = hamil.data['proj'][()].shape
+
+        proj_nac = hamil.data['proj']
+        eigs_nac = hamil.data['eig_t']
+
+        proj = np.zeros((namdtime, nbasis, nions, nproj))
+        eigs = np.zeros((namdtime, nbasis))
+        nsw = inp.data['nsw']
+
+        for namdinit in inp.inisteps:
+            for iion in range(namdtime):
+                idx = Results.get_rtime(iion, nsw, namdinit)
+                proj[iion, :, :, :] += proj_nac[idx, :, :, :]
+                eigs[iion, :]       += eigs_nac[idx, :]
+                pass
+
+        self.proj = proj / len(inp.inisteps)
+        self.eigs = eigs / len(inp.inisteps)
+
+        if is_plot:
+            self.plot_namd()
+        pass
+
+
+    @staticmethod
+    def get_rtime(iion: int, nsw: int, namdinit: int):
+        return (iion + namdinit) % (nsw - 2)
+
+
+    def plot_namd(self):
+        pngfname = self.pngprefix + "_namd.png"
+
+        nbasis = self.eigs.shape[1]
+        T      = np.array([self.time for _ in range(nbasis)])
+        eigs   = self.eigs
+
+        fig, axs = plt.subplots(nrows=2, figsize=(6, 8), sharex=True, sharey=True)
+
+        # psict
+        c    = self.psi_t * np.sum(self.proj, axis=(2,3))
+        kmap = axs[0].scatter(T.T, eigs, c=c, cmap='Reds', s=15, lw=0.0, rasterized=True,
+                              vmin=0, vmax=1)
+        cb = fig.colorbar(kmap, fraction=0.046, pad=0.01)
+        axs[0].plot(T[0], self.prop_energy)
+
+        # shpops
+        c    = self.shpops * np.sum(self.proj, axis=(2,3))
+        kmap = axs[1].scatter(T.T, eigs, c=c, cmap='Reds', s=15, lw=0.0, rasterized=True,
+                              vmin=0, vmax=1)
+        cb = fig.colorbar(kmap, fraction=0.046, pad=0.01)
+        axs[1].plot(T[0], self.sh_energy)
+
+        axs[0].set_title("Wavefunction Propagation")
+        axs[1].set_title("Surface Hopping (FSSH)")
+
+        axs[1].set_xlabel('Time (fs)')
+        axs[0].set_ylabel('E-Ef (eV)')
+        axs[1].set_ylabel('E-Ef (eV)')
+
+        axs[1].set_xlim(0, T.max())
+
+        fig.suptitle(self.suptitle)
+        fig.tight_layout(pad=0.5)
+        print("Writing {}".format(pngfname))
+        fig.savefig(pngfname, dpi=400)
+        pass
+    pass
 
 
 class Results():
@@ -205,6 +320,8 @@ class Results():
         psi_t       = f['psi_t'][()]
         shpops      = f['shpops'][()]
         time        = f['time'][()]
+
+        self.suptitle = inp.data['outdir']
 
         self.prop_energy = prop_energy
         self.sh_energy   = sh_energy
@@ -269,7 +386,9 @@ class Results():
 
         axs[1].set_xlim(0, T.max())
 
+        fig.suptitle(self.suptitle)
         fig.tight_layout(pad=0.5)
+        print("Writing {}".format(pngfname))
         fig.savefig(pngfname, dpi=400)
         pass
     pass
@@ -307,7 +426,9 @@ def plot_efield():
 
     axs[0].set_xlim(0, 10)
 
-    fig.savefig('efield.png', dpi=400)
+    pngfname = 'efield.png'
+    print("Writing {}".format(pngfname))
+    fig.savefig(pngfname, dpi=400)
     pass
 
 
@@ -320,7 +441,15 @@ if "__main__" == __name__:
     hamil.plot_pij()
     hamil.plot_phase()
     hamil.plot_bands()
-    ret = Results(inp)
-    ret.plot_namd()
+    Results(inp).plot_namd()
 
-    plot_efield()
+    def single_result_plot(iniidx):
+        SingleResult(inp, iniidx).plot_namd()
+
+    results = []
+    pool = Pool(processes=cpu_count())
+    for ii in range(len(inp.data['inisteps'])):
+        ret = pool.apply_async(single_result_plot, (ii, ))
+        results.append(ret)
+    for ii in range(len(results)):
+        results[ii].get()
