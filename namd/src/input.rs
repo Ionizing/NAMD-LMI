@@ -10,6 +10,7 @@ use std::fs::{
 
 use shared::{
     bail,
+    Context,
     Result,
     info,
     warn,
@@ -100,7 +101,7 @@ impl Input {
         let path = PathBuf::from(s);
         Ok(Some((
                 path.to_owned(),
-                read_to_string(&path).unwrap(),
+                read_to_string(&path).with_context(|| format!("Failed to read {:?}", &path)).unwrap(),
                 Efield::from_file(path),
                 )))
     }

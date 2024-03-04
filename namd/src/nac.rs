@@ -180,7 +180,9 @@ impl Nac {
 
         // get nspin and nbands
         let path_1  = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
-        let w1      = Wavecar::from_file(&path_1).unwrap();
+        let w1      = Wavecar::from_file(&path_1)
+            .with_context(|| format!("Failed to parse {:?} as WAVECAR.", &path_1))
+            .unwrap();
         let nspin   = w1.nspin as usize;
         let nbands  = w1.nbands as usize;
 
@@ -206,7 +208,9 @@ impl Nac {
         };
 
         let procar_1 = rundir.join(format!("{:0ndigit$}", 1)).join("PROCAR");
-        let p1      = Procar::from_file(&procar_1).unwrap();
+        let p1      = Procar::from_file(&procar_1)
+            .with_context(|| format!("Failed to parse {:?} as PROCAR.", &procar_1))
+            .unwrap();
         let nions   = p1.pdos.nions as usize;
         let nproj   = p1.pdos.projected.shape()[4];
 
@@ -268,7 +272,9 @@ impl Nac {
 
             let (c_ij, e_ij, p_ij, proj, efermi) = Self::coupling_ij(
                 phi_1s, path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs
-                ).unwrap();
+                )
+                .with_context(|| format!("Failed to calculate couplings between {:?} and {:?}.", &path_i, &path_j))
+                .unwrap();
 
             ret_c_ij.lock().unwrap()
                 .slice_mut(s![isw, .., .., ..]).assign(&c_ij);
@@ -391,7 +397,10 @@ impl Nac {
 
         // read PROCAR
         let proj = {
-            let proj_i = Procar::from_file(&path_i.join("PROCAR")).unwrap();
+            let fpath = path_i.join("PROCAR");
+            let proj_i = Procar::from_file(&fpath)
+                .with_context(|| format!("Failed to parse {:?}.", &fpath))
+                .unwrap();
             proj_i.pdos.projected.slice(s![.., ikpoint, brange.clone(), .., ..]).to_owned()
         };
 

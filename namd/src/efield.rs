@@ -12,6 +12,7 @@ use shared::{
     info,
     warn,
     MatX3,
+    Context,
     Result,
 };
 use rhai::{
@@ -39,7 +40,9 @@ impl Efield {
     pub fn from_file(fname: PathBuf) -> Self
     {
         let engine = Engine::new();
-        let ast = engine.compile_file(fname).unwrap();
+        let ast = engine.compile_file(fname.clone())
+            .with_context(|| format!("Cannot load script {:?}", fname))
+            .unwrap();
 
         Self {
             ast,
