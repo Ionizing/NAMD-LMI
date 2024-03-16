@@ -5,6 +5,7 @@ from multiprocessing import cpu_count
 import functools
 import warnings
 import os
+import sys
 
 import tomllib
 import h5py
@@ -19,7 +20,7 @@ HBAR = 0.6582119281559802
 
 
 class Input:
-    def __init__(self, fname: str="input.toml"):
+    def __init__(self, fname: str):
         with open(fname, "rb") as f:
             data = tomllib.load(f)
             self.data = data
@@ -433,7 +434,10 @@ def plot_efield():
 
 
 if "__main__" == __name__:
-    inp = Input("input.toml")
+    # inp = Input("input.toml")
+    inpfname = "input.toml" if 1 == len(sys.argv) else sys.argv[1]
+    inp = Input(inpfname)
+
     coup = Couplings(inp=inp)
     coup.plot_bands()
     hamil = Hamiltonian()
@@ -448,7 +452,8 @@ if "__main__" == __name__:
 
     results = []
     pool = Pool(processes=cpu_count())
-    for ii in range(len(inp.data['inisteps'])):
+    # for ii in range(len(inp.data['inisteps'])):
+    for ii in [0]:
         ret = pool.apply_async(single_result_plot, (ii, ))
         results.append(ret)
     for ii in range(len(results)):
