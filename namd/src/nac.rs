@@ -185,20 +185,20 @@ impl Nac {
             .unwrap();
         let nspin   = w1.nspin as usize;
         let nbands  = w1.nbands as usize;
+        let nspinor = match w1.wavecar_type {
+            WavecarType::NonCollinear => 2,
+            _ => 1usize,
+        };
+        let nplw = w1.nplws[ikpoint] as usize;
 
         let phi_1s = {
-            let nplw = w1.nplws[ikpoint] as usize;
             let mut phi = Array3::<c64>::zeros((nspin, nbrange, nplw));
-            let nspinor = match w1.wavecar_type {
-                WavecarType::NonCollinear => 2,
-                _ => 1usize,
-            };
 
             for ispin in 0 .. nspin {
                 for iband in brange.clone().into_iter() {
                     phi.slice_mut(s![ispin, iband - brange.start, ..]).assign(
-                        &w1._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw)
-                            .into_shape((nspinor * nplw,))
+                        &w1._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
+                            .into_shape((nplw,))
                             .with_context(|| format!("Wavefunction reshape failed."))?
                     );
                 }
@@ -214,9 +214,29 @@ impl Nac {
         let nions   = p1.pdos.nions as usize;
         let nproj   = p1.pdos.projected.shape()[4];
 
-        let gvecs   = arr2(&w1.generate_fft_grid_cart(ikpoint as u64)).mapv(|v| c64::new(v, 0.0));
+        let gvecs   = arr2(&w1.generate_fft_grid_cart(ikpoint as u64))
+            .rows()
+            .into_iter()
+            .map(|g| [
+                c64::new(g[0], 0.0),
+                c64::new(g[1], 0.0),
+                c64::new(g[2], 0.0),
+            ])
+            .cycle()
+            .take(nplw)
+            .flatten()
+            .collect::<Array1<c64>>()
+            .into_shape((nplw, 3))
+            .unwrap();
 
-        let (olaps, eigs, pij, proj, efermi) = Self::from_wavecars(&phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, nions, nproj, &gvecs)?;
+        let lncl = match w1.wavecar_type {
+            WavecarType::NonCollinear => true,
+            _ => false,
+        };
+
+        let (olaps, eigs, pij, proj, efermi) = Self::from_wavecars(
+            &phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, lncl, nions, nproj, &gvecs
+        )?;
 
         let ret = Self {
             ikpoint,
@@ -245,7 +265,7 @@ impl Nac {
     fn from_wavecars(
         phi_1s: &Array3<c64>,
         rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize,
-        nspin: usize, nions: usize, nproj: usize, gvecs: &Array2<c64>
+        nspin: usize, lncl: bool, nions: usize, nproj: usize, gvecs: &Array2<c64>
         ) -> Result<(Array4<c64>, Array3<f64>, Array5<c64>, Array5<f64>, f64)>
     {
         let nbrange = brange.clone().count();
@@ -259,8 +279,10 @@ impl Nac {
         let ret_p_ij = Arc::new(Mutex::new(
                 Array5::<c64>::zeros((nsw-1, nspin, 3, nbrange, nbrange))
                 ));
+
+        let nspinors = if lncl { 4 } else { nspin };
         let ret_proj = Arc::new(Mutex::new(
-                Array5::<f64>::zeros((nsw-1, nspin, nbrange, nions, nproj))
+                Array5::<f64>::zeros((nsw-1, nspinors, nbrange, nions, nproj))
                 ));
         let efermi_sum = Arc::new(Mutex::new(0.0f64));
 
@@ -309,13 +331,14 @@ impl Nac {
         let wi = Wavecar::from_file(&path_i.join("WAVECAR"))?;
         let wj = Wavecar::from_file(&path_j.join("WAVECAR"))?;
 
-        let nplw     = wi.nplws[ikpoint] as usize;
-        let nbrange  = brange.clone().count();
-        let nspin    = wi.nspin as usize;
         let nspinor  = match wi.wavecar_type {
             WavecarType::NonCollinear => 2,
             _ => 1usize,
         };
+
+        let nplw     = wi.nplws[ikpoint] as usize;
+        let nbrange  = brange.clone().count();
+        let nspin    = wi.nspin as usize;
 
         assert_eq!(nplw, gvecs.shape()[0]);
 
@@ -332,13 +355,13 @@ impl Nac {
         for ispin in 0 .. nspin {
             for iband in brange.clone().into_iter() {
                 phi_i.slice_mut(s![iband - brange.start, ..]).assign(
-                    &wi._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw)
-                        .into_shape((nspinor * nplw,))
+                    &wi._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
+                        .into_shape((nplw,))
                         .with_context(|| format!("Wavefunction reshape failed."))?
                 );
                 phi_j.slice_mut(s![iband - brange.start, ..]).assign(
-                    &wj._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw)
-                        .into_shape((nspinor * nplw,))
+                    &wj._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
+                        .into_shape((nplw,))
                         .with_context(|| format!("Wavefunction reshape failed."))?
                 );
             }
@@ -456,7 +479,8 @@ mod tests {
         let phi_1s  = Array3::<c64>::zeros((1, nbrange, nplw));
 
         let now = Instant::now();
-        let (_c_ij, _e_ij, _p_ij, _proj, efermi) = Nac::from_wavecars(&phi_1s, &rundir, nsw, ikpoint, brange, ndigit, 1, nions, nproj, &gvecs).unwrap();
+        let (_c_ij, _e_ij, _p_ij, _proj, efermi) = Nac::from_wavecars(&phi_1s, &rundir, nsw, ikpoint, brange, ndigit,
+            1, false, nions, nproj, &gvecs).unwrap();
         println!("efermi = {}, time used: {:?}", efermi, now.elapsed());
     }
 

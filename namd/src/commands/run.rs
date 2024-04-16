@@ -1,3 +1,4 @@
+use std::thread;
 use std::time::Instant;
 
 use clap::Args;
@@ -68,18 +69,24 @@ impl OptProcess for Run {
 
         let ninibands = input.inibands.len();
 
-        {
+        let thread_join_handle = {
             let hamil = Hamiltonian::from_input(&nac, &input, 0);
-            hamil.save_to_h5(&input.outdir.join("HAMIL.h5"))?;
+            let outdir = input.outdir.clone();
 
-            if let Some(e) = hamil.efield.as_ref() {
-                info!("Writing TDEFIELD.txt ...");
-                e.print_efield_to_file(&input.outdir.join("TDEFIELD.txt"))?;
+            thread::spawn(move || -> Result<()> {
+                hamil.save_to_h5(&outdir.join("HAMIL.h5"))?;
 
-                info!("Writing TDAFIELD.txt ...");
-                e.print_afield_to_file(&input.outdir.join("TDAFIELD.txt"))?;
-            }
-        }
+                if let Some(e) = hamil.efield.as_ref() {
+                    info!("Writing TDEFIELD.txt ...");
+                    e.print_efield_to_file(&outdir.join("TDEFIELD.txt"))?;
+
+                    info!("Writing TDAFIELD.txt ...");
+                    e.print_afield_to_file(&outdir.join("TDAFIELD.txt"))?;
+                }
+
+                Ok(())
+            })
+        };
 
         (0 .. ninibands).into_par_iter()
             .for_each(|iniband_idx| {
@@ -103,6 +110,8 @@ impl OptProcess for Run {
         info!("Collecting results to {:?} ...", input.outdir.join(collected_fname));
         collect_results(&input, collected_fname)?;
         info!("All the results are written to {:?}", input.outdir);
+
+        thread_join_handle.join().unwrap()?;
 
         Ok(())
     }
