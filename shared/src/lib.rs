@@ -121,6 +121,7 @@ where
 }
 
 
+/// Make soft link of one file to another. Absolute path will be used.
 pub fn link_file_to<P, Q>(from: P, to: Q) -> Result<()>
 where
     P: AsRef<Path>,
@@ -140,6 +141,23 @@ where
     std::os::unix::fs::symlink(from, &target)?;
 
     Ok(())
+}
+
+
+/// Return the indices that sort the input array. Only supports one dimension array `&[T]`.
+pub fn argsort<T: Ord>(data: &[T]) -> Vec<usize> {
+    let mut indices = (0 .. data.len()).collect::<Vec<_>>();
+    indices.sort_unstable_by_key(|&i| &data[i]);
+    indices
+}
+
+
+/// Return the indices that sort the input array, in which the element doesn't have Ord.
+/// Only supports one dimension array `&[T]`.
+pub fn argsort_float<T: PartialOrd>(data: &[T]) -> Vec<usize> {
+    let mut indices = (0 .. data.len()).collect::<Vec<_>>();
+    indices.sort_unstable_by(|&a, &b| data[a].partial_cmp(&data[b]).unwrap());
+    indices
 }
 
 
