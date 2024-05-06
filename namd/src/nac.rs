@@ -73,7 +73,29 @@ pub struct Nac {
 
     // projections in PROCAR
     pub proj:    Array5<f64>,   // istep ispin, iband, iion, iorbit
+    pub order:   Array3<usize>,
 }
+
+
+struct CoupIjRet {
+    c_ij: Array3<c64>,
+    e_ij: Array2<f64>,
+    p_ij: Array4<c64>,
+    proj: Array4<f64>,
+    efermi: f64,
+    order: Array2<usize>,
+}
+
+
+struct CoupTotRet {
+    olaps: Array4<c64>,
+    eigs: Array3<f64>,
+    pij: Array5<c64>,
+    proj: Array5<f64>,
+    efermi: f64,
+    order: Array3<usize>,
+}
+
 
 impl Nac {
     pub fn from_h5<P>(fname: P) -> Result<Self>
@@ -107,6 +129,7 @@ impl Nac {
         };
 
         let proj: Array5<f64> = f.dataset("proj")?.read()?;
+        let order: Array3<usize> = f.dataset("order")?.read()?;
 
         Ok(Self {
             ikpoint,
@@ -122,6 +145,7 @@ impl Nac {
             eigs,
             pij,
             proj,
+            order,
         })
     }
 
@@ -151,6 +175,7 @@ impl Nac {
         f.new_dataset_builder().with_data(&self.pij.mapv(|v| v.im)).create("pij_i")?;
 
         f.new_dataset_builder().with_data(&self.proj).create("proj")?;
+        f.new_dataset_builder().with_data(&self.order).create("order")?;
 
         Ok(())
     }
@@ -234,7 +259,7 @@ impl Nac {
             _ => false,
         };
 
-        let (olaps, eigs, pij, proj, efermi) = Self::from_wavecars(
+        let CoupTotRet {olaps, eigs, pij, proj, efermi, order} = Self::from_wavecars(
             &phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, lncl, nions, nproj, &gvecs
         )?;
 
@@ -254,6 +279,7 @@ impl Nac {
             pij,
 
             proj,
+            order,
         };
 
         ret.save_to_h5(&inp.nacfname)?;
@@ -266,7 +292,7 @@ impl Nac {
         phi_1s: &Array3<c64>,
         rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize,
         nspin: usize, lncl: bool, nions: usize, nproj: usize, gvecs: &Array2<c64>
-        ) -> Result<(Array4<c64>, Array3<f64>, Array5<c64>, Array5<f64>, f64)>
+        ) -> Result<CoupTotRet>
     {
         let nbrange = brange.clone().count();
 
@@ -286,13 +312,17 @@ impl Nac {
                 ));
         let efermi_sum = Arc::new(Mutex::new(0.0f64));
 
+        let ret_order = Arc::new(Mutex::new(
+                Array3::<usize>::zeros((nsw-1, nspin, nbrange))
+                ));
+
         (0 .. nsw-1).into_par_iter().for_each(|isw| {
             let path_i = rundir.join(format!("{:0ndigit$}", isw + 1));
             let path_j = rundir.join(format!("{:0ndigit$}", isw + 2));
 
             info!(" Calculating couplings between {:?} and {:?} ...", &path_i, &path_j);
 
-            let (c_ij, e_ij, p_ij, proj, efermi) = Self::coupling_ij(
+            let CoupIjRet {c_ij, e_ij, p_ij, proj, efermi, order} = Self::coupling_ij(
                 phi_1s, path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs
                 )
                 .with_context(|| format!("Failed to calculate couplings between {:?} and {:?}.", &path_i, &path_j))
@@ -312,21 +342,25 @@ impl Nac {
 
             let mut sum = efermi_sum.lock().unwrap();
             *sum += efermi;
+
+            ret_order.lock().unwrap()
+                .slice_mut(s![isw, .., ..]).assign(&order);
         });
 
-        Ok((
-            Arc::try_unwrap(ret_c_ij).unwrap().into_inner()?,
-            Arc::try_unwrap(ret_e_ij).unwrap().into_inner()?,
-            Arc::try_unwrap(ret_p_ij).unwrap().into_inner()?,
-            Arc::try_unwrap(ret_proj).unwrap().into_inner()?,
-            Arc::try_unwrap(efermi_sum).unwrap().into_inner()? / (nsw - 1) as f64,
-                ))
+        Ok( CoupTotRet {
+            olaps: Arc::try_unwrap(ret_c_ij).unwrap().into_inner()?,
+            eigs: Arc::try_unwrap(ret_e_ij).unwrap().into_inner()?,
+            pij: Arc::try_unwrap(ret_p_ij).unwrap().into_inner()?,
+            proj: Arc::try_unwrap(ret_proj).unwrap().into_inner()?,
+            efermi: Arc::try_unwrap(efermi_sum).unwrap().into_inner()? / (nsw - 1) as f64,
+            order: Arc::try_unwrap(ret_order).unwrap().into_inner()?,
+        })
 
     }
 
 
     fn coupling_ij(phi_1s: &Array3<c64>, path_i: &Path, path_j: &Path, ikpoint: usize, brange: Range<usize>, gvecs: &Array2<c64>)
-        -> Result<(Array3<c64>, Array2<f64>, Array4<c64>, Array4<f64>, f64)>
+        -> Result<CoupIjRet>
     {
         let wi = Wavecar::from_file(&path_i.join("WAVECAR"))?;
         let wj = Wavecar::from_file(&path_j.join("WAVECAR"))?;
@@ -352,6 +386,8 @@ impl Nac {
         let mut phase_i = Array1::<c64>::zeros(nbrange);
         let mut phase_j = phase_i.clone();
 
+        let mut order = Array2::<usize>::zeros((nspin, nbrange));
+
         for ispin in 0 .. nspin {
             for iband in brange.clone().into_iter() {
                 phi_i.slice_mut(s![iband - brange.start, ..]).assign(
@@ -374,10 +410,10 @@ impl Nac {
             // solve it
             //     use pathfinding::kuhn_munkres::kuhn_munkres (or hungarian algorithm)
 
-            //// Reordering i, u1i = <phi_1 | phi_i>
-            //let order_i = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_i);
-            //// Reordering j
-            //let order_j = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_j);
+            // Reordering j, u1i = <phi_1 | phi_j>, the order of first step must be ordered,
+            // i.e. (0, 1, ...), so we only store the order of j-th step.
+            let order_j: Array1<usize> = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_j).into();
+            order.slice_mut(s![ispin, ..]).assign(&order_j);
 
             //info!("path = {:?}, order_i = {:?}", path_i, order_i);
             //info!("path = {:?}, order_j = {:?}", path_j, order_j);
@@ -432,11 +468,18 @@ impl Nac {
               wj.band_eigs.slice(s![.., ikpoint, brange.clone()]) ) / 2.0
         ));
 
-        Ok((c_ij, e_ij, p_ij, proj, wi.efermi))
+        Ok( CoupIjRet{
+            c_ij,
+            e_ij, 
+            p_ij, 
+            proj,
+            efermi: wi.efermi,
+            order
+        })
     }
 
 
-    fn _find_order<R1, R2>(phi_i: &ArrayBase<R1, Ix2>, phi_j: &ArrayBase<R2, Ix2>) -> Vec<usize>
+    fn find_order<R1, R2>(phi_i: &ArrayBase<R1, Ix2>, phi_j: &ArrayBase<R2, Ix2>) -> Vec<usize>
     where
         R1: Data<Elem = c64>,
         R2: Data<Elem = c64>,
