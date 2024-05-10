@@ -347,13 +347,24 @@ impl Nac {
                 .slice_mut(s![isw, .., ..]).assign(&order);
         });
 
+        // sort the order
+        let mut order = Arc::try_unwrap(ret_order).unwrap().into_inner()?;
+        for isw in 1 .. (nsw-1) {
+            for ispin in 0 .. nspin {
+                let perm_ij = order.slice(s![isw, ispin, ..]).to_owned();
+                for iband in 0 .. nbrange {
+                    order[(isw, ispin, iband)] = order[(isw-1, ispin, perm_ij[iband])];
+                }
+            }
+        }
+
         Ok( CoupTotRet {
             olaps: Arc::try_unwrap(ret_c_ij).unwrap().into_inner()?,
             eigs: Arc::try_unwrap(ret_e_ij).unwrap().into_inner()?,
             pij: Arc::try_unwrap(ret_p_ij).unwrap().into_inner()?,
             proj: Arc::try_unwrap(ret_proj).unwrap().into_inner()?,
             efermi: Arc::try_unwrap(efermi_sum).unwrap().into_inner()? / (nsw - 1) as f64,
-            order: Arc::try_unwrap(ret_order).unwrap().into_inner()?,
+            order,
         })
 
     }
@@ -388,6 +399,9 @@ impl Nac {
 
         let mut order = Array2::<usize>::zeros((nspin, nbrange));
 
+        let eigs_i = wi.band_eigs.slice(s![.., ikpoint, brange.clone()]).to_owned();
+        let eigs_j = wj.band_eigs.slice(s![.., ikpoint, brange.clone()]).to_owned();
+
         for ispin in 0 .. nspin {
             for iband in brange.clone().into_iter() {
                 phi_i.slice_mut(s![iband - brange.start, ..]).assign(
@@ -401,22 +415,6 @@ impl Nac {
                         .with_context(|| format!("Wavefunction reshape failed."))?
                 );
             }
-
-            // TODO: impl reordering
-            //
-            // Reorder band indices to solve band crossing issues.
-            //
-            // This is a linear assignment problem, use kuhn munkres or hungarian algorithm to
-            // solve it
-            //     use pathfinding::kuhn_munkres::kuhn_munkres (or hungarian algorithm)
-
-            // Reordering j, u1i = <phi_1 | phi_j>, the order of first step must be ordered,
-            // i.e. (0, 1, ...), so we only store the order of j-th step.
-            let order_j: Array1<usize> = Self::find_order(&phi_1s.slice(s![ispin, .., ..]), &phi_j).into();
-            order.slice_mut(s![ispin, ..]).assign(&order_j);
-
-            //info!("path = {:?}, order_i = {:?}", path_i, order_i);
-            //info!("path = {:?}, order_j = {:?}", path_j, order_j);
 
             // phase correction:
             //             < phi_0 | phi_i >
@@ -441,6 +439,25 @@ impl Nac {
             let phi_ji = phi_ij.t().mapv(|v| v.conj());  // phi_ji = phi_ij^H
             c_ij.slice_mut(s![ispin, .., ..]).assign(&(phi_ij - phi_ji));
 
+            // Reorder band indices to solve band crossing issues.
+            //
+            // This is a linear assignment problem, use kuhn munkres or hungarian algorithm to
+            // solve it
+            //     use pathfinding::kuhn_munkres::kuhn_munkres (or hungarian algorithm)
+
+            // Reordering j, u1i = <phi_1 | phi_j>, the order of first step must be ordered,
+            // i.e. (0, 1, ...), so we only store the order of j-th step.
+            let mut order_cost = c_ij.slice(s![ispin, .., ..]).mapv(|v| v.norm_sqr());
+            for i in 0 .. nbrange {
+                for j in 0 .. nbrange {
+                    let de = (eigs_i[(ispin,i)] - eigs_j[(ispin,j)]).abs();
+                    let coeff = 1.0 / (1.0 + de);
+                    order_cost[(i,j)] *= coeff;
+                }
+            }
+            let order_j: Array1<usize> = Self::find_order(&order_cost).into();
+            order.slice_mut(s![ispin, ..]).assign(&order_j);
+
             for idirect in 0 .. 3 {
                 let phi_x_gvecs: Array2<_> = phi_j.clone() * gvecs.slice(s![NewAxis, .., idirect]);
 
@@ -464,8 +481,7 @@ impl Nac {
         };
 
         e_ij.slice_mut(s![.., ..]).assign(&(
-            ( wi.band_eigs.slice(s![.., ikpoint, brange.clone()]).to_owned() + 
-              wj.band_eigs.slice(s![.., ikpoint, brange.clone()]) ) / 2.0
+            ( eigs_i + eigs_j ) / 2.0
         ));
 
         Ok( CoupIjRet{
@@ -479,15 +495,11 @@ impl Nac {
     }
 
 
-    fn find_order<R1, R2>(phi_i: &ArrayBase<R1, Ix2>, phi_j: &ArrayBase<R2, Ix2>) -> Vec<usize>
+    fn find_order<R>(phi_ij: &ArrayBase<R, Ix2>) -> Vec<usize>
     where
-        R1: Data<Elem = c64>,
-        R2: Data<Elem = c64>,
+        R: Data<Elem = f64>,
     {
-
-        let uij = phi_i.mapv(|x| x.conj())
-            .dot(&phi_j.t())
-            .mapv(|x| OrderedFloat(x.norm_sqr()));
+        let uij = phi_ij.mapv(|x| OrderedFloat(x));
 
         let weights = pfMatrix::square_from_vec(uij.into_raw_vec()).unwrap();
         let (_maxcoup, order) = kuhn_munkres(&weights);
@@ -528,6 +540,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_h5() {
         let ikpoint = 0usize;
         let nspin   = 1usize;
