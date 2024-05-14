@@ -1,107 +1,98 @@
-//! This module calculates the couplings involved in NAMD.
-//!
-//!
-
-use std::path::Path;
 use std::ops::Range;
-use std::sync::{
-    Arc,
-    Mutex,
-};
+use std::path::Path;
+use std::sync::{Arc, Mutex};
 
-use rayon::prelude::*;
-//use mpi::traits::*;
 use hdf5::File as H5File;
-use pathfinding::prelude::{
-    kuhn_munkres,
-    Matrix as pfMatrix
-};
-use ordered_float::OrderedFloat;
-
-use shared::{
-    Context,
-    Result,
-    c64,
-    ndarray::{
-        s,
-        arr2,
-        ArrayBase,
-        Array1,
-        Array2,
-        Array3,
-        Array4,
-        Array5,
-        NewAxis,
-        Axis,
-        Data,
-        //Dimension,
-        Ix2,
-    },
-};
+use rayon::prelude::*;
 
 #[cfg(not(test))]
-use shared::info;
+use shared::{info, warn, anyhow::ensure};
+use shared::{c64, ndarray as nd, Context, Result};
 #[cfg(test)]
-use std::{println as info, println as warn};
+use std::{println as info, println as warn, assert as ensure};
 
-use vasp_parsers::{
-    Wavecar,
-    WavecarType,
-    procar::Procar,
-};
+use vasp_parsers::{procar::Procar, Wavecar, WavecarType};
 
-use crate::input::Input;
+use crate::core::Couplings;
+use crate::core::NamdConfig;
+use crate::nac::config::NacConfig;
 
-// All the indices are counted from 1, and use closed inverval
+/// All the indices are counted from 1, and use closed inverval.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Nac {
     pub ikpoint: usize,
-    pub nspin:   usize,
-    pub nbands:  usize,
+    pub nspin: usize,
+    pub nbands: usize,
 
     /// stores `(brange[0] ..= brange[1])` where `brange[1]` is included
-    pub brange:  [usize; 2],
+    pub brange: [usize; 2],
     pub nbrange: usize,
-    pub nsw:     usize,
-    pub efermi:  f64,
-    pub dt:      f64,
-    pub lreal:   bool,
+    pub nsw: usize,
+    pub efermi: f64,
+    pub potim: f64,
 
-    pub olaps:   Array4<c64>,   // istep, ispin, iband, iband
-    pub eigs:    Array3<f64>,   // istep, ispin, iband
-    pub pij:     Array5<c64>,   // istep, ispin, ixyz, iband, iband
+    pub olaps: nd::Array4<c64>, // istep, ispin, iband, iband
+    pub eigs: nd::Array3<f64>,  // istep, ispin, iband
+    pub pij: nd::Array5<c64>,   // istep, ispin, ixyz, iband, iband
 
     // projections in PROCAR
-    pub proj:    Array5<f64>,   // istep ispin, iband, iion, iorbit
-    pub order:   Array3<usize>,
+    pub proj: nd::Array5<f64>, // istep ispin, iband, iion, iorbit
 }
-
 
 struct CoupIjRet {
-    c_ij: Array3<c64>,
-    e_ij: Array2<f64>,
-    p_ij: Array4<c64>,
-    proj: Array4<f64>,
+    c_ij: nd::Array3<c64>,
+    e_ij: nd::Array2<f64>,
+    p_ij: nd::Array4<c64>,
+    proj: nd::Array4<f64>,
     efermi: f64,
-    order: Array2<usize>,
 }
-
 
 struct CoupTotRet {
-    olaps: Array4<c64>,
-    eigs: Array3<f64>,
-    pij: Array5<c64>,
-    proj: Array5<f64>,
+    olaps: nd::Array4<c64>,
+    eigs: nd::Array3<f64>,
+    pij: nd::Array5<c64>,
+    proj: nd::Array5<f64>,
     efermi: f64,
-    order: Array3<usize>,
 }
 
+impl Couplings for Nac {
+    type TdCoupType<'a> = nd::ArrayView4<'a, c64>;
+    type TdPijType<'a>  = nd::ArrayView5<'a, c64>;
+    type TdProjType<'a> = nd::ArrayView5<'a, f64>;
+    type TdEigsType<'a> = nd::ArrayView3<'a, f64>;
 
-impl Nac {
-    pub fn from_h5<P>(fname: P) -> Result<Self>
-    where
-        P: AsRef<Path>,
-    {
+    fn get_nspin(&self) -> usize { self.nspin }
+    fn get_nbands(&self) -> usize { self.nbands }
+    fn get_ikpoint(&self) -> usize { self.ikpoint }
+    fn get_brange(&self) -> [usize; 2] { self.brange }
+    fn get_nsw(&self) -> usize { self.nsw }
+    fn get_potim(&self) -> f64 { self.potim }
+    fn get_efermi(&self) -> f64 { self.efermi }
+    fn get_tdcoup<'a>(&self) -> Self::TdCoupType<'a> { self.olaps.view() }
+    fn get_tdpij<'a>(&self) -> Self::TdPijType<'a> { self.pij.view() }
+    fn get_tdrij<'a>(&self) -> Self::TdPijType<'a> { self.pij.view() }
+    fn get_tdproj<'a>(&self) -> Self::TdProjType<'a> { self.proj.view() }
+    fn get_tdeigs<'a>(&self) -> Self::TdEigsType<'a> { self.eigs.view() }
+
+    fn from_config<P>(fname: P) -> Result<Self>
+    where P: AsRef<Path> {
+        let cfg = NacConfig::from_file(fname)?;
+
+        if cfg.get_nacfname().is_file() {
+            info!("Found pre-calculated NAC available in {:?}, reading NAC from it ...", cfg.get_nacfname());
+            let nac = Self::from_h5(cfg.get_nacfname())?;
+            ensure!(cfg.get_ikpoint() == nac.ikpoint + 1, "Inconsistent ikpoint from config and NAC file.");
+            ensure!(cfg.get_brange()  == nac.brange,      "Inconsistent brange from config and NAC file.");
+            ensure!(cfg.get_nsw()     == nac.nsw,         "Inconsistent nsw from config and NAC file.");
+            ensure!(cfg.get_potim()   == nac.potim,       "Inconsistent potim from config and NAC file.");
+            return Ok(nac);
+        }
+
+        Self::calculate_from_scratch(&cfg)
+    }
+
+    fn from_h5<P>(fname: P) -> Result<Self>
+    where P: AsRef<Path> {
         let f = H5File::open(fname)?;
 
         let ikpoint = f.dataset("ikpoint")?.read_scalar::<usize>()?;
@@ -111,25 +102,23 @@ impl Nac {
         let nbrange = f.dataset("nbrange")?.read_scalar::<usize>()?;
         let nsw     = f.dataset("nsw")?.read_scalar::<usize>()?;
         let efermi  = f.dataset("efermi")?.read_scalar::<f64>()?;
-        let dt      = f.dataset("dt")?.read_scalar::<f64>()?;
-        let lreal   = f.dataset("lreal")?.read_scalar::<bool>()?;
+        let potim   = f.dataset("potim")?.read_scalar::<f64>()?;
 
         let olaps = {
-            let olaps_r: Array4<f64> = f.dataset("olaps_r")?.read()?;
-            let olaps_i: Array4<f64> = f.dataset("olaps_i")?.read()?;
+            let olaps_r: nd::Array4<f64> = f.dataset("olaps_r")?.read()?;
+            let olaps_i: nd::Array4<f64> = f.dataset("olaps_i")?.read()?;
             olaps_r.mapv(|v| c64::new(v, 0.0)) + olaps_i.mapv(|v| c64::new(0.0, v))
         };
 
-        let eigs: Array3<f64> = f.dataset("eigs")?.read()?;
+        let eigs: nd::Array3<f64> = f.dataset("eigs")?.read()?;
 
         let pij = {
-            let pij_r: Array5<f64> = f.dataset("pij_r")?.read()?;
-            let pij_i: Array5<f64> = f.dataset("pij_i")?.read()?;
+            let pij_r: nd::Array5<f64> = f.dataset("pij_r")?.read()?;
+            let pij_i: nd::Array5<f64> = f.dataset("pij_i")?.read()?;
             pij_r.mapv(|v| c64::new(v, 0.0)) + pij_i.mapv(|v| c64::new(0.0, v))
         };
 
-        let proj: Array5<f64> = f.dataset("proj")?.read()?;
-        let order: Array3<usize> = f.dataset("order")?.read()?;
+        let proj: nd::Array5<f64> = f.dataset("proj")?.read()?;
 
         Ok(Self {
             ikpoint,
@@ -139,21 +128,16 @@ impl Nac {
             nbrange,
             nsw,
             efermi,
-            dt,
-            lreal,
+            potim,
             olaps,
             eigs,
             pij,
             proj,
-            order,
         })
     }
 
-
-    pub fn save_to_h5<P>(&self, fname: P) -> Result<()>
-    where
-        P: AsRef<Path>,
-    {
+    fn save_to_h5<P>(&self, fname: P) -> Result<()>
+    where P: AsRef<Path> {
         let f = H5File::create(fname)?;
 
         f.new_dataset::<usize>().create("ikpoint")?.write_scalar(&self.ikpoint)?;
@@ -163,8 +147,7 @@ impl Nac {
         f.new_dataset::<usize>().create("nbrange")?.write_scalar(&self.nbrange)?;
         f.new_dataset::<usize>().create("nsw")?.write_scalar(&self.nsw)?;
         f.new_dataset::<f64>().create("efermi")?.write_scalar(&self.efermi)?;
-        f.new_dataset::<f64>().create("dt")?.write_scalar(&self.dt)?;
-        f.new_dataset::<bool>().create("lreal")?.write_scalar(&self.lreal)?;
+        f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
 
         f.new_dataset_builder().with_data(&self.olaps.mapv(|v| v.re)).create("olaps_r")?;
         f.new_dataset_builder().with_data(&self.olaps.mapv(|v| v.im)).create("olaps_i")?;
@@ -175,39 +158,28 @@ impl Nac {
         f.new_dataset_builder().with_data(&self.pij.mapv(|v| v.im)).create("pij_i")?;
 
         f.new_dataset_builder().with_data(&self.proj).create("proj")?;
-        f.new_dataset_builder().with_data(&self.order).create("order")?;
 
         Ok(())
     }
+}
 
 
-    pub fn from_inp(inp: &Input) -> Result<Self> {
-        if inp.nacfname.is_file() {
-            info!("Found pre-calculated NAC available in {:?}, reading NAC from it ...", inp.nacfname);
-            let nac = Self::from_h5(&inp.nacfname)?;
-            assert_eq!(inp.ikpoint, nac.ikpoint + 1);
-            assert_eq!(inp.brange, nac.brange);
-            assert_eq!(inp.nsw, nac.nsw);
-            assert_eq!(inp.dt, nac.dt);
-            assert_eq!(inp.lreal, nac.lreal);
-            return Ok(nac);
-        }
-
-        info!("No pre-calculated NAC available, start calculating from scratch in {:?}/.../WAVECARs ...", inp.rundir);
-        let rundir  = Path::new(&inp.rundir);
-        let nsw     = inp.nsw;
-        let ikpoint = inp.ikpoint - 1;
-        let brange  = Range { start: inp.brange[0] - 1, end: inp.brange[1] };
+impl Nac {
+    fn calculate_from_scratch(cfg: &NacConfig) -> Result<Self> {
+        info!("No pre-calculated NAC available, start calculating from scratch in {:?}/.../WAVECARs ...", cfg.get_rundir());
+        let rundir  = Path::new(cfg.get_rundir());
+        let nsw     = cfg.get_nsw();
+        let ikpoint = cfg.get_ikpoint();
+        let brange  = Range { start: cfg.get_brange()[0] - 1, end: cfg.get_brange()[1] };
         let nbrange = brange.len();
-        let ndigit  = inp.ndigit;
-        let dt      = inp.dt;
-        let lreal   = inp.lreal;
+        let ndigit  = cfg.get_ndigit();
+        let potim   = cfg.get_potim();
 
-        // get nspin and nbands
-        let path_1  = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
-        let w1      = Wavecar::from_file(&path_1)
+        let path_1 = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
+        let w1 = Wavecar::from_file(&path_1)
             .with_context(|| format!("Failed to parse {:?} as WAVECAR.", &path_1))
             .unwrap();
+
         let nspin   = w1.nspin as usize;
         let nbands  = w1.nbands as usize;
         let nspinor = match w1.wavecar_type {
@@ -217,11 +189,11 @@ impl Nac {
         let nplw = w1.nplws[ikpoint] as usize;
 
         let phi_1s = {
-            let mut phi = Array3::<c64>::zeros((nspin, nbrange, nplw));
+            let mut phi = nd::Array3::<c64>::zeros((nspin, nbrange, nplw));
 
             for ispin in 0 .. nspin {
                 for iband in brange.clone().into_iter() {
-                    phi.slice_mut(s![ispin, iband - brange.start, ..]).assign(
+                    phi.slice_mut(nd::s![ispin, iband - brange.start, ..]).assign(
                         &w1._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
                             .into_shape((nplw,))
                             .with_context(|| format!("Wavefunction reshape failed."))?
@@ -233,13 +205,13 @@ impl Nac {
         };
 
         let procar_1 = rundir.join(format!("{:0ndigit$}", 1)).join("PROCAR");
-        let p1      = Procar::from_file(&procar_1)
+        let p1 = Procar::from_file(&procar_1)
             .with_context(|| format!("Failed to parse {:?} as PROCAR.", &procar_1))
             .unwrap();
-        let nions   = p1.pdos.nions as usize;
-        let nproj   = p1.pdos.projected.shape()[4];
+        let nions = p1.pdos.nions as usize;
+        let nproj = p1.pdos.projected.shape()[4];
 
-        let gvecs   = arr2(&w1.generate_fft_grid_cart(ikpoint as u64))
+        let gvecs = nd::arr2(&w1.generate_fft_grid_cart(ikpoint as u64))
             .rows()
             .into_iter()
             .map(|g| [
@@ -250,7 +222,7 @@ impl Nac {
             .cycle()
             .take(nplw)
             .flatten()
-            .collect::<Array1<c64>>()
+            .collect::<nd::Array1<c64>>()
             .into_shape((nplw, 3))
             .unwrap();
 
@@ -259,7 +231,7 @@ impl Nac {
             _ => false,
         };
 
-        let CoupTotRet {olaps, eigs, pij, proj, efermi, order} = Self::from_wavecars(
+        let CoupTotRet {olaps, eigs, pij, proj, efermi} = Self::from_wavecars(
             &phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, lncl, nions, nproj, &gvecs
         )?;
 
@@ -267,54 +239,47 @@ impl Nac {
             ikpoint,
             nspin,
             nbands,
-            brange: inp.brange,
+            brange: cfg.get_brange(),
             nbrange,
             nsw,
             efermi,
-            dt,
-            lreal,
+            potim,
 
             olaps,
             eigs,
             pij,
 
             proj,
-            order,
         };
 
-        ret.save_to_h5(&inp.nacfname)?;
-        Ok(ret)
+        todo!()
     }
-
 
     // This function calculates non-adiabatic coupling (NAC), and transition dipole moment (TDM)
     fn from_wavecars(
-        phi_1s: &Array3<c64>,
+        phi_1s: &nd::Array3<c64>,
         rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize,
-        nspin: usize, lncl: bool, nions: usize, nproj: usize, gvecs: &Array2<c64>
+        nspin: usize, lncl: bool, nions: usize, nproj: usize, gvecs: &nd::Array2<c64>
         ) -> Result<CoupTotRet>
     {
         let nbrange = brange.clone().count();
 
         let ret_c_ij = Arc::new(Mutex::new(
-                Array4::<c64>::zeros((nsw-1, nspin, nbrange, nbrange))
+                nd::Array4::<c64>::zeros((nsw-1, nspin, nbrange, nbrange))
                 ));
         let ret_e_ij = Arc::new(Mutex::new(
-                Array3::<f64>::zeros((nsw-1, nspin, nbrange))
+                nd::Array3::<f64>::zeros((nsw-1, nspin, nbrange))
                 ));
         let ret_p_ij = Arc::new(Mutex::new(
-                Array5::<c64>::zeros((nsw-1, nspin, 3, nbrange, nbrange))
+                nd::Array5::<c64>::zeros((nsw-1, nspin, 3, nbrange, nbrange))
                 ));
 
         let nspinors = if lncl { 4 } else { nspin };
         let ret_proj = Arc::new(Mutex::new(
-                Array5::<f64>::zeros((nsw-1, nspinors, nbrange, nions, nproj))
+                nd::Array5::<f64>::zeros((nsw-1, nspinors, nbrange, nions, nproj))
                 ));
         let efermi_sum = Arc::new(Mutex::new(0.0f64));
 
-        let ret_order = Arc::new(Mutex::new(
-                Array3::<usize>::zeros((nsw-1, nspin, nbrange))
-                ));
 
         (0 .. nsw-1).into_par_iter().for_each(|isw| {
             let path_i = rundir.join(format!("{:0ndigit$}", isw + 1));
@@ -322,41 +287,27 @@ impl Nac {
 
             info!(" Calculating couplings between {:?} and {:?} ...", &path_i, &path_j);
 
-            let CoupIjRet {c_ij, e_ij, p_ij, proj, efermi, order} = Self::coupling_ij(
+            let CoupIjRet {c_ij, e_ij, p_ij, proj, efermi} = Self::coupling_ij(
                 phi_1s, path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs
                 )
                 .with_context(|| format!("Failed to calculate couplings between {:?} and {:?}.", &path_i, &path_j))
                 .unwrap();
 
             ret_c_ij.lock().unwrap()
-                .slice_mut(s![isw, .., .., ..]).assign(&c_ij);
+                .slice_mut(nd::s![isw, .., .., ..]).assign(&c_ij);
 
             ret_e_ij.lock().unwrap()
-                .slice_mut(s![isw, .., ..]).assign(&e_ij);
+                .slice_mut(nd::s![isw, .., ..]).assign(&e_ij);
 
             ret_p_ij.lock().unwrap()
-                .slice_mut(s![isw, .., .., .., ..]).assign(&p_ij);
+                .slice_mut(nd::s![isw, .., .., .., ..]).assign(&p_ij);
 
             ret_proj.lock().unwrap()
-                .slice_mut(s![isw, .., .., .., ..]).assign(&proj);
+                .slice_mut(nd::s![isw, .., .., .., ..]).assign(&proj);
 
             let mut sum = efermi_sum.lock().unwrap();
             *sum += efermi;
-
-            ret_order.lock().unwrap()
-                .slice_mut(s![isw, .., ..]).assign(&order);
         });
-
-        // sort the order
-        let mut order = Arc::try_unwrap(ret_order).unwrap().into_inner()?;
-        for isw in 1 .. (nsw-1) {
-            for ispin in 0 .. nspin {
-                let perm_ij = order.slice(s![isw, ispin, ..]).to_owned();
-                for iband in 0 .. nbrange {
-                    order[(isw, ispin, iband)] = order[(isw-1, ispin, perm_ij[iband])];
-                }
-            }
-        }
 
         Ok( CoupTotRet {
             olaps: Arc::try_unwrap(ret_c_ij).unwrap().into_inner()?,
@@ -364,13 +315,15 @@ impl Nac {
             pij: Arc::try_unwrap(ret_p_ij).unwrap().into_inner()?,
             proj: Arc::try_unwrap(ret_proj).unwrap().into_inner()?,
             efermi: Arc::try_unwrap(efermi_sum).unwrap().into_inner()? / (nsw - 1) as f64,
-            order,
         })
 
     }
 
 
-    fn coupling_ij(phi_1s: &Array3<c64>, path_i: &Path, path_j: &Path, ikpoint: usize, brange: Range<usize>, gvecs: &Array2<c64>)
+    fn coupling_ij(phi_1s: &nd::Array3<c64>,
+        path_i: &Path, path_j: &Path,
+        ikpoint: usize, brange: Range<usize>,
+        gvecs: &nd::Array2<c64>)
         -> Result<CoupIjRet>
     {
         let wi = Wavecar::from_file(&path_i.join("WAVECAR"))?;
@@ -387,29 +340,27 @@ impl Nac {
 
         assert_eq!(nplw, gvecs.shape()[0]);
 
-        let mut c_ij = Array3::<c64>::zeros((nspin, nbrange, nbrange));
-        let mut e_ij = Array2::<f64>::zeros((nspin, nbrange));
-        let mut p_ij = Array4::<c64>::zeros((nspin, 3, nbrange, nbrange));
+        let mut c_ij = nd::Array3::<c64>::zeros((nspin, nbrange, nbrange));
+        let mut e_ij = nd::Array2::<f64>::zeros((nspin, nbrange));
+        let mut p_ij = nd::Array4::<c64>::zeros((nspin, 3, nbrange, nbrange));
 
-        let mut phi_i = Array2::<c64>::zeros((nbrange, nplw));
+        let mut phi_i = nd::Array2::<c64>::zeros((nbrange, nplw));
         let mut phi_j = phi_i.clone();
 
-        let mut phase_i = Array1::<c64>::zeros(nbrange);
+        let mut phase_i = nd::Array1::<c64>::zeros(nbrange);
         let mut phase_j = phase_i.clone();
 
-        let mut order = Array2::<usize>::zeros((nspin, nbrange));
-
-        let eigs_i = wi.band_eigs.slice(s![.., ikpoint, brange.clone()]).to_owned();
-        let eigs_j = wj.band_eigs.slice(s![.., ikpoint, brange.clone()]).to_owned();
+        let eigs_i = wi.band_eigs.slice(nd::s![.., ikpoint, brange.clone()]).to_owned();
+        let eigs_j = wj.band_eigs.slice(nd::s![.., ikpoint, brange.clone()]).to_owned();
 
         for ispin in 0 .. nspin {
             for iband in brange.clone().into_iter() {
-                phi_i.slice_mut(s![iband - brange.start, ..]).assign(
+                phi_i.slice_mut(nd::s![iband - brange.start, ..]).assign(
                     &wi._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
                         .into_shape((nplw,))
                         .with_context(|| format!("Wavefunction reshape failed."))?
                 );
-                phi_j.slice_mut(s![iband - brange.start, ..]).assign(
+                phi_j.slice_mut(nd::s![iband - brange.start, ..]).assign(
                     &wj._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
                         .into_shape((nplw,))
                         .with_context(|| format!("Wavefunction reshape failed."))?
@@ -422,44 +373,27 @@ impl Nac {
             //            |< phi_0 | phi_i >|
             // phi_i[:] *= conj(phase_0i)
 
-            phase_i.assign( &(phi_1s.slice(s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_i).sum_axis(Axis(1)) );
+            phase_i.assign(&(phi_1s.slice(nd::s![ispin, .., ..])
+                                   .mapv(|x| x.conj()) * &phi_i)
+                                   .sum_axis(nd::Axis(1)));
             phase_i.mapv_inplace(|x| x.conj() / x.norm());
-            phi_i.axis_iter_mut(Axis(0)).zip(phase_i.iter())
-                .par_bridge()
-                .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
+            phi_i.axis_iter_mut(nd::Axis(0)).zip(phase_i.iter())
+                 .par_bridge()
+                 .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
 
-            phase_j.assign( &(phi_1s.slice(s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_j).sum_axis(Axis(1)) );
+            phase_j.assign( &(phi_1s.slice(nd::s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_j).sum_axis(nd::Axis(1)) );
             phase_j.mapv_inplace(|x| x.conj() / x.norm());
-            phi_j.axis_iter_mut(Axis(0)).zip(phase_j.iter())
+            phi_j.axis_iter_mut(nd::Axis(0)).zip(phase_j.iter())
                 .par_bridge()
                 .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
 
 
             let phi_ij = phi_i.mapv(|v| v.conj()).dot(&phi_j.t());
             let phi_ji = phi_ij.t().mapv(|v| v.conj());  // phi_ji = phi_ij^H
-            c_ij.slice_mut(s![ispin, .., ..]).assign(&(phi_ij - phi_ji));
-
-            // Reorder band indices to solve band crossing issues.
-            //
-            // This is a linear assignment problem, use kuhn munkres or hungarian algorithm to
-            // solve it
-            //     use pathfinding::kuhn_munkres::kuhn_munkres (or hungarian algorithm)
-
-            // Reordering j, u1i = <phi_1 | phi_j>, the order of first step must be ordered,
-            // i.e. (0, 1, ...), so we only store the order of j-th step.
-            let mut order_cost = c_ij.slice(s![ispin, .., ..]).mapv(|v| v.norm_sqr());
-            for i in 0 .. nbrange {
-                for j in 0 .. nbrange {
-                    let de = (eigs_i[(ispin,i)] - eigs_j[(ispin,j)]).abs();
-                    let coeff = 1.0 / (1.0 + de);
-                    order_cost[(i,j)] *= coeff;
-                }
-            }
-            let order_j: Array1<usize> = Self::find_order(&order_cost).into();
-            order.slice_mut(s![ispin, ..]).assign(&order_j);
+            c_ij.slice_mut(nd::s![ispin, .., ..]).assign(&(phi_ij - phi_ji));
 
             for idirect in 0 .. 3 {
-                let phi_x_gvecs: Array2<_> = phi_j.clone() * gvecs.slice(s![NewAxis, .., idirect]);
+                let phi_x_gvecs: nd::Array2<_> = phi_j.clone() * gvecs.slice(nd::s![nd::NewAxis, .., idirect]);
 
                 // <i | p | j>, in eV*fs/Angstrom
                 let p_ij_tmp = match wi.wavecar_type {
@@ -467,7 +401,7 @@ impl Nac {
                                                - phi_x_gvecs.mapv(|v| v.conj()).dot(&phi_j.t()),
                     _ => phi_j.mapv(|v| v.conj()).dot(&phi_x_gvecs.t()),
                 };
-                p_ij.slice_mut(s![ispin, idirect, .., ..]).assign(&p_ij_tmp);
+                p_ij.slice_mut(nd::s![ispin, idirect, .., ..]).assign(&p_ij_tmp);
             }
         }
 
@@ -477,104 +411,19 @@ impl Nac {
             let proj_i = Procar::from_file(&fpath)
                 .with_context(|| format!("Failed to parse {:?}.", &fpath))
                 .unwrap();
-            proj_i.pdos.projected.slice(s![.., ikpoint, brange.clone(), .., ..]).to_owned()
+            proj_i.pdos.projected.slice(nd::s![.., ikpoint, brange.clone(), .., ..]).to_owned()
         };
 
-        e_ij.slice_mut(s![.., ..]).assign(&(
+        e_ij.slice_mut(nd::s![.., ..]).assign(&(
             ( eigs_i + eigs_j ) / 2.0
         ));
 
-        Ok( CoupIjRet{
+        Ok( CoupIjRet {
             c_ij,
             e_ij, 
             p_ij, 
             proj,
             efermi: wi.efermi,
-            order
         })
-    }
-
-
-    fn find_order<R>(phi_ij: &ArrayBase<R, Ix2>) -> Vec<usize>
-    where
-        R: Data<Elem = f64>,
-    {
-        let uij = phi_ij.mapv(|x| OrderedFloat(x));
-
-        let weights = pfMatrix::square_from_vec(uij.into_raw_vec()).unwrap();
-        let (_maxcoup, order) = kuhn_munkres(&weights);
-
-        return order;
-    }
-}
-
-
-
-#[cfg(test)]
-mod tests {
-    use std::time::Instant;
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    #[ignore]
-    fn test_from_wavecars() {
-        let ndigit  = 5;
-        let rundir  = Path::new("/data2/chenlj/Work/Work2022/NAMD_lumi/2022-11-14_GaAs/2x2x2/aimd/static_0.1fs/run_3000fs");
-        let path_1  = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
-        let w1      = Wavecar::from_file(&path_1).unwrap();
-        let nsw     = 300;
-        let ikpoint = 0;
-        let brange  = 0 .. 150;
-        let nbrange = brange.len();
-        let nplw    = w1.nplws[ikpoint] as usize;
-        let nions   = 4usize;
-        let nproj   = 9usize;
-        let gvecs   = arr2(&w1.generate_fft_grid_cart(ikpoint as u64)).mapv(|v| c64::new(v, 0.0));
-        let phi_1s  = Array3::<c64>::zeros((1, nbrange, nplw));
-
-        let now = Instant::now();
-        let (_c_ij, _e_ij, _p_ij, _proj, efermi) = Nac::from_wavecars(&phi_1s, &rundir, nsw, ikpoint, brange, ndigit,
-            1, false, nions, nproj, &gvecs).unwrap();
-        println!("efermi = {}, time used: {:?}", efermi, now.elapsed());
-    }
-
-    #[test]
-    #[ignore]
-    fn test_h5() {
-        let ikpoint = 0usize;
-        let nspin   = 1usize;
-        let nbands  = 114usize;
-        let brange  = [10usize, 30];
-        let nbrange = 20usize;
-        let nsw     = 3000usize;
-        let efermi  = 1.14514f64;
-        let dt      = 1.0f64;
-        let lreal   = true;
-        let proj    = Array5::zeros((nsw-1, nspin, nbands, 3, 3));
-
-        let nac = Nac {
-            ikpoint,
-            nspin,
-            nbands,
-            brange,
-            nbrange,
-            nsw,
-            efermi,
-            dt,
-            lreal,
-
-            olaps: Array4::<c64>::zeros((nsw-1, nspin, nbrange, nbrange)),
-            eigs: Array3::<f64>::zeros((nsw-1, nspin, nbrange)),
-            pij: Array5::<c64>::zeros((nsw-1, nspin, 3, nbrange, nbrange)),
-
-            proj,
-        };
-
-        let dir = tempdir().unwrap();
-        let fname = dir.path().join("test_nac.h5");
-        nac.save_to_h5(&fname).unwrap();
-        let nac_read = Nac::from_h5(&fname).unwrap();
-        assert_eq!(nac, nac_read);
     }
 }

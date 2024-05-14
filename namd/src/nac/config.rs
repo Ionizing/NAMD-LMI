@@ -8,11 +8,12 @@ use shared::{
     bail,
     Result,
 };
-use crate::core::input::Input;
+use crate::core::config::NamdConfig;
 
-#[derive(Clone, Deserialize)]
-pub struct NacInput {
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct NacConfig {
     rundir:   PathBuf,
+    ikpoint:  usize,
     brange:   [usize; 2],
     nsw:      usize,
     ndigit:   usize,
@@ -21,10 +22,22 @@ pub struct NacInput {
 }
 
 
-impl Default for NacInput {
+impl NacConfig {
+    pub fn get_rundir(&self) -> &PathBuf { &self.rundir }
+    pub fn get_ikpoint(&self) -> usize { self.ikpoint }
+    pub fn get_brange(&self) -> [usize;2] { self.brange }
+    pub fn get_nsw(&self) -> usize { self.nsw }
+    pub fn get_ndigit(&self) -> usize { self.ndigit }
+    pub fn get_potim(&self) -> f64 { self.potim }
+    pub fn get_nacfname(&self) -> &PathBuf { &self.nacfname }
+}
+
+
+impl Default for NacConfig {
     fn default() -> Self {
-        NacInput {
+        NacConfig {
             rundir: PathBuf::from("../run"),
+            ikpoint: 1,
             brange: [0, 0],
             nsw: 2000,
             ndigit: 4,
@@ -35,12 +48,13 @@ impl Default for NacInput {
 }
 
 
-impl fmt::Display for NacInput {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result<()> {
-        writeln!(f, "# NAMD-lumi input for Non-Adiabatic Coupling (NAC) calculation")?;
+impl fmt::Display for NacConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "# NAMD-lumi config for Non-Adiabatic Coupling (NAC) calculation")?;
         writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "rundir",   self.rundir)?;
+        writeln!(f, " {:>20} = {:?}", "ikpoint",  self.ikpoint)?;
         writeln!(f, " {:>20} = {:?}", "brange",   self.brange)?;
         writeln!(f, " {:>20} = {}",   "nsw",      self.nsw)?;
         writeln!(f, " {:>20} = {}",   "ndigit",   self.ndigit)?;
@@ -52,15 +66,15 @@ impl fmt::Display for NacInput {
 }
 
 
-impl<'a> Input<'a> for NacInput {
+impl<'a> NamdConfig<'a> for NacConfig {
     fn from_file<P>(fname: P) -> Result<Self> 
     where P: AsRef<Path> {
         if !fname.as_ref().is_file() {
-            bail!("Input file {:?} for NacInput not available.", fname.as_ref());
+            bail!("Config file {:?} for NacConfig not available.", fname.as_ref());
         }
         let raw   = fs::read_to_string(fname)?;
-        let input = toml::from_str::<Self>(&raw)?;
-        Ok(input)
+        let cfg = toml::from_str::<Self>(&raw)?;
+        Ok(cfg)
     }
 
     fn to_file<P>(&self, fname: P) -> Result<()>
@@ -82,6 +96,7 @@ mod tests {
     fn test_deserialize() {
         let txt = r#"
         rundir = "../run"
+        ikpoint = 2
         brange = [100, 200]
         nsw = 3000
         ndigit = 5
@@ -89,13 +104,17 @@ mod tests {
         nacfname = "NAC2.h5"
         "#;
 
-        let nac_input: NacInput = toml::from_str(txt).unwrap();
+        let actual_cfg: NacConfig = toml::from_str(txt).unwrap();
+        let expect_cfg: NacConfig = NacConfig {
+            rundir: PathBuf::from("../run"),
+            ikpoint: 2,
+            brange: [100, 200],
+            nsw: 3000,
+            ndigit: 5,
+            potim: 1.5,
+            nacfname: PathBuf::from("NAC2.h5"),
+        };
 
-        assert_eq!(nac_input.rundir, Path::new("../run"));
-        assert_eq!(nac_input.brange, &[100, 200]);
-        assert_eq!(nac_input.nsw, 3000);
-        assert_eq!(nac_input.ndigit, 5);
-        assert_eq!(nac_input.potim, 1.5);
-        assert_eq!(nac_input.nacfname, Path::new("NAC2.h5"));
+        assert_eq!(expect_cfg, actual_cfg);
     }
 }
