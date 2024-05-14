@@ -2,11 +2,14 @@ use std::path::Path;
 
 use shared::Result;
 
+use crate::core::NamdConfig;
+
 pub trait Couplings {
     type TdCoupType<'a>;
     type TdPijType<'a>;
     type TdProjType<'a>;
     type TdEigsType<'a>;
+    type ConfigType<'a>: NamdConfig<'a>;
 
     fn get_nspin(&self) -> usize;
     fn get_nbands(&self) -> usize;
@@ -22,9 +25,8 @@ pub trait Couplings {
     fn get_tdproj<'a>(&self) -> Self::TdProjType<'a>;
     fn get_tdeigs<'a>(&self) -> Self::TdEigsType<'a>;
 
-    fn from_config<C>(cfg: C) -> Result<Self>
-        where C: AsRef<Path>,
-              Self: Sized;
+    fn from_config<'a>(cfg: &Self::ConfigType<'a>) -> Result<Self>
+        where Self: Sized;
     fn from_h5<P>(fname: P) -> Result<Self>
         where P: AsRef<Path>,
               Self: Sized;

@@ -60,6 +60,7 @@ impl Couplings for Nac {
     type TdPijType<'a>  = nd::ArrayView5<'a, c64>;
     type TdProjType<'a> = nd::ArrayView5<'a, f64>;
     type TdEigsType<'a> = nd::ArrayView3<'a, f64>;
+    type ConfigType<'a> = NacConfig;
 
     fn get_nspin(&self) -> usize { self.nspin }
     fn get_nbands(&self) -> usize { self.nbands }
@@ -74,10 +75,7 @@ impl Couplings for Nac {
     fn get_tdproj<'a>(&self) -> Self::TdProjType<'a> { self.proj.view() }
     fn get_tdeigs<'a>(&self) -> Self::TdEigsType<'a> { self.eigs.view() }
 
-    fn from_config<P>(fname: P) -> Result<Self>
-    where P: AsRef<Path> {
-        let cfg = NacConfig::from_file(fname)?;
-
+    fn from_config<'a>(cfg: &NacConfig) -> Result<Self> {
         if cfg.get_nacfname().is_file() {
             info!("Found pre-calculated NAC available in {:?}, reading NAC from it ...", cfg.get_nacfname());
             let nac = Self::from_h5(cfg.get_nacfname())?;
