@@ -5,7 +5,7 @@ use serde::Deserialize;
 use toml;
 use shared::{
     log,
-    bail,
+    anyhow::ensure,
     Result,
 };
 use crate::core::config::NamdConfig;
@@ -69,10 +69,8 @@ impl fmt::Display for NacConfig {
 impl<'a> NamdConfig<'a> for NacConfig {
     fn from_file<P>(fname: P) -> Result<Self> 
     where P: AsRef<Path> {
-        if !fname.as_ref().is_file() {
-            bail!("Config file {:?} for NacConfig not available.", fname.as_ref());
-        }
-        let raw   = fs::read_to_string(fname)?;
+        ensure!(fname.as_ref().is_file(), "Config file {:?} for NacConfig not available.", fname.as_ref());
+        let raw = fs::read_to_string(fname)?;
         let cfg = toml::from_str::<Self>(&raw)?;
         Ok(cfg)
     }

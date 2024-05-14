@@ -4,10 +4,13 @@ use std::fmt;
 use shared::ndarray as nd;
 use shared::{c64, Result};
 
-use crate::core::couplings::Couplings;
+use crate::core::Couplings;
+use crate::core::NamdConfig;
 
 
 pub trait Hamiltonian {
+    type ConfigType<'a>: NamdConfig<'a>;
+
     fn get_nbasis(&self) -> usize;
     fn get_potim(&self) -> f64;
     fn get_basisini(&self) -> usize;
@@ -24,11 +27,11 @@ pub trait Hamiltonian {
     fn propagate<M>(&mut self, iion: usize, method: M)
         where M: PartialEq + Eq + Clone + Copy + fmt::Display;
 
+    fn from_config<'a, C>(fname: &Self::ConfigType<'a>, coup: C) -> Result<Self>
+        where C: Couplings,
+              Self: Sized;
     fn from_h5<P>(fname: P) -> Result<Self>
         where P: AsRef<Path>,
-              Self: Sized;
-    fn from_coupling<C>(coup: &C) -> Result<Self>
-        where C: Couplings,
               Self: Sized;
     fn save_to_h5<P>(&self, fname: P) -> Result<()>
         where P: AsRef<Path>;
@@ -36,5 +39,4 @@ pub trait Hamiltonian {
     fn get_edt(&self) -> f64 {
         self.get_potim() / self.get_nelm() as f64
     }
-
 }

@@ -55,12 +55,12 @@ struct CoupTotRet {
     efermi: f64,
 }
 
-impl Couplings for Nac {
-    type TdCoupType<'a> = nd::ArrayView4<'a, c64>;
-    type TdPijType<'a>  = nd::ArrayView5<'a, c64>;
-    type TdProjType<'a> = nd::ArrayView5<'a, f64>;
-    type TdEigsType<'a> = nd::ArrayView3<'a, f64>;
-    type ConfigType<'a> = NacConfig;
+impl<'a> Couplings<'a> for Nac {
+    type TdCoupType = nd::ArrayView4<'a, c64>;
+    type TdPijType  = nd::ArrayView5<'a, c64>;
+    type TdProjType = nd::ArrayView5<'a, f64>;
+    type TdEigsType = nd::ArrayView3<'a, f64>;
+    type ConfigType = NacConfig;
 
     fn get_nspin(&self) -> usize { self.nspin }
     fn get_nbands(&self) -> usize { self.nbands }
@@ -69,13 +69,13 @@ impl Couplings for Nac {
     fn get_nsw(&self) -> usize { self.nsw }
     fn get_potim(&self) -> f64 { self.potim }
     fn get_efermi(&self) -> f64 { self.efermi }
-    fn get_tdcoup<'a>(&self) -> Self::TdCoupType<'a> { self.olaps.view() }
-    fn get_tdpij<'a>(&self) -> Self::TdPijType<'a> { self.pij.view() }
-    fn get_tdrij<'a>(&self) -> Self::TdPijType<'a> { self.pij.view() }
-    fn get_tdproj<'a>(&self) -> Self::TdProjType<'a> { self.proj.view() }
-    fn get_tdeigs<'a>(&self) -> Self::TdEigsType<'a> { self.eigs.view() }
+    fn get_tdcoup(&self) -> Self::TdCoupType { self.olaps.view() }
+    fn get_tdpij(&self) -> Self::TdPijType { self.pij.view() }
+    fn get_tdrij(&self) -> Self::TdPijType { self.pij.view() }
+    fn get_tdproj(&self) -> Self::TdProjType { self.proj.view() }
+    fn get_tdeigs(&self) -> Self::TdEigsType { self.eigs.view() }
 
-    fn from_config<'a>(cfg: &NacConfig) -> Result<Self> {
+    fn from_config(cfg: &NacConfig) -> Result<Self> {
         if cfg.get_nacfname().is_file() {
             info!("Found pre-calculated NAC available in {:?}, reading NAC from it ...", cfg.get_nacfname());
             let nac = Self::from_h5(cfg.get_nacfname())?;

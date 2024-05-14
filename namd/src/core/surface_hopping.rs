@@ -14,9 +14,6 @@ pub trait SurfaceHopping {
 
     fn run(&mut self) -> Result<()>;
 
-    fn from_h5<P>(fname: P) -> Result<Self>
-        where P: AsRef<Path>,
-              Self: Sized;
     fn from_hamil<H>(hamil: &H) -> Result<Self>
         where H: Hamiltonian,
               Self: Sized;
