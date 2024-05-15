@@ -37,30 +37,51 @@ impl fmt::Display for PropagateMethod {
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct HamilConfig {
+    #[serde(default = "HamilConfig::default_ikpoint")]
     ikpoint: usize,
+
+    #[serde(default = "HamilConfig::default_basis")]
     basis_up: [usize; 2],
+
+    #[serde(default = "HamilConfig::default_basis")]
     basis_dn: [usize; 2],
+
+    #[serde(default = "HamilConfig::default_nelm")]
     nelm: usize,
+
     nac_fname: PathBuf,
+
+    efield_fname: Option<PathBuf>,
+
+    #[serde(default = "HamilConfig::default_hamil_fname")]
     hamil_fname: PathBuf,
-    #[serde(deserialize_with="parse_propmethod")]
+
+    #[serde(deserialize_with="HamilConfig::parse_propmethod")]
     propmethod: PropagateMethod,
+
     scissor: Option<f64>,
 }
 
 
-fn parse_propmethod<'de, D>(deserializer: D) -> std::result::Result<PropagateMethod, D::Error>
-where D: Deserializer<'de> {
-    let s = String::deserialize(deserializer)?;
-    match s.to_lowercase().as_str() {
-            "finitedifference" | "fd" => Ok(PropagateMethod::FiniteDifference),
-            "exact"                   => Ok(PropagateMethod::Exact),
-            "expm"                    => Ok(PropagateMethod::Expm),
-            "liouvilletrotter" | "lt" => Ok(PropagateMethod::LiouvilleTrotter),
-            _ => Err(D::Error::custom(
-                    format!("Invalid propmethod from input: {}, available methods: \
-                             FiniteDifference(or FD), Exact, Expm, LiouvilleTrotter(or LT)", &s)
-                    )),
+impl HamilConfig {
+    fn default_ikpoint() -> usize { 1 }
+    fn default_basis() -> [usize; 2] { [0, 0] }
+    fn default_nelm() -> usize { 10 }
+    fn default_hamil_fname() -> PathBuf { PathBuf::from("HAMIL.h5") }
+
+    fn parse_propmethod<'de, D>(deserializer: D) -> std::result::Result<PropagateMethod, D::Error>
+    where D: Deserializer<'de> {
+        let s = String::deserialize(deserializer)?;
+        match s.to_lowercase().as_str() {
+                "finitedifference" | "fd" => Ok(PropagateMethod::FiniteDifference),
+                "exact"                   => Ok(PropagateMethod::Exact),
+                "expm"                    => Ok(PropagateMethod::Expm),
+                "liouvilletrotter" | "lt" => Ok(PropagateMethod::LiouvilleTrotter),
+                _ => Err(D::Error::custom(
+                        format!("Invalid propmethod from input: {}, available methods: \
+                                 FiniteDifference(or FD), Exact, Expm, LiouvilleTrotter(or LT)", &s)
+                        )),
+        }
     }
 }
 
@@ -112,6 +133,12 @@ impl HamilConfig {
             ret = ret.context("Field 'nac_fname' does not point to a valid file.");
         }
 
+        if let Some(efield) = self.efield_fname.as_ref() {
+            if !efield.is_file() {
+                ret = ret.context("Field 'efield_fname' does not point to a valid file.");
+            }
+        }
+
         if self.hamil_fname.as_os_str().is_empty() {
             ret = ret.context("Field 'hamil_fname' cannot be empty.");
         }
@@ -137,6 +164,9 @@ impl fmt::Display for HamilConfig {
         writeln!(f, " {:>20} = {:?}", "basis_dn", self.basis_dn)?;
         writeln!(f, " {:>20} = {:?}", "nelm", self.nelm)?;
         writeln!(f, " {:>20} = {:?}", "nac_fname", self.nac_fname)?;
+        if let Some(efield) = self.efield_fname.as_ref() {
+            writeln!(f, " {:>20} = {:?}", "efield", efield);
+        }
         writeln!(f, " {:>20} = {:?}", "hamil_fname", self.hamil_fname)?;
         writeln!(f, " {:>20} = {:?}", "propmethod", self.propmethod)?;
 
@@ -157,6 +187,7 @@ impl Default for HamilConfig {
             basis_dn: [0, 0],
             nelm: 10,
             nac_fname: PathBuf::from("NAC.h5"),
+            efield_fname: None,
             hamil_fname: PathBuf::from("HAMIL.h5"),
             propmethod: PropagateMethod::Expm,
             scissor: None,
@@ -210,6 +241,7 @@ mod tests {
             basis_dn: [256, 512],
             nelm: 20,
             nac_fname: PathBuf::from("NAC_test.h5"),
+            efield_fname: None,
             hamil_fname: PathBuf::from("HAMIL_test.h5"),
             propmethod: PropagateMethod::FiniteDifference,
             scissor: Some(1.5),
