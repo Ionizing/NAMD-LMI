@@ -14,12 +14,28 @@ use crate::core::config::NamdConfig;
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct NacConfig {
     rundir:   PathBuf,
+
+    #[serde(default = "NacConfig::default_ikpoint")]
     ikpoint:  usize,
+
     brange:   [usize; 2],
+
     nsw:      usize,
+
+    #[serde(default = "NacConfig::default_ndigit")]
     ndigit:   usize,
+
     potim:    f64,
+
+    #[serde(default = "NacConfig::default_nacfname")]
     nacfname: PathBuf,
+}
+
+
+impl NacConfig {
+    fn default_ikpoint() -> usize { 1 }
+    fn default_ndigit() -> usize { 4 }
+    fn default_nacfname() -> PathBuf { PathBuf::from("NAC.h5") }
 }
 
 
@@ -56,6 +72,10 @@ impl NacConfig {
 
         if self.ndigit == 0 {
             ret = ret.context("Field 'ndigit' cannot be 0.");
+        }
+
+        if (self.nsw as f64).log10() as i32 > self.ndigit as i32 {
+            ret = ret.context("Field 'ndigit' not match with field 'nsw', please check.");
         }
 
         if self.potim <= 0.0 {
