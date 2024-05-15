@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{read_to_string, File};
 use std::io::{
     Write as _,
     BufWriter,
@@ -26,6 +26,7 @@ use rhai::{
 
 #[derive(Clone)]
 pub struct Efield {
+    raw: String,
     ast: AST,
     namdtime: usize,
     nelm: usize,
@@ -39,12 +40,14 @@ pub struct Efield {
 impl Efield {
     pub fn from_file(fname: PathBuf) -> Self
     {
+        let raw = read_to_string(fname).unwrap();
         let engine = Engine::new();
         let ast = engine.compile_file(fname.clone())
             .with_context(|| format!("Cannot load script {:?}", fname))
             .unwrap();
 
         Self {
+            raw,
             ast,
             namdtime: 0,
             nelm: 0,

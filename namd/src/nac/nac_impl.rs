@@ -14,7 +14,6 @@ use std::{println as info, println as warn, assert as ensure};
 use vasp_parsers::{procar::Procar, Wavecar, WavecarType};
 
 use crate::core::Couplings;
-use crate::core::NamdConfig;
 use crate::nac::config::NacConfig;
 
 /// All the indices are counted from 1, and use closed inverval.

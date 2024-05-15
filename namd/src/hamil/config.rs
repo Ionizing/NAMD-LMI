@@ -143,6 +143,10 @@ impl HamilConfig {
             ret = ret.context("Field 'hamil_fname' cannot be empty.");
         }
 
+        if self.hamil_fname.is_file() {
+            log::warn!("Field 'hamil_fname' points to an existing file and it will be overwritten.");
+        }
+
         if let Some(s) = self.scissor {
             if s < 0.0 {
                 ret = ret.context("Field 'scissor' cannot be a negative value.");

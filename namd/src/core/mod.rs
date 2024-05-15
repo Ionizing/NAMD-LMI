@@ -12,3 +12,6 @@ pub use couplings::*;
 
 pub mod surface_hopping;
 pub use surface_hopping::*;
+
+pub mod wavefunction;
+pub use wavefunction::*;
