@@ -19,23 +19,24 @@ use crate::nac::config::NacConfig;
 /// All the indices are counted from 1, and use closed inverval.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Nac {
-    pub ikpoint: usize,
-    pub nspin: usize,
-    pub nbands: usize,
+    ikpoint: usize,
+    nspin: usize,
+    nbands: usize,
 
     /// stores `(brange[0] ..= brange[1])` where `brange[1]` is included
-    pub brange: [usize; 2],
-    pub nbrange: usize,
-    pub nsw: usize,
-    pub efermi: f64,
-    pub potim: f64,
+    brange: [usize; 2],
+    nbrange: usize,
+    nsw: usize,
+    efermi: f64,
+    potim: f64,
+    temperature: f64,
 
-    pub olaps: nd::Array4<c64>, // istep, ispin, iband, iband
-    pub eigs: nd::Array3<f64>,  // istep, ispin, iband
-    pub pij: nd::Array5<c64>,   // istep, ispin, ixyz, iband, iband
+    olaps: nd::Array4<c64>, // istep, ispin, iband, iband
+    eigs: nd::Array3<f64>,  // istep, ispin, iband
+    pij: nd::Array5<c64>,   // istep, ispin, ixyz, iband, iband
 
     // projections in PROCAR
-    pub proj: nd::Array5<f64>, // istep ispin, iband, iion, iorbit
+    proj: nd::Array5<f64>, // istep ispin, iband, iion, iorbit
 }
 
 struct CoupIjRet {
@@ -54,11 +55,11 @@ struct CoupTotRet {
     efermi: f64,
 }
 
-impl<'a> Couplings<'a> for Nac {
-    type TdCoupType = nd::ArrayView4<'a, c64>;
-    type TdPijType  = nd::ArrayView5<'a, c64>;
-    type TdProjType = nd::ArrayView5<'a, f64>;
-    type TdEigsType = nd::ArrayView3<'a, f64>;
+impl Couplings for Nac {
+    type TdCoupType<'a> = nd::ArrayView4<'a, c64>;
+    type TdPijType<'a>  = nd::ArrayView5<'a, c64>;
+    type TdProjType<'a> = nd::ArrayView5<'a, f64>;
+    type TdEigsType<'a> = nd::ArrayView3<'a, f64>;
     type ConfigType = NacConfig;
 
     fn get_nspin(&self) -> usize { self.nspin }
@@ -67,12 +68,13 @@ impl<'a> Couplings<'a> for Nac {
     fn get_brange(&self) -> [usize; 2] { self.brange }
     fn get_nsw(&self) -> usize { self.nsw }
     fn get_potim(&self) -> f64 { self.potim }
+    fn get_temperature(&self) -> f64 { self.temperature }
     fn get_efermi(&self) -> f64 { self.efermi }
-    fn get_tdcoup(&self) -> Self::TdCoupType { self.olaps.view() }
-    fn get_tdpij(&self) -> Self::TdPijType { self.pij.view() }
-    fn get_tdrij(&self) -> Self::TdPijType { self.pij.view() }
-    fn get_tdproj(&self) -> Self::TdProjType { self.proj.view() }
-    fn get_tdeigs(&self) -> Self::TdEigsType { self.eigs.view() }
+    fn get_tdcoup<'a>(&'a self) -> Self::TdCoupType<'a> { self.olaps.view() }
+    fn get_tdpij<'a>(&'a self) -> Self::TdPijType<'a> { self.pij.view() }
+    fn get_tdrij<'a>(&'a self) -> Self::TdPijType<'a> { self.pij.view() }
+    fn get_tdproj<'a>(&'a self) -> Self::TdProjType<'a> { self.proj.view() }
+    fn get_tdeigs<'a>(&'a self) -> Self::TdEigsType<'a> { self.eigs.view() }
 
     fn from_config(cfg: &NacConfig) -> Result<Self> {
         if cfg.get_nacfname().is_file() {
@@ -85,7 +87,8 @@ impl<'a> Couplings<'a> for Nac {
             return Ok(nac);
         }
 
-        Self::calculate_from_scratch(&cfg)
+        todo!()
+        //Self::calculate_from_scratch(&cfg)
     }
 
     fn from_h5<P>(fname: P) -> Result<Self>
@@ -100,6 +103,7 @@ impl<'a> Couplings<'a> for Nac {
         let nsw     = f.dataset("nsw")?.read_scalar::<usize>()?;
         let efermi  = f.dataset("efermi")?.read_scalar::<f64>()?;
         let potim   = f.dataset("potim")?.read_scalar::<f64>()?;
+        let temperature = f.dataset("temperature")?.read_scalar::<f64>()?;
 
         let olaps = {
             let olaps_r: nd::Array4<f64> = f.dataset("olaps_r")?.read()?;
@@ -126,6 +130,7 @@ impl<'a> Couplings<'a> for Nac {
             nsw,
             efermi,
             potim,
+            temperature,
             olaps,
             eigs,
             pij,
@@ -145,6 +150,7 @@ impl<'a> Couplings<'a> for Nac {
         f.new_dataset::<usize>().create("nsw")?.write_scalar(&self.nsw)?;
         f.new_dataset::<f64>().create("efermi")?.write_scalar(&self.efermi)?;
         f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
+        f.new_dataset::<f64>().create("temperature")?.write_scalar(&self.temperature)?;
 
         f.new_dataset_builder().with_data(&self.olaps.mapv(|v| v.re)).create("olaps_r")?;
         f.new_dataset_builder().with_data(&self.olaps.mapv(|v| v.im)).create("olaps_i")?;
@@ -171,6 +177,7 @@ impl Nac {
         let nbrange = brange.len();
         let ndigit  = cfg.get_ndigit();
         let potim   = cfg.get_potim();
+        let temperature = cfg.get_temperature();
 
         let path_1 = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
         let w1 = Wavecar::from_file(&path_1)
@@ -241,6 +248,7 @@ impl Nac {
             nsw,
             efermi,
             potim,
+            temperature,
 
             olaps,
             eigs,

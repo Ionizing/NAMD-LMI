@@ -8,6 +8,7 @@ use shared::{
     log,
     anyhow::ensure,
     anyhow::Context,
+    anyhow::bail,
     Result,
 };
 
@@ -22,6 +23,7 @@ pub enum PropagateMethod {
     LiouvilleTrotter,
 }
 
+
 impl fmt::Display for PropagateMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use PropagateMethod::*;
@@ -31,6 +33,20 @@ impl fmt::Display for PropagateMethod {
             Expm             => "Expm",
             LiouvilleTrotter => "LiouvilleTrotter",
         })
+    }
+}
+
+
+impl PropagateMethod {
+    pub fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+                "finitedifference" | "fd" => Ok(PropagateMethod::FiniteDifference),
+                "exact"                   => Ok(PropagateMethod::Exact),
+                "expm"                    => Ok(PropagateMethod::Expm),
+                "liouvilletrotter" | "lt" => Ok(PropagateMethod::LiouvilleTrotter),
+                _ => bail!("Invalid propmethod from input: {}, available methods: \
+                                 FiniteDifference(or FD), Exact, Expm, LiouvilleTrotter(or LT)", &s)
+        }
     }
 }
 
@@ -92,6 +108,7 @@ impl HamilConfig {
     pub fn get_basis_dn(&self) -> [usize; 2] { self.basis_dn }
     pub fn get_nelm(&self) -> usize { self.nelm }
     pub fn get_nac_fname(&self) -> &PathBuf { &self.nac_fname }
+    pub fn get_efield_fname(&self) -> Option<&PathBuf> { self.efield_fname.as_ref() }
     pub fn get_hamil_fname(&self) -> &PathBuf { &self.hamil_fname }
     pub fn get_propmethod(&self) -> PropagateMethod { self.propmethod }
     pub fn get_scissor(&self) -> Option<f64> { self.scissor }
@@ -108,13 +125,13 @@ impl HamilConfig {
         }
         
         let nbasis = 
-            if self.basis_up[0] == self.basis_up[1] && self.basis_up[0] == 0 {
+            if self.basis_up.contains(&0) {
                 0
             } else {
                 self.basis_up[1] - self.basis_up[0] + 1
             }
                 +
-            if self.basis_dn[0] == self.basis_dn[1] && self.basis_dn[0] == 0 {
+            if self.basis_dn.contains(&0) {
                 0
             } else {
                 self.basis_dn[1] - self.basis_dn[0] + 1
@@ -169,7 +186,7 @@ impl fmt::Display for HamilConfig {
         writeln!(f, " {:>20} = {:?}", "nelm", self.nelm)?;
         writeln!(f, " {:>20} = {:?}", "nac_fname", self.nac_fname)?;
         if let Some(efield) = self.efield_fname.as_ref() {
-            writeln!(f, " {:>20} = {:?}", "efield", efield);
+            writeln!(f, " {:>20} = {:?}", "efield", efield)?;
         }
         writeln!(f, " {:>20} = {:?}", "hamil_fname", self.hamil_fname)?;
         writeln!(f, " {:>20} = {:?}", "propmethod", self.propmethod)?;
@@ -200,7 +217,7 @@ impl Default for HamilConfig {
 }
 
 
-impl<'a> NamdConfig<'a> for HamilConfig {
+impl NamdConfig for HamilConfig {
     fn from_file<P>(fname: P) -> Result<Self>
     where P: AsRef<Path> {
         ensure!(fname.as_ref().is_file(), "Config file {:?} for HamilConfig not available.", fname.as_ref());

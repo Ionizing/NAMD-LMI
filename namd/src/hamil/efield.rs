@@ -27,8 +27,8 @@ use shared::{
 use shared::MatX3;
 
 
-const ENGINE: OnceLock<Engine> = <_>::default();
 fn get_engine() -> &'static Engine {
+    static ENGINE: OnceLock<Engine> = OnceLock::new();
     ENGINE.get_or_init(|| Engine::new())
 }
 
@@ -107,18 +107,17 @@ impl<'a> Efield<'a> {
     pub fn get_eafield_array(&mut self, namdtime: usize, potim: f64, nelm: usize) -> (Vec<f64>, [MatX3<f64>; 2]) {
         let edt = potim / nelm as f64;
         let mut tt = vec![0.0; 0];
-        let mut efield = MatX3::<f64>::new();
-        let mut afield = MatX3::<f64>::new();
 
         for iion in 0 .. namdtime {
             let t0 = potim * iion as f64;
-            for ielm in 0 .. nelm {
+            for _ielm in 0 .. nelm {
                 let t = t0 + edt * nelm as f64;
                 tt.push(t);
             }
         }
 
-        efield = self.eval_array(&tt);
+        let efield = self.eval_array(&tt);
+        let mut afield = MatX3::<f64>::new();
 
         // integrate electric field into vector potential
         // E = - \partial A / \partial t
@@ -135,9 +134,9 @@ impl<'a> Efield<'a> {
     }
 
 
-    pub fn print_efield_tofile<P>(&self, dir: P, namdtime: usize, potim: f64, nelm: usize) -> Result<()>
+    pub fn print_efield_tofile<P>(&mut self, dir: P, namdtime: usize, potim: f64, nelm: usize) -> Result<()>
     where P: AsRef<Path> {
-        let dir = dir.as_ref();
+        let dir = dir.as_ref().to_owned();
         ensure!(dir.is_dir(), "The parameter dir should be a valid directory.");
         let efield_fname = dir.with_file_name("EFIELD.txt");
         let afield_fname = dir.with_file_name("AFIELD.txt");
@@ -146,16 +145,16 @@ impl<'a> Efield<'a> {
 
 
         {
-            info!("Writing electric field to {:?} ...", efield_fname);
+            info!("Writing electric field to {:?} ...", &efield_fname);
             if efield_fname.is_file() {
-                warn!("File {:?} exists, overwriting ...", efield_fname);
+                warn!("File {:?} exists, overwriting ...", &efield_fname);
             }
 
             let mut f = BufWriter::new(
                 File::options().write(true)
                                .create(true)
                                .truncate(true)
-                               .open(efield_fname)?
+                               .open(&efield_fname)?
                 );
 
             writeln!(f, "# Time(fs) Ex Ey Ez(V/Å)")?;
@@ -166,16 +165,16 @@ impl<'a> Efield<'a> {
 
 
         {
-            info!("Writing integrated vector potential to {:?} ...", afield_fname);
+            info!("Writing integrated vector potential to {:?} ...", &afield_fname);
             if efield_fname.is_file() {
-                warn!("File {:?} exists, overwriting ...", afield_fname);
+                warn!("File {:?} exists, overwriting ...", &afield_fname);
             }
 
             let mut f = BufWriter::new(
                 File::options().write(true)
                                .create(true)
                                .truncate(true)
-                               .open(afield_fname)?
+                               .open(&afield_fname)?
                 );
 
             writeln!(f, "# Time(fs) Ax Ay Az(V*fs/Å)")?;

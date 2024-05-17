@@ -27,6 +27,8 @@ pub struct NacConfig {
 
     potim:    f64,
 
+    temperature: f64,
+
     #[serde(default = "NacConfig::default_nacfname")]
     nacfname: PathBuf,
 }
@@ -46,6 +48,7 @@ impl NacConfig {
     pub fn get_nsw(&self) -> usize { self.nsw }
     pub fn get_ndigit(&self) -> usize { self.ndigit }
     pub fn get_potim(&self) -> f64 { self.potim }
+    pub fn get_temperature(&self) -> f64 { self.temperature }
     pub fn get_nacfname(&self) -> &PathBuf { &self.nacfname }
 
     pub fn check_config(&self) -> Result<()> {
@@ -82,6 +85,10 @@ impl NacConfig {
             ret = ret.context("Field 'potim' cannot be less than or equal to 0.");
         }
 
+        if self.temperature < 0.0 {
+            ret = ret.context("Temperature cannot be negative.");
+        }
+
         if self.nacfname.as_os_str().is_empty() {
             ret = ret.context("Field 'nacfname' cannot be empy.");
         }
@@ -100,6 +107,7 @@ impl Default for NacConfig {
             nsw: 2000,
             ndigit: 4,
             potim: 1.0,
+            temperature: 0.0,
             nacfname: PathBuf::from("NAC.h5"),
         }
     }
@@ -118,6 +126,7 @@ impl fmt::Display for NacConfig {
         writeln!(f, " {:>20} = {}",   "nsw",      self.nsw)?;
         writeln!(f, " {:>20} = {}",   "ndigit",   self.ndigit)?;
         writeln!(f, " {:>20} = {}",   "potim",    self.potim)?;
+        writeln!(f, " {:>20} = {}",   "temperature", self.temperature)?;
         writeln!(f, " {:>20} = {:?}", "nacfname", self.nacfname)?;
 
         Ok(())
@@ -125,7 +134,7 @@ impl fmt::Display for NacConfig {
 }
 
 
-impl<'a> NamdConfig<'a> for NacConfig {
+impl NamdConfig for NacConfig {
     fn from_file<P>(fname: P) -> Result<Self> 
     where P: AsRef<Path> {
         ensure!(fname.as_ref().is_file(), "Config file {:?} for NacConfig not available.", fname.as_ref());
@@ -159,6 +168,7 @@ mod tests {
         nsw = 3000
         ndigit = 5
         potim = 1.5
+        temperature = 150
         nacfname = "NAC2.h5"
         "#;
 
@@ -170,6 +180,7 @@ mod tests {
             nsw: 3000,
             ndigit: 5,
             potim: 1.5,
+            temperature: 150.0,
             nacfname: PathBuf::from("NAC2.h5"),
         };
 

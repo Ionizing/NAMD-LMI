@@ -4,12 +4,12 @@ use shared::Result;
 
 use crate::core::NamdConfig;
 
-pub trait Couplings<'a> {
-    type TdCoupType;
-    type TdPijType;
-    type TdProjType;
-    type TdEigsType;
-    type ConfigType: NamdConfig<'a>;
+pub trait Couplings {
+    type TdCoupType<'x> where Self: 'x;
+    type TdPijType<'x> where Self: 'x;
+    type TdProjType<'x> where Self: 'x;
+    type TdEigsType<'x> where Self: 'x;
+    type ConfigType: NamdConfig;
 
     fn get_nspin(&self) -> usize;
     fn get_nbands(&self) -> usize;
@@ -17,13 +17,14 @@ pub trait Couplings<'a> {
     fn get_brange(&self) -> [usize; 2];
     fn get_nsw(&self) -> usize;
     fn get_potim(&self) -> f64;
+    fn get_temperature(&self) -> f64;
     fn get_efermi(&self) -> f64;
 
-    fn get_tdcoup(&self) -> Self::TdCoupType;
-    fn get_tdpij(&self) -> Self::TdPijType;
-    fn get_tdrij(&self) -> Self::TdPijType;
-    fn get_tdproj(&self) -> Self::TdProjType;
-    fn get_tdeigs(&self) -> Self::TdEigsType;
+    fn get_tdcoup<'a>(&'a self) -> Self::TdCoupType<'a>;
+    fn get_tdpij<'a>(&'a self) -> Self::TdPijType<'a>;
+    fn get_tdrij<'a>(&'a self) -> Self::TdPijType<'a>;
+    fn get_tdproj<'a>(&'a self) -> Self::TdProjType<'a>;
+    fn get_tdeigs<'a>(&'a self) -> Self::TdEigsType<'a>;
 
     fn from_config(cfg: &Self::ConfigType) -> Result<Self>
         where Self: Sized;

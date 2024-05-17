@@ -7,9 +7,9 @@ use crate::core::Couplings;
 use crate::core::NamdConfig;
 
 
-pub trait Hamiltonian<'a> {
-    type ConfigType: NamdConfig<'a>;
-    type CouplingType: Couplings<'a>;
+pub trait Hamiltonian {
+    type ConfigType: NamdConfig;
+    type CouplingType: Couplings;
 
     fn get_nbasis(&self) -> usize;
     fn get_nsw(&self) -> usize;
@@ -18,7 +18,7 @@ pub trait Hamiltonian<'a> {
 
     fn get_hamil(&self, iion: usize) -> nd::ArrayView2<c64>;
 
-    fn from_config(fname: &Self::ConfigType, coup: &Self::CouplingType) -> Result<Self>
+    fn from_config(fname: &Self::ConfigType) -> Result<Self>
         where Self: Sized;
     fn from_h5<P>(fname: P) -> Result<Self>
         where P: AsRef<Path>,
