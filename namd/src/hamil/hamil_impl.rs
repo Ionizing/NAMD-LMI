@@ -4,6 +4,7 @@ use std::path::Path;
 use hdf5::File as H5File;
 use shared::ndarray as nd;
 use shared::{
+    info,
     c64,
     Result,
     anyhow::ensure,
@@ -17,6 +18,7 @@ use crate::nac::nac_impl::Nac;
 use crate::hamil::config::HamilConfig;
 use crate::hamil::config::PropagateMethod;
 use crate::hamil::efield::Efield;
+use crate::core::constants::*;
 
 
 /// Sing-Particle Hamiltonian
@@ -36,6 +38,9 @@ pub struct SPHamiltonian<'a> {
     rij_t:     nd::Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     proj_t:    nd::Array4<f64>,     // [nsw-1, nbasis, nions, nproj]
     efield:    Option<Efield<'a>>,
+
+    // pre-calculated hamiltonian = eig_t in diag + nac_t in off-diag
+    hamil0:    nd::Array3<c64>,     // [nsw-1, nbasis, nbasis]
 }
 
 
@@ -48,8 +53,9 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
     fn get_nsw(&self) -> usize { self.nsw }
     fn get_temperature(&self) -> f64 { self.temperature }
 
+    /// Get the hamiltonian without electron-photon interaction.
     fn get_hamil(&self, iion: usize) -> nd::ArrayView2<c64> {
-        todo!()
+        self.hamil0.slice(nd::s![iion, .., ..])
     } // [nbasis, nbasis]
 
     fn from_config(cfg: &Self::ConfigType) -> Result<Self> {
@@ -102,6 +108,8 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
             }
         };
 
+        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t);
+
         Ok(SPHamiltonian {
             ikpoint,
             basis_up,
@@ -117,7 +125,9 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
             pij_t,
             rij_t,
             proj_t,
-            efield
+            efield,
+
+            hamil0,
         })
     }
 
@@ -239,6 +249,12 @@ impl<'a> SPHamiltonian<'a> {
         let efield: Option<Efield> = cfg.get_efield_fname()
             .map(|fname| Efield::from_file(fname).unwrap());
 
+        if let Some(scissor) = cfg.get_scissor() {
+            apply_scissor(&mut eig_t, scissor);
+        }
+
+        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t);
+
         Ok(Self {
             ikpoint,
             basis_up,
@@ -254,14 +270,72 @@ impl<'a> SPHamiltonian<'a> {
             pij_t,
             rij_t,
             proj_t,
-            efield
+            efield,
+
+            hamil0,
         })
     }
 
 
+    pub fn get_rtime_xtime(iion: usize, nsw: usize, namdinit: usize) -> [usize; 2] {
+        let rtime = (iion + namdinit) % (nsw - 2);
+        let xtime = rtime + 1;
+        [rtime, xtime]
+    }
+
+
+    pub fn get_hamil0_rtime(&self, iion: usize, namdinit: usize) -> nd::ArrayView2<c64> {
+        let [rtime, _] = Self::get_rtime_xtime(iion, self.nsw, namdinit);
+        self.get_hamil(rtime)
+    }
+
+
+    // H_diag = eig_t
+    // H_offdiag = nac_t * -i hbar
+    fn calculate_hamil0(eig_t: &nd::Array2<f64>, nac_t: &nd::Array3<c64>) -> nd::Array3<c64> {
+        // off-diag = -i * \hbar * NAC
+        let mut ret = -IMGUNIT * HBAR * nac_t;
+        let nsw = nac_t.shape()[0];
+
+        // diag = eig
+        for i in 0 .. nsw {
+            ret.slice_mut(nd::s![i, .., ..])
+                .diag_mut()
+                .assign(&eig_t.slice(nd::s![i, ..]).mapv(|v| c64::new(v, 0.0)));
+        }
+
+        ret
+    }
 }
 
 fn idx_convert(brange: &[usize; 2], idx: usize, shift: usize) -> Result<usize> {
     ensure!(idx >= brange[0] && idx <= brange[1], "Index out of bounds.");
     Ok(idx - brange[0] + shift)
+}
+
+
+fn apply_scissor(eigs: &mut nd::Array2<f64>, scissor: f64) {
+    let eigs_avg = eigs.mean_axis(nd::Axis(0)).unwrap().to_vec();
+    let cbm = eigs_avg.partition_point(|&x| x < 0.0);
+    let vbm = cbm - 1;
+    let gap = eigs_avg[cbm] - eigs_avg[vbm];
+
+    let gaps = eigs.slice(nd::s![.., cbm]).to_owned() - eigs.slice(nd::s![.., vbm]);
+    let gap_min = gaps.iter().min_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+    let gap_max = gaps.iter().max_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+
+    let shift = scissor - gap;
+    let newgap_min = gap_min + shift;
+    let newgap_max = gap_max + shift;
+
+    // Without the asterisk, `cbm_min` would be fucking &f64 instead of f64
+    let cbm_min: f64 = *eigs.slice(nd::s![.., cbm]).iter().min_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+    let vbm_max: f64 = *eigs.slice(nd::s![.., vbm]).iter().max_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+    let gap_t_min    = cbm_min - vbm_max + shift;
+
+    eigs.slice_mut(nd::s![.., cbm ..]).mapv_inplace(|x| x + shift);
+    info!("Found scissor opeartor of {scissor:.4} eV. current system has gap of \
+           {gap_min:.4} .. {gap:.4} .. {gap_max:.4} (min .. avg .. max) (eV).
+                Now the gap is set to {newgap_min:.4} .. {scissor:.4} .. {newgap_max:.4} \
+                (min .. avg .. max) (eV). min(CBM_t) - max(VBM_t) = {:8.4}", gap_t_min);
 }
