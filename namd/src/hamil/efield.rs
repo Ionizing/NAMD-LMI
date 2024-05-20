@@ -41,7 +41,7 @@ pub struct Efield<'a> {
 }
 
 
-impl<'a> Efield<'a> {
+impl Efield<'_> {
     pub fn from_str(raw: &str) -> Result<Self> {
         let raw = raw.to_string();
 

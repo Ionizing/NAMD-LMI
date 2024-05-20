@@ -62,9 +62,6 @@ pub struct HamilConfig {
     #[serde(default = "HamilConfig::default_basis")]
     basis_dn: [usize; 2],
 
-    #[serde(default = "HamilConfig::default_nelm")]
-    nelm: usize,
-
     nac_fname: PathBuf,
 
     efield_fname: Option<PathBuf>,
@@ -75,6 +72,9 @@ pub struct HamilConfig {
     #[serde(deserialize_with="HamilConfig::parse_propmethod")]
     propmethod: PropagateMethod,
 
+    #[serde(default = "HamilConfig::default_reorder")]
+    reorder: bool,
+
     scissor: Option<f64>,
 }
 
@@ -82,8 +82,8 @@ pub struct HamilConfig {
 impl HamilConfig {
     fn default_ikpoint() -> usize { 1 }
     fn default_basis() -> [usize; 2] { [0, 0] }
-    fn default_nelm() -> usize { 10 }
     fn default_hamil_fname() -> PathBuf { PathBuf::from("HAMIL.h5") }
+    fn default_reorder() -> bool { false }
 
     fn parse_propmethod<'de, D>(deserializer: D) -> std::result::Result<PropagateMethod, D::Error>
     where D: Deserializer<'de> {
@@ -106,11 +106,11 @@ impl HamilConfig {
     pub fn get_ikpoint(&self) -> usize { self.ikpoint }
     pub fn get_basis_up(&self) -> [usize; 2] { self.basis_up }
     pub fn get_basis_dn(&self) -> [usize; 2] { self.basis_dn }
-    pub fn get_nelm(&self) -> usize { self.nelm }
     pub fn get_nac_fname(&self) -> &PathBuf { &self.nac_fname }
     pub fn get_efield_fname(&self) -> Option<&PathBuf> { self.efield_fname.as_ref() }
     pub fn get_hamil_fname(&self) -> &PathBuf { &self.hamil_fname }
     pub fn get_propmethod(&self) -> PropagateMethod { self.propmethod }
+    pub fn get_reorder(&self) -> bool { self.reorder }
     pub fn get_scissor(&self) -> Option<f64> { self.scissor }
 
     pub fn  check_config(&self) -> Result<()> {
@@ -140,10 +140,6 @@ impl HamilConfig {
 
         if nbasis <= 1 {
             ret = ret.context("Field 'basis_up' and 'basis_dn' must include at least two bands to form a valid Hamiltonian.");
-        }
-
-        if self.nelm < 1 {
-            ret = ret.context("Field 'nelm' cannot be 0.");
         }
 
         if !self.nac_fname.is_file() {
@@ -183,7 +179,6 @@ impl fmt::Display for HamilConfig {
         writeln!(f, " {:>20} = {:?}", "ikpoint", self.ikpoint)?;
         writeln!(f, " {:>20} = {:?}", "basis_up", self.basis_up)?;
         writeln!(f, " {:>20} = {:?}", "basis_dn", self.basis_dn)?;
-        writeln!(f, " {:>20} = {:?}", "nelm", self.nelm)?;
         writeln!(f, " {:>20} = {:?}", "nac_fname", self.nac_fname)?;
         if let Some(efield) = self.efield_fname.as_ref() {
             writeln!(f, " {:>20} = {:?}", "efield", efield)?;
@@ -206,11 +201,11 @@ impl Default for HamilConfig {
             ikpoint: 1,
             basis_up: [0, 0],
             basis_dn: [0, 0],
-            nelm: 10,
             nac_fname: PathBuf::from("NAC.h5"),
             efield_fname: None,
             hamil_fname: PathBuf::from("HAMIL.h5"),
             propmethod: PropagateMethod::Expm,
+            reorder: false,
             scissor: None,
         }
     }
@@ -248,7 +243,6 @@ mod tests {
         ikpoint = 2
         basis_up = [114, 514]
         basis_dn = [256, 512]
-        nelm = 20
         nac_fname = "NAC_test.h5"
         hamil_fname = "HAMIL_test.h5"
         propmethod = "fd"
@@ -260,11 +254,11 @@ mod tests {
             ikpoint: 2,
             basis_up: [114, 514],
             basis_dn: [256, 512],
-            nelm: 20,
             nac_fname: PathBuf::from("NAC_test.h5"),
             efield_fname: None,
             hamil_fname: PathBuf::from("HAMIL_test.h5"),
             propmethod: PropagateMethod::FiniteDifference,
+            reorder: false,
             scissor: Some(1.5),
         };
 

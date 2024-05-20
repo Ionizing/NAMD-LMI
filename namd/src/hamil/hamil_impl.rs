@@ -1,6 +1,11 @@
 use std::path::Path;
 //use std::fmt;
 
+use pathfinding::prelude::{
+    kuhn_munkres,
+    Matrix as pfMatrix,
+};
+use ordered_float::OrderedFloat;
 use hdf5::File as H5File;
 use shared::ndarray as nd;
 use shared::{
@@ -31,6 +36,8 @@ pub struct SPHamiltonian<'a> {
     nsw:         usize,
     temperature: f64,
     propmethod:  PropagateMethod,
+    reorder:     bool,
+    scissor:     Option<f64>,
 
     eig_t:     nd::Array2<f64>,     // [nsw-1, nbasis]
     nac_t:     nd::Array3<c64>,     // [nsw-1, nbasis, nbasis]
@@ -56,7 +63,7 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
     /// Get the hamiltonian without electron-photon interaction.
     fn get_hamil(&self, iion: usize) -> nd::ArrayView2<c64> {
         self.hamil0.slice(nd::s![iion, .., ..])
-    } // [nbasis, nbasis]
+    }
 
     fn from_config(cfg: &Self::ConfigType) -> Result<Self> {
         let coup = Nac::from_h5(cfg.get_nac_fname())?;
@@ -79,6 +86,8 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
             let src = String::from_utf8(raw)?;
             PropagateMethod::from_str(&src)?
         };
+        let reorder  = f.dataset("reorder")?.read_scalar::<bool>()?;
+        let scissor  = f.dataset("scissor")?.read_scalar::<f64>().ok();
 
         let eig_t: nd::Array2<f64> = f.dataset("eig_t")?.read()?;
         let nac_t = {
@@ -119,6 +128,8 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
             nsw,
             temperature,
             propmethod,
+            reorder,
+            scissor,
 
             eig_t,
             nac_t,
@@ -142,6 +153,10 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
         f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
         f.new_dataset::<usize>().create("nsw")?.write_scalar(&self.nsw)?;
         f.new_dataset::<f64>().create("temperature")?.write_scalar(&self.temperature)?;
+        f.new_dataset::<bool>().create("reorder")?.write_scalar(&self.reorder)?;
+        if let Some(scissor) = self.scissor.as_ref() {
+            f.new_dataset::<f64>().create("scissor")?.write_scalar(scissor)?;
+        }
 
         f.new_dataset_builder().with_data(&self.propmethod.to_string()).create("propmethod")?;
         f.new_dataset_builder().with_data(&self.eig_t).create("eig_t")?;
@@ -179,6 +194,7 @@ impl<'a> SPHamiltonian<'a> {
         let temperature: f64     = coup.get_temperature();
         let propmethod           = cfg.get_propmethod();
         let brange               = coup.get_brange();
+        let reorder              = cfg.get_reorder();
 
         let mut nb = [0usize; 2];
         nb[0] = if basis_up.contains(&0) {
@@ -264,6 +280,8 @@ impl<'a> SPHamiltonian<'a> {
             nsw,
             temperature,
             propmethod,
+            reorder,
+            scissor: cfg.get_scissor(),
 
             eig_t,
             nac_t,
@@ -290,6 +308,38 @@ impl<'a> SPHamiltonian<'a> {
     }
 
 
+    pub fn get_pij_t(&self) -> nd::ArrayView4<c64> {
+        self.pij_t.view()
+    }
+
+
+    pub fn get_pij_rtime(&self, iion: usize, namdinit: usize) -> nd::ArrayView3<c64> {
+        let [rtime, _] = Self::get_rtime_xtime(iion, self.nsw, namdinit);
+        self.pij_t.slice(nd::s![rtime, .., .., ..])
+    }
+
+
+    pub fn get_rij_t(&self) -> nd::ArrayView4<c64> {
+        self.rij_t.view()
+    }
+
+
+    pub fn get_rij_rtime(&self, iion: usize, namdinit: usize) -> nd::ArrayView3<c64> {
+        let [rtime, _] = Self::get_rtime_xtime(iion, self.nsw, namdinit);
+        self.rij_t.slice(nd::s![rtime, .., .., ..])
+    }
+
+
+    pub fn get_efield(&self) -> Option<&Efield> {
+        self.efield.as_ref()
+    }
+
+
+    pub fn get_propmethod(&self) -> PropagateMethod {
+        self.propmethod
+    }
+
+
     // H_diag = eig_t
     // H_offdiag = nac_t * -i hbar
     fn calculate_hamil0(eig_t: &nd::Array2<f64>, nac_t: &nd::Array3<c64>) -> nd::Array3<c64> {
@@ -305,6 +355,46 @@ impl<'a> SPHamiltonian<'a> {
         }
 
         ret
+    }
+
+
+    fn find_order(cij: nd::ArrayView2<c64>) -> nd::Array1<usize> {
+        let uij = cij.mapv(|v| OrderedFloat(v.norm_sqr()));
+        let weights = pfMatrix::square_from_vec(uij.into_raw_vec()).unwrap();
+        let (_maxcoup, order) = kuhn_munkres(&weights);
+        return nd::Array1::<usize>::from(order);
+    }
+
+
+    fn find_all_orders(cij: nd::ArrayView3<c64>) -> nd::Array2<usize> {
+        let (nsw, nbasis, _) = cij.dim();
+        let mut orders = nd::Array2::<usize>::zeros((nsw, nbasis));
+        for isw in 0 .. nsw {
+            orders.slice_mut(nd::s![isw, ..])
+                .assign(&Self::find_order(cij.slice(nd::s![isw, .., ..])));
+        }
+
+        for isw in 1 .. nsw {
+            let perm_ij = orders.slice(nd::s![isw, ..]).to_owned();
+            for iband in 0 .. nbasis {
+                orders[(isw, iband)] = orders[(isw-1, perm_ij[iband])];
+            }
+        }
+
+        return orders;
+    }
+
+
+    fn apply_reorder(
+        eig_t: nd::ArrayViewMut2<f64>,
+        nac_t: nd::ArrayViewMut3<c64>,
+        pij_t: nd::ArrayViewMut4<c64>,
+        rij_t: nd::ArrayViewMut4<c64>,
+        proj_t: nd::ArrayViewMut4<f64>,
+        ) {
+        let orders = Self::find_all_orders(nac_t.view());
+
+        todo!()
     }
 }
 
