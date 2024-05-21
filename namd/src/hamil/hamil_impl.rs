@@ -386,15 +386,61 @@ impl<'a> SPHamiltonian<'a> {
 
 
     fn apply_reorder(
-        eig_t: nd::ArrayViewMut2<f64>,
-        nac_t: nd::ArrayViewMut3<c64>,
-        pij_t: nd::ArrayViewMut4<c64>,
-        rij_t: nd::ArrayViewMut4<c64>,
-        proj_t: nd::ArrayViewMut4<f64>,
+        eig_t: &mut nd::ArrayViewMut2<f64>,
+        nac_t: &mut nd::ArrayViewMut3<c64>,
+        pij_t: &mut nd::ArrayViewMut4<c64>,
+        rij_t: &mut nd::ArrayViewMut4<c64>,
+        proj_t: &mut nd::ArrayViewMut4<f64>,
         ) {
-        let orders = Self::find_all_orders(nac_t.view());
+        let (nsw, nbasis) = eig_t.dim();
+        assert!((nsw, nbasis, nbasis) == nac_t.dim());
+        assert!((nsw, 3, nbasis, nbasis) == pij_t.dim());
+        assert!((nsw, 3, nbasis, nbasis) == rij_t.dim());
+        assert!(nsw == proj_t.shape()[0] && nbasis == proj_t.shape()[1]);
 
-        todo!()
+        let orders = Self::find_all_orders(nac_t.view());
+        let (nsw, nbasis) = orders.dim();
+
+        let orders_sorted = nd::Array1::<usize>::from_iter(0 .. nbasis);
+
+        for isw in 0 .. nsw {
+            let iorder = orders.slice(nd::s![isw, ..]);
+
+            // sort the eigen values and projectors
+            let proj_t_org = proj_t.slice(nd::s![isw, .., .., ..]).to_owned();
+            for iband in 0 .. nbasis {
+                eig_t[(isw, iorder[iband])] = eig_t[(isw, iband)];
+                proj_t.slice_mut(nd::s![isw, iorder[iband], .., ..])
+                    .assign(&proj_t_org.slice(nd::s![iband, .., ..]));
+            }
+
+            // sort NAC = <i| d/dt |j> and momentum matrix <i| p |j> and dipole matrix <i| r |j>
+            //  prepare the indices
+            let iorder = if 0 == isw { orders_sorted.view() } else { orders.slice(nd::s![isw-1, ..]) };
+            let jorder = orders.slice(nd::s![isw, ..]);
+
+            let nac_t_org = nac_t.slice(nd::s![isw, .., ..]).to_owned();
+            let pij_t_org = pij_t.slice(nd::s![isw, .., .., ..]).to_owned();
+            let rij_t_org = rij_t.slice(nd::s![isw, .., .., ..]).to_owned();
+            for iband in 0 .. nbasis {
+                for jband in 0 .. nbasis {
+                    nac_t[(isw, iorder[iband], jorder[jband])] = nac_t_org[(iband, jband)];
+                    pij_t[(isw, 0, iorder[iband], jorder[jband])] = pij_t_org[(0, iband, jband)];
+                    pij_t[(isw, 1, iorder[iband], jorder[jband])] = pij_t_org[(1, iband, jband)];
+                    pij_t[(isw, 2, iorder[iband], jorder[jband])] = pij_t_org[(2, iband, jband)];
+                    rij_t[(isw, 0, iorder[iband], jorder[jband])] = rij_t_org[(0, iband, jband)];
+                    rij_t[(isw, 1, iorder[iband], jorder[jband])] = rij_t_org[(1, iband, jband)];
+                    rij_t[(isw, 2, iorder[iband], jorder[jband])] = rij_t_org[(2, iband, jband)];
+
+                    // alternative form, may be much slower
+                    //pij_t.slice_mut(nd::s![isw, .., iorder[iband], jorder[jband]])
+                        //.assign(&pij_t_org.slice(nd::s![.., iband, jband]));
+                    //rij_t.slice_mut(nd::s![isw, .., iorder[iband], jorder[jband]])
+                        //.assign(&rij_t_org.slice(nd::s![.., iband, jband]));
+                }
+            }
+        }
+        return;
     }
 }
 

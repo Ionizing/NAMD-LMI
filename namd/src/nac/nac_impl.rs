@@ -87,8 +87,7 @@ impl Couplings for Nac {
             return Ok(nac);
         }
 
-        todo!()
-        //Self::calculate_from_scratch(&cfg)
+        Self::calculate_from_scratch(&cfg)
     }
 
     fn from_h5<P>(fname: P) -> Result<Self>
@@ -239,7 +238,7 @@ impl Nac {
             &phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, lncl, nions, nproj, &gvecs
         )?;
 
-        let ret = Self {
+        Ok(Self {
             ikpoint,
             nspin,
             nbands,
@@ -255,9 +254,7 @@ impl Nac {
             pij,
 
             proj,
-        };
-
-        todo!()
+        })
     }
 
     // This function calculates non-adiabatic coupling (NAC), and transition dipole moment (TDM)
