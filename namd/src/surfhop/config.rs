@@ -2,26 +2,48 @@ use std::fs;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use serde::{de::Error, Deserialize, Deserializer};
+use serde::Deserialize;
 use toml;
 use shared::{
     log,
     Result,
+    anyhow::ensure,
 };
 
 use crate::core::NamdConfig;
 
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 pub enum SHMethod {
+    #[serde(alias="fssh", alias="FSSH")]
     FSSH,
+    #[serde(alias="dish", alias="DISH")]
     DISH,
+    #[serde(alias="dcsh", alias="DCSH")]
     DCSH,
 }
 
 
-#[derive(Clone, Deserialize)]
-pub struct Config {
+impl fmt::Display for SHMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use SHMethod::*;
+        let s = match self {
+            FSSH => "FSSH",
+            DISH => "DISH",
+            DCSH => "DCSH",
+        };
+
+        if f.alternate() {
+            writeln!(f, "\"{}\"", s)
+        } else {
+            writeln!(f, "{}", s)
+        }
+    }
+}
+
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+pub struct SurfhopConfig {
     hamil_fname: PathBuf,
     nelm: usize,
     shmethod: SHMethod,
@@ -33,7 +55,7 @@ pub struct Config {
 }
 
 
-impl Default for Config {
+impl Default for SurfhopConfig {
     fn default() -> Self {
         Self {
             hamil_fname: "HAMIL.h5".into(),
@@ -48,21 +70,82 @@ impl Default for Config {
 }
 
 
-impl fmt::Display for Config {
+impl fmt::Display for SurfhopConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        writeln!(f, "####            NAMD-lumi config for surface-hopping calculation            ####")?;
+        writeln!(f, "#### YOUT NEED TO CHANGE THE PARAMETERS IN THE FOLLOWING TO FIT YOUR SYSTEM ####")?;
+        writeln!(f)?;
+
+        writeln!(f, " {:>20} = {:?}", "hamil_fname", self.hamil_fname)?;
+        writeln!(f, " {:>20} = {:?}", "nelm", self.nelm)?;
+        writeln!(f, " {:>20} = {:#}", "shmethod", self.shmethod)?;
+        writeln!(f, " {:>20} = {:?}", "outdir", self.outdir)?;
+        writeln!(f, " {:>20} = {:?}", "iniband", self.iniband)?;
+        writeln!(f, " {:>20} = {:?}", "inispin", self.inispin)?;
+        writeln!(f, " {:>20} = [", "inisteps")?;
+        for step in self.inisteps.iter() {
+            writeln!(f, "{:>10} ,", step)?;
+        }
+        writeln!(f, "]")?;
+
+        Ok(())
     }
 }
 
 
-impl NamdConfig for Config {
+impl NamdConfig for SurfhopConfig {
     fn from_file<P>(fname: P) -> Result<Self>
     where P: AsRef<Path> {
-        todo!()
+        ensure!(fname.as_ref().is_file(), "Config file {:?} for SurfhopConfig not available", fname.as_ref());
+        let raw = fs::read_to_string(fname)?;
+        let cfg = toml::from_str::<Self>(&raw)?;
+
+        Ok(cfg)
     }
 
     fn to_file<P>(&self, fname: P) -> Result<()>
     where P: AsRef<Path> {
+        if fname.as_ref().is_file() {
+            log::warn!("File {:?} exists, overwriting ...", fname.as_ref());
+        }
+        fs::write(fname, self.to_string())?;
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deserialize() {
+        let txt = r#"
+        hamil_fname = "HAMIL1.h5"
+        nelm = 20
+        shmethod = "DISH"
+        outdir = "shout"
+        iniband = 3
+        inispin = 2
+        inisteps = [
+            114,
+            514,
+        ]
+        "#;
+
+        let actual_cfg: SurfhopConfig = toml::from_str(txt).unwrap();
+        let expect_cfg: SurfhopConfig = SurfhopConfig {
+            hamil_fname: "HAMIL1.h5".into(),
+            nelm: 20,
+            shmethod: SHMethod::DISH,
+            outdir: "shout".into(),
+            iniband: 3,
+            inispin: 2,
+            inisteps: vec![114, 514],
+        };
+
+        assert_eq!(expect_cfg, actual_cfg);
+
+        println!("{}", &expect_cfg);
     }
 }

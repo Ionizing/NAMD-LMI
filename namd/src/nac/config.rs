@@ -149,7 +149,7 @@ impl NamdConfig for NacConfig {
         if fname.as_ref().is_file() {
             log::warn!("File {:?} exists, overwriting ...", fname.as_ref());
         }
-        fs::write(fname.as_ref(), self.to_string())?;
+        fs::write(fname, self.to_string())?;
         Ok(())
     }
 }
