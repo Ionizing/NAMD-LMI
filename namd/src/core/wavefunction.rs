@@ -8,7 +8,7 @@ pub trait Wavefunction {
     type PopArraryType<'a>: nd::AsArray<'a, f64, nd::Ix1> where Self: 'a;
     type TdPopArrayType<'a>: nd::AsArray<'a, f64, nd::Ix2> where Self: 'a;
     type TdEigArrayType<'a>: nd::AsArray<'a, f64, nd::Ix1> where Self: 'a;
-    type HamiltonianType<'a>: Hamiltonian;
+    type HamiltonianType: Hamiltonian;
 
     fn get_nbasis(&self) -> usize;
     fn get_basisini(&self) -> usize;
@@ -17,7 +17,7 @@ pub trait Wavefunction {
     fn get_potim(&self) -> f64;
     fn get_nelm(&self) -> usize;
 
-    fn propagate_full(&mut self, hamil: &Self::HamiltonianType<'_>);
+    fn propagate_full(&mut self, hamil: &Self::HamiltonianType);
     fn get_psi(&self, iion: usize) -> Self::ArrayType<'_>;       // [time, nbasis]
     fn get_psi_t(&self) -> Self::TdArrayType<'_>;                // [time, nbasis]
 

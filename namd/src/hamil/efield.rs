@@ -7,7 +7,7 @@ use std::io::{
     BufWriter,
 };
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::Mutex;
 
 use rhai::{
     AST,
@@ -27,25 +27,22 @@ use shared::{
 use shared::MatX3;
 
 
-fn get_engine() -> &'static Engine {
-    static ENGINE: OnceLock<Engine> = OnceLock::new();
-    ENGINE.get_or_init(|| Engine::new())
-}
-
-
-#[derive(Clone)]
 pub struct Efield<'a> {
     raw: String,
     ast: AST,
+    engine: Engine,
     scope: Scope<'a>,
 }
+
+
+pub static EFIELD: Mutex<Option<Efield>> = Mutex::new(None);
 
 
 impl Efield<'_> {
     pub fn from_str(raw: &str) -> Result<Self> {
         let raw = raw.to_string();
 
-        let engine = get_engine();
+        let engine = Engine::new();
         let ast = engine.compile(&raw).context("Failed eval efield.")?;
         let mut scope = Scope::new();
         scope.push_constant("hbar", 0.6582119569);
@@ -54,6 +51,7 @@ impl Efield<'_> {
 
         Ok(Self {
             raw,
+            engine,
             ast,
             scope,
         })
@@ -73,7 +71,7 @@ impl Efield<'_> {
 
 
     pub fn eval(&mut self, t: f64) -> [f64; 3] {
-        let engine = get_engine();
+        let engine = &self.engine;
         let ast    = &self.ast;
         let scope  = &mut self.scope;
 
@@ -88,7 +86,7 @@ impl Efield<'_> {
 
 
     pub fn eval_array(&mut self, ts: &[f64]) -> MatX3<f64> {
-        let engine = get_engine();
+        let engine = &self.engine;
         let ast    = &self.ast;
         let scope  = &mut self.scope;
 
@@ -134,55 +132,53 @@ impl Efield<'_> {
     }
 
 
-    pub fn print_efield_tofile<P>(&mut self, dir: P, namdtime: usize, potim: f64, nelm: usize) -> Result<()>
+    pub fn print_eafield_tofile<P>(&mut self, dir: P, namdtime: usize, potim: f64, nelm: usize) -> Result<()>
     where P: AsRef<Path> {
         let dir = dir.as_ref().to_owned();
         ensure!(dir.is_dir(), "The parameter dir should be a valid directory.");
-        let efield_fname = dir.with_file_name("EFIELD.txt");
-        let afield_fname = dir.with_file_name("AFIELD.txt");
+        let eafield_fname = dir.with_file_name("EAFIELD.txt");
 
         let (t, [efield, afield]) = self.get_eafield_array(namdtime, potim, nelm);
 
-
-        {
-            info!("Writing electric field to {:?} ...", &efield_fname);
-            if efield_fname.is_file() {
-                warn!("File {:?} exists, overwriting ...", &efield_fname);
-            }
-
-            let mut f = BufWriter::new(
-                File::options().write(true)
-                               .create(true)
-                               .truncate(true)
-                               .open(&efield_fname)?
-                );
-
-            writeln!(f, "# Time(fs) Ex Ey Ez(V/Å)")?;
-            for (i, e) in efield.iter().enumerate() {
-                writeln!(f, "{:15.5} {:15.7} {:15.7} {:15.7}", t[i], e[0], e[1], e[2])?;
-            }
+        info!("Writing electric field to {:?} ...", &eafield_fname);
+        if eafield_fname.is_file() {
+            warn!("File {:?} exists, overwriting ...", &eafield_fname);
         }
 
+        let mut f = BufWriter::new(
+            File::options().write(true)
+                           .create(true)
+                           .truncate(true)
+                           .open(&eafield_fname)?
+            );
 
-        {
-            info!("Writing integrated vector potential to {:?} ...", &afield_fname);
-            if efield_fname.is_file() {
-                warn!("File {:?} exists, overwriting ...", &afield_fname);
-            }
-
-            let mut f = BufWriter::new(
-                File::options().write(true)
-                               .create(true)
-                               .truncate(true)
-                               .open(&afield_fname)?
-                );
-
-            writeln!(f, "# Time(fs) Ax Ay Az(V*fs/Å)")?;
-            for (i, a) in afield.iter().enumerate() {
-                writeln!(f, "{:15.5} {:15.7} {:15.7} {:15.7}", t[i], a[0], a[1], a[2])?;
-            }
+        writeln!(f, "# Time(fs) Ex Ey Ez(V/Å) Ax Ay Az(V*fs/Å)")?;
+        for i in 0 .. t.len() {
+            let e = efield[i];
+            let a = afield[i];
+            writeln!(f, "{:15.5} {:15.7} {:15.7} {:15.7}    {:15.7} {:15.7} {:15.7}",
+                t[i], e[0], e[1], e[2], a[0], a[1], a[2])?;
         }
 
         Ok(())
+    }
+
+
+    pub fn singleton_from_str(raw: &str) -> Result<&'static Mutex<Option<Self>>> {
+        let instance = Efield::from_str(raw)?;
+        if EFIELD.lock().unwrap().is_none() {
+            *(EFIELD.lock().unwrap()) = Some(instance);
+        }
+        Ok(&EFIELD)
+    }
+
+
+    pub fn singleton_from_file<P>(fname: P) -> Result<&'static Mutex<Option<Self>>>
+    where P: AsRef<Path> {
+        let instance = Efield::from_file(fname)?;
+        if EFIELD.lock().unwrap().is_none() {
+            *(EFIELD.lock().unwrap()) = Some(instance);
+        }
+        Ok(&EFIELD)
     }
 }

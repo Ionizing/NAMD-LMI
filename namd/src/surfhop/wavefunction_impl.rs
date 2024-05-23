@@ -1,3 +1,4 @@
+use shared::Result;
 use shared::c64;
 use shared::ndarray as nd;
 use shared::MatX3;
@@ -9,6 +10,7 @@ use shared::ndarray_linalg::{
 
 use crate::core::constants::*;
 use crate::core::Wavefunction;
+use crate::core::Hamiltonian;
 use crate::hamil::{
     PropagateMethod,
     Efield,
@@ -23,7 +25,7 @@ pub struct SPWavefunction {
     potim: f64,
     nelm: usize,
 
-    psi0: nd::Array1<c64>,   // [nbasis]
+    psi0: nd::Array1<c64>,  // [nbasis]
     psi_t: nd::Array2<c64>, // [namdtime, nbasis]
     pop_t: nd::Array2<f64>, // [namdtime, nbasis]
     eig_t: nd::Array1<f64>, // [namdtime]
@@ -39,7 +41,7 @@ impl Wavefunction for SPWavefunction {
     type PopArraryType<'a> = nd::ArrayView1<'a, f64>;
     type TdPopArrayType<'a> = nd::ArrayView2<'a, f64>;
     type TdEigArrayType<'a> = nd::ArrayView1<'a, f64>;
-    type HamiltonianType<'a> = SPHamiltonian<'a>;
+    type HamiltonianType = SPHamiltonian;
 
     fn get_nbasis(&self) -> usize { self.nbasis }
     fn get_basisini(&self) -> usize { self.basisini }
@@ -48,7 +50,7 @@ impl Wavefunction for SPWavefunction {
     fn get_potim(&self) -> f64 { self.potim }
     fn get_nelm(&self) -> usize { self.nelm }
 
-    fn propagate_full(&mut self, hamil: &SPHamiltonian){
+    fn propagate_full(&mut self, hamil: &SPHamiltonian) {
         let edt = self.potim / self.nelm as f64;
         self.psi_t.slice_mut(nd::s![0, ..]).assign(&self.psi0);
         self.pop_t.slice_mut(nd::s![0, ..]).assign(&self.psi0.mapv(|v| v.norm_sqr()));
@@ -80,10 +82,6 @@ impl Wavefunction for SPWavefunction {
             let pop_c = psi.mapv(|v| v.norm_sqr());
             self.pop_t.slice_mut(nd::s![iion+1, ..]).assign(&pop_c);
         }
-
-        self.pop_t = self.psi_t.mapv(|v| v.norm_sqr());
-
-        todo!()
     }
 
     fn get_psi(&self, iion: usize) -> Self::ArrayType<'_> {
@@ -121,7 +119,7 @@ impl SPWavefunction {
     }
 
 
-    fn propagate_dispatch(mut hamil: nd::Array2<c64>, psi: &mut nd::Array1<c64>, edt: f64, method: PropagateMethod) {
+    fn propagate_dispatch(hamil: nd::Array2<c64>, psi: &mut nd::Array1<c64>, edt: f64, method: PropagateMethod) {
         use PropagateMethod::*;
 
         match method {
@@ -185,5 +183,23 @@ impl SPWavefunction {
         }
 
         lmi * FACT_PA       // unit: eV
+    }
+}
+
+
+impl SPWavefunction {
+    pub fn from_hamil_and_params(
+        mut hamil: SPHamiltonian,
+        iniband: usize, inispin: usize,
+        namdtime: usize, nelm: usize, namdinit: usize) -> Result<Self> {
+        let basisini = hamil.get_converted_index(iniband, inispin)?;
+
+        let efield_array = if let Some(efield) = hamil.get_efield() {
+            Some(efield.lock().unwrap().as_mut().unwrap().get_eafield_array(namdtime, hamil.get_potim(), nelm))
+        } else {
+            None
+        };
+
+        todo!()
     }
 }

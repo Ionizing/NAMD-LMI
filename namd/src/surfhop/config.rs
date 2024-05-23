@@ -55,6 +55,14 @@ pub struct SurfhopConfig {
 }
 
 
+impl SurfhopConfig {
+    pub fn get_hamil_fname(&self) -> &PathBuf { &self.hamil_fname }
+    pub fn get_iniband(&self) -> usize { self.iniband }
+    pub fn get_inispin(&self) -> usize { self.inispin }
+    pub fn get_inisteps(&self) -> &[usize] { &self.inisteps }
+}
+
+
 impl Default for SurfhopConfig {
     fn default() -> Self {
         Self {

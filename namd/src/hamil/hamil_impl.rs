@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Mutex;
 //use std::fmt;
 
 use pathfinding::prelude::{
@@ -13,6 +14,7 @@ use shared::{
     c64,
     Result,
     anyhow::ensure,
+    anyhow::bail,
 };
 
 use crate::core::{
@@ -26,8 +28,12 @@ use crate::hamil::efield::Efield;
 use crate::core::constants::*;
 
 
+pub type EfieldType = &'static Mutex<Option<Efield<'static>>>;
+
+
 /// Sing-Particle Hamiltonian
-pub struct SPHamiltonian<'a> {
+#[derive(Clone)]
+pub struct SPHamiltonian {
     ikpoint:     usize,
     basis_up:    [usize; 2],
     basis_dn:    [usize; 2],
@@ -44,14 +50,14 @@ pub struct SPHamiltonian<'a> {
     pij_t:     nd::Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     rij_t:     nd::Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     proj_t:    nd::Array4<f64>,     // [nsw-1, nbasis, nions, nproj]
-    efield:    Option<Efield<'a>>,
+    efield:    Option<EfieldType>,
 
     // pre-calculated hamiltonian = eig_t in diag + nac_t in off-diag
     hamil0:    nd::Array3<c64>,     // [nsw-1, nbasis, nbasis]
 }
 
 
-impl<'a> Hamiltonian for SPHamiltonian<'a> {
+impl Hamiltonian for SPHamiltonian {
     type ConfigType   = HamilConfig;
     type CouplingType = Nac;
 
@@ -113,7 +119,7 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
             } else {
                 let raw: Vec<u8> = f.dataset("efield")?.read_raw()?;
                 let efield_src = String::from_utf8(raw)?;
-                Some(Efield::from_str(&efield_src)?)
+                Some(Efield::singleton_from_str(&efield_src)?)
             }
         };
 
@@ -172,8 +178,12 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
 
         f.new_dataset_builder().with_data(&self.proj_t).create("proj_t")?;
 
-        if let Some(efield) = self.efield.as_ref() {
-            f.new_dataset_builder().with_data(efield.get_src()).create("efield")?;
+        if let Some(efield) = self.efield {
+            let e: String = efield      // Mutex<...>
+                .lock().unwrap()        // Option<...>
+                .as_ref().unwrap()      // Efield{ ... }
+                .get_src().to_owned();  // String
+            f.new_dataset_builder().with_data(&e).create("efield")?;
         }
 
         Ok(())
@@ -181,7 +191,7 @@ impl<'a> Hamiltonian for SPHamiltonian<'a> {
 } 
 
 
-impl<'a> SPHamiltonian<'a> {
+impl SPHamiltonian {
     fn with_config_and_coupling(cfg: &HamilConfig, coup: &Nac) -> Result<Self> {
         cfg.check_config()?;
         ensure!(cfg.get_ikpoint() == coup.get_ikpoint());
@@ -262,8 +272,20 @@ impl<'a> SPHamiltonian<'a> {
         proj_t.slice_mut(nd::s![.., bdn_hamil.clone(), .., ..])
             .assign(&coup.get_tdproj().slice(nd::s![.., 1, bdn_hamil.clone(), .., ..]));
 
-        let efield: Option<Efield> = cfg.get_efield_fname()
-            .map(|fname| Efield::from_file(fname).unwrap());
+        // apply the reordering
+        if cfg.get_reorder() {
+            Self::apply_reorder(
+                &mut eig_t.view_mut(),
+                &mut nac_t.view_mut(),
+                &mut pij_t.view_mut(),
+                &mut rij_t.view_mut(),
+                &mut proj_t.view_mut(),
+            );
+        }
+
+
+        let efield: Option<EfieldType> = cfg.get_efield_fname()
+            .map(|fname| Efield::singleton_from_file(fname).unwrap());
 
         if let Some(scissor) = cfg.get_scissor() {
             apply_scissor(&mut eig_t, scissor);
@@ -330,8 +352,8 @@ impl<'a> SPHamiltonian<'a> {
     }
 
 
-    pub fn get_efield(&self) -> Option<&Efield> {
-        self.efield.as_ref()
+    pub fn get_efield(&self) -> Option<EfieldType> {
+        self.efield
     }
 
 
@@ -441,6 +463,37 @@ impl<'a> SPHamiltonian<'a> {
             }
         }
         return;
+    }
+
+
+    pub fn get_converted_index(&self, iband: usize, ispin: usize) -> Result<usize> {
+        let mut nb = [0usize; 2];
+        nb[0] = if self.basis_up.contains(&0) {
+            0
+        } else {
+            self.basis_up[1] - self.basis_up[0] + 1
+        };
+        nb[1] = if self.basis_dn.contains(&0) {
+            0
+        } else {
+            self.basis_dn[1] - self.basis_dn[0] + 1
+        };
+
+        ensure!(ispin == 1 || ispin == 2);
+        
+        match ispin {
+            1 => {
+                ensure!(nb[0] != 0);
+                ensure!(self.basis_up[0] <= iband && iband <= self.basis_up[1]);
+                Ok( iband - self.basis_up[0] )
+            },
+            2 => {
+                ensure!(nb[1] != 0);
+                ensure!(self.basis_dn[0] <= iband && iband <= self.basis_dn[1]);
+                Ok( nb[0] + iband - self.basis_dn[0] )
+            },
+            s => { bail!("Invalid ispin: {}", s) }
+        }
     }
 }
 
