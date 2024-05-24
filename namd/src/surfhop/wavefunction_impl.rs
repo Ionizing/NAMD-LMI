@@ -189,17 +189,42 @@ impl SPWavefunction {
 
 impl SPWavefunction {
     pub fn from_hamil_and_params(
-        mut hamil: SPHamiltonian,
+        hamil: &SPHamiltonian,
         iniband: usize, inispin: usize,
         namdtime: usize, nelm: usize, namdinit: usize) -> Result<Self> {
+        let nbasis = hamil.get_nbasis();
         let basisini = hamil.get_converted_index(iniband, inispin)?;
+        // namdinit
+        // namdtime
+        let potim = hamil.get_potim();
+        // nelm
+
+        let mut psi0 = nd::Array1::<c64>::zeros(nbasis);
+        psi0[basisini] = c64::new(1.0, 0.0);
+
+        let psi_t = nd::Array2::<c64>::zeros((namdtime, nbasis));
+        let pop_t = nd::Array2::<f64>::zeros((namdtime, nbasis));
+        let eig_t = nd::Array1::<f64>::zeros(namdtime);
 
         let efield_array = if let Some(efield) = hamil.get_efield() {
-            Some(efield.lock().unwrap().as_mut().unwrap().get_eafield_array(namdtime, hamil.get_potim(), nelm))
+            Some(efield.lock().unwrap().get_eafield_array(namdtime, hamil.get_potim(), nelm).1)
         } else {
             None
         };
 
-        todo!()
+        Ok(Self {
+            nbasis,
+            basisini,
+            namdinit,
+            namdtime,
+            potim,
+            nelm,
+
+            psi0,
+            psi_t,
+            pop_t,
+            eig_t,
+            efield_array,
+        })
     }
 }

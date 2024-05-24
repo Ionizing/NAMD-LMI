@@ -28,7 +28,7 @@ use crate::hamil::efield::Efield;
 use crate::core::constants::*;
 
 
-pub type EfieldType = &'static Mutex<Option<Efield<'static>>>;
+pub type EfieldType = &'static Mutex<Efield<'static>>;
 
 
 /// Sing-Particle Hamiltonian
@@ -180,8 +180,7 @@ impl Hamiltonian for SPHamiltonian {
 
         if let Some(efield) = self.efield {
             let e: String = efield      // Mutex<...>
-                .lock().unwrap()        // Option<...>
-                .as_ref().unwrap()      // Efield{ ... }
+                .lock().unwrap()        // Efield
                 .get_src().to_owned();  // String
             f.new_dataset_builder().with_data(&e).create("efield")?;
         }

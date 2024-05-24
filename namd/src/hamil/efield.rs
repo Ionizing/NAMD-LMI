@@ -7,7 +7,10 @@ use std::io::{
     BufWriter,
 };
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{
+    OnceLock,
+    Mutex,
+};
 
 use rhai::{
     AST,
@@ -35,7 +38,12 @@ pub struct Efield<'a> {
 }
 
 
-pub static EFIELD: Mutex<Option<Efield>> = Mutex::new(None);
+
+#[allow(non_snake_case)]
+pub fn EFIELD() -> &'static Mutex<Efield<'static>> {
+    static EFIELD: OnceLock<Mutex<Efield>> = OnceLock::new();
+    EFIELD.get_or_init(|| Mutex::new(Efield::from_str("").unwrap()))
+}
 
 
 impl Efield<'_> {
@@ -164,21 +172,17 @@ impl Efield<'_> {
     }
 
 
-    pub fn singleton_from_str(raw: &str) -> Result<&'static Mutex<Option<Self>>> {
+    pub fn singleton_from_str(raw: &str) -> Result<&'static Mutex<Self>> {
         let instance = Efield::from_str(raw)?;
-        if EFIELD.lock().unwrap().is_none() {
-            *(EFIELD.lock().unwrap()) = Some(instance);
-        }
-        Ok(&EFIELD)
+        *(EFIELD().lock().unwrap()) = instance;
+        Ok(&EFIELD())
     }
 
 
-    pub fn singleton_from_file<P>(fname: P) -> Result<&'static Mutex<Option<Self>>>
+    pub fn singleton_from_file<P>(fname: P) -> Result<&'static Mutex<Self>>
     where P: AsRef<Path> {
         let instance = Efield::from_file(fname)?;
-        if EFIELD.lock().unwrap().is_none() {
-            *(EFIELD.lock().unwrap()) = Some(instance);
-        }
-        Ok(&EFIELD)
+        *(EFIELD().lock().unwrap()) = instance;
+        Ok(&EFIELD())
     }
 }

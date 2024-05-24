@@ -45,9 +45,12 @@ impl fmt::Display for SHMethod {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct SurfhopConfig {
     hamil_fname: PathBuf,
+    namdtime: usize,
     nelm: usize,
+    ntraj: usize,
     shmethod: SHMethod,
     outdir: PathBuf,
+    lexcitation: bool,
 
     iniband: usize,
     inispin: usize,
@@ -57,6 +60,13 @@ pub struct SurfhopConfig {
 
 impl SurfhopConfig {
     pub fn get_hamil_fname(&self) -> &PathBuf { &self.hamil_fname }
+    pub fn get_namdtime(&self) -> usize { self.namdtime }
+    pub fn get_nelm(&self) -> usize { self.nelm }
+    pub fn get_ntraj(&self) -> usize { self.ntraj }
+    pub fn get_shmethod(&self) -> SHMethod { self.shmethod }
+    pub fn get_outdir(&self) -> &PathBuf { &self.outdir }
+    pub fn get_lexcitation(&self) -> bool { self.lexcitation }
+
     pub fn get_iniband(&self) -> usize { self.iniband }
     pub fn get_inispin(&self) -> usize { self.inispin }
     pub fn get_inisteps(&self) -> &[usize] { &self.inisteps }
@@ -67,9 +77,13 @@ impl Default for SurfhopConfig {
     fn default() -> Self {
         Self {
             hamil_fname: "HAMIL.h5".into(),
+            namdtime: 1000,
             nelm: 10,
+            ntraj: 10000,
             shmethod: SHMethod::FSSH,
             outdir: ".".into(),
+            lexcitation: true,
+
             iniband: 0,
             inispin: 1,
             inisteps: vec![1, 2, 3],
@@ -85,9 +99,13 @@ impl fmt::Display for SurfhopConfig {
         writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "hamil_fname", self.hamil_fname)?;
+        writeln!(f, " {:>20} = {:?}", "namdtime", self.namdtime)?;
         writeln!(f, " {:>20} = {:?}", "nelm", self.nelm)?;
+        writeln!(f, " {:>20} = {:?}", "ntraj", self.ntraj)?;
         writeln!(f, " {:>20} = {:#}", "shmethod", self.shmethod)?;
         writeln!(f, " {:>20} = {:?}", "outdir", self.outdir)?;
+        writeln!(f, " {:>20} = {:?}", "lexcitation", self.lexcitation)?;
+
         writeln!(f, " {:>20} = {:?}", "iniband", self.iniband)?;
         writeln!(f, " {:>20} = {:?}", "inispin", self.inispin)?;
         writeln!(f, " {:>20} = [", "inisteps")?;
@@ -130,9 +148,13 @@ mod tests {
     fn test_deserialize() {
         let txt = r#"
         hamil_fname = "HAMIL1.h5"
+        namdtime = 2000
         nelm = 20
+        ntraj = 20000
         shmethod = "DISH"
         outdir = "shout"
+        lexcitation = true
+
         iniband = 3
         inispin = 2
         inisteps = [
@@ -144,9 +166,13 @@ mod tests {
         let actual_cfg: SurfhopConfig = toml::from_str(txt).unwrap();
         let expect_cfg: SurfhopConfig = SurfhopConfig {
             hamil_fname: "HAMIL1.h5".into(),
+            namdtime: 2000,
             nelm: 20,
+            ntraj: 20000,
             shmethod: SHMethod::DISH,
             outdir: "shout".into(),
+            lexcitation: true,
+
             iniband: 3,
             inispin: 2,
             inisteps: vec![114, 514],
