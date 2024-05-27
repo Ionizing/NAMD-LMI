@@ -3,21 +3,19 @@ use std::path::{
     PathBuf,
 };
 
+use rand::{Rng,thread_rng};
 use hdf5::File as H5File;
 use shared::ndarray as nd;
+use shared::log;
 use shared::Result;
 
 use crate::core::{
-    NamdConfig,
+    constants::*,
     Hamiltonian,
     SurfaceHopping,
     Wavefunction,
 };
-use crate::hamil::{
-    config::HamilConfig,
-    config::PropagateMethod,
-    hamil_impl::SPHamiltonian,
-};
+use crate::hamil::hamil_impl::SPHamiltonian;
 use crate::surfhop::wavefunction_impl::SPWavefunction;
 use crate::surfhop::config::{
     SHMethod,
@@ -37,7 +35,7 @@ pub struct Surfhop {
     namdtime: usize,
     tdpops: nd::Array2<f64>,            // [namdtime, nbasis]
     tdenergy: nd::Array1<f64>,          // [namdtime]
-    tdphotons: nd::Array3<usize>,       // [namdtime, nbasis, nbasis]
+    tdphotons: nd::Array3<usize>,       // [namdtime, nbasis, nbasis], emit => plus, absorb => minus
     tdphonons: nd::Array3<usize>,       // [namdtime, nbasis, nbasis]
 }
 
@@ -52,7 +50,19 @@ impl<'a> SurfaceHopping for Surfhop {
     fn get_tdenergy(&self) -> nd::ArrayView1<f64> { self.tdenergy.view() }
     
     fn run(&mut self) -> Result<()> {
-        todo!()
+        use SHMethod::*;
+
+        log::info!("Running surface hopping with namdinit = {} ...", self.wfn.get_namdinit());
+
+        match self.shmethod {
+            FSSH => self.fssh(),
+            DISH => self.dish(),
+            DCSH => self.dcsh(),
+        }
+        let ndigit = self.hamil.get_ndigit();
+        let namdinit = self.wfn.get_namdinit();
+        let fname = self.outdir.join(format!("result_{:0ndigit$}.h5", namdinit));
+        self.save_to_h5(&fname)
     }
 
     fn from_config(cfg: &Self::ConfigType) -> Result<Vec<Self>> {
@@ -117,5 +127,159 @@ impl<'a> SurfaceHopping for Surfhop {
         f.new_dataset_builder().with_data(&self.tdphonons).create("sh_phonons_t")?;
 
         Ok(())
+    }
+}
+
+
+impl Surfhop {
+    fn fssh(&mut self) {
+        let namdtime = self.namdtime;
+        let namdinit = self.namdtime;
+        let nbasis = self.hamil.get_nbasis();
+
+        self.wfn.propagate_full(&self.hamil);
+
+        let mut cumprob = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
+        let mut epc_normsqr = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
+        let mut lmi_normsqr = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
+        let mut td_eigs = nd::Array2::<f64>::zeros((namdtime, nbasis));
+        for iion in 0 .. namdtime {
+            for istate in 0 .. nbasis {
+                cumprob.slice_mut(nd::s![iion, istate, ..])
+                    .assign(&self.fssh_hop_prob(iion, istate));
+            }
+            epc_normsqr.slice_mut(nd::s![iion, .., ..])
+                .assign(&self.hamil.get_hamil0_rtime(iion, namdinit).mapv(|v| v.norm_sqr()));
+            lmi_normsqr.slice_mut(nd::s![iion, .., ..])
+                .assign(&self.wfn.get_lmi(&self.hamil, iion, 0).mapv(|v| v.norm_sqr()));
+            td_eigs.slice_mut(nd::s![iion, ..])
+                .assign(&self.hamil.get_eigs_rtime(iion, namdinit));
+        }
+
+        // cancel mutability
+        let cumprob = cumprob;
+        let epc_normsqr = epc_normsqr;
+        let lmi_normsqr = lmi_normsqr;
+        let td_eigs = td_eigs;
+
+
+        let mut rng = thread_rng();
+        self.tdpops.fill(0.0);
+        for _ in 0 .. self.ntraj {
+            let mut curstate: usize = self.wfn.get_basisini();
+            let mut nxtstate: usize;
+            for iion in 0 .. namdtime {
+                let randnum: f64 = rng.gen();
+                let hop_dest = cumprob.slice(nd::s![iion, curstate, ..])
+                    .as_slice().unwrap()
+                    .partition_point(|v| v < &randnum);
+                nxtstate = if hop_dest < nbasis { hop_dest } else { curstate };
+
+                // when hopping happens
+                if curstate != nxtstate {
+                    let mut epc: f64 = epc_normsqr[(iion, curstate, nxtstate)];
+                    let     lmi: f64 = lmi_normsqr[(iion, curstate, nxtstate)];
+
+                    // normalize
+                    let scale = 1.0 / (epc + lmi);
+                    epc *= scale;
+                    //lmi *= scale;
+
+                    let randnum2: f64 = rng.gen();
+                    //let eigs = self.hamil.get_eigs_rtime(iion, namdinit);
+
+                    // downward hop: cur > nxt => tdxxx[cur, nxt] +1
+                    if td_eigs[(iion, curstate)] > td_eigs[(iion, nxtstate)] {
+                        if randnum2 < epc {     // phonon emitted
+                            self.tdphonons[(iion, curstate, nxtstate)] += 1;
+                        } else {                // photon emitted
+                            self.tdphotons[(iion, curstate, nxtstate)] += 1;
+                        }
+                    // upward hop: cur < nxt => tdxxx[cur, nxt] -1
+                    } else {
+                        if randnum2 < epc {     // phonon absorbed
+                            self.tdphonons[(iion, curstate, nxtstate)] -= 1;
+                        } else {                // photon absorbed
+                            self.tdphotons[(iion, curstate, nxtstate)] -= 1;
+                        }
+                    }
+                }
+
+                curstate = nxtstate;
+                self.tdpops[(iion, curstate)] += 1.0;
+            }
+        }
+
+        self.tdpops /= self.ntraj as f64;
+
+        for iion in 0 .. namdtime {
+            self.tdenergy[iion] = (
+                self.tdpops.slice(nd::s![iion, ..]).to_owned() *
+                self.hamil.get_eigs_rtime(iion, namdinit)
+            ).sum();
+        }
+    }
+
+    fn fssh_hop_prob(&self, iion: usize, istate: usize) -> nd::Array1<f64> {
+        let namdinit = self.wfn.get_namdinit();
+
+        // |phi(j)|^2
+        let rho_jj = self.wfn.get_pop_t()[(iion, istate)];
+
+        // phi(j).conj() * phi(k)
+        let rho_jk = self.wfn.get_psi_t()[(iion, istate)].conj() * self.wfn.get_psi(iion).to_owned();
+
+        // -i hbar <phi(j) | d/dt | phi(k)>
+        let epc = self.hamil.get_hamil0_rtime(iion, namdinit);       // view
+
+        // e A <phi(j) | p | phi(k)>/m
+        let lmi = self.wfn.get_lmi(&self.hamil, iion, 0);            // owned
+
+        // total hamiltonian
+        let ham = lmi + epc;
+
+        // hopping probability
+        let mut prob = (
+            rho_jk * ham.slice(nd::s![istate, ..]) * (-2.0 * self.hamil.get_potim() / (HBAR * rho_jj))
+        ).mapv(|v| v.im.max(0.0));
+
+        // determine if the electric field is still present
+        let has_efield = self.wfn.get_efield_array()
+            .map(|e| {
+                let idx = iion * self.wfn.get_nelm();
+                let v = e[idx][0];
+                v[0] * v[0] + v[1] * v[1] + v[2] * v[2]
+            })
+            .unwrap_or(0.0) > EPS;
+
+        // balance factor to restrict upward hops
+        // upward hops is restricted only when
+        //     - not excitation process
+        //     - |EFIELD| != 0
+        if !self.lexcitation && !has_efield {
+            let eig = self.hamil.get_eigs_rtime(iion, namdinit);
+            let thermal_factor = (eig[istate] - eig.to_owned())
+                .mapv(|v| f64::exp(
+                        f64::min(v, 0.0) / (BOLKEV * self.hamil.get_temperature())
+                ));
+            prob *= &thermal_factor;
+        }
+
+        // cumulative sum
+        prob.into_iter()
+            .scan(0.0, |acc, x| {
+                *acc += x;
+                Some(*acc)
+            })
+            .collect::<nd::Array1<f64>>()
+    }
+
+
+    fn dish(&mut self) {
+        todo!()
+    }
+
+    fn dcsh(&mut self) {
+        todo!()
     }
 }

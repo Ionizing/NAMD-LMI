@@ -160,7 +160,7 @@ impl SPWavefunction {
 
 
     // get ep*A/m where p is <i|p|j>, A is vector potential; e and m are absorbed in FACT_PA
-    fn get_lmi(&self, hamil: &SPHamiltonian, iion: usize, ielm: usize) -> nd::Array2<c64> {
+    pub fn get_lmi(&self, hamil: &SPHamiltonian, iion: usize, ielm: usize) -> nd::Array2<c64> {
         let itime = iion * self.nelm + ielm;
 
         let pij_i  = hamil.get_pij_rtime(iion, self.namdinit).to_owned();

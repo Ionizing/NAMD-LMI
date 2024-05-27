@@ -43,6 +43,7 @@ pub struct SPHamiltonian {
     temperature: f64,
     propmethod:  PropagateMethod,
     reorder:     bool,
+    ndigit:      usize,
     scissor:     Option<f64>,
 
     eig_t:     nd::Array2<f64>,     // [nsw-1, nbasis]
@@ -93,6 +94,7 @@ impl Hamiltonian for SPHamiltonian {
             PropagateMethod::from_str(&src)?
         };
         let reorder  = f.dataset("reorder")?.read_scalar::<bool>()?;
+        let ndigit   = f.dataset("ndigit")?.read_scalar::<usize>()?;
         let scissor  = f.dataset("scissor")?.read_scalar::<f64>().ok();
 
         let eig_t: nd::Array2<f64> = f.dataset("eig_t")?.read()?;
@@ -125,7 +127,7 @@ impl Hamiltonian for SPHamiltonian {
 
         let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t);
 
-        Ok(SPHamiltonian {
+        Ok(Self {
             ikpoint,
             basis_up,
             basis_dn,
@@ -135,6 +137,7 @@ impl Hamiltonian for SPHamiltonian {
             temperature,
             propmethod,
             reorder,
+            ndigit,
             scissor,
 
             eig_t,
@@ -160,6 +163,7 @@ impl Hamiltonian for SPHamiltonian {
         f.new_dataset::<usize>().create("nsw")?.write_scalar(&self.nsw)?;
         f.new_dataset::<f64>().create("temperature")?.write_scalar(&self.temperature)?;
         f.new_dataset::<bool>().create("reorder")?.write_scalar(&self.reorder)?;
+        f.new_dataset::<usize>().create("ndigit")?.write_scalar(&self.ndigit)?;
         if let Some(scissor) = self.scissor.as_ref() {
             f.new_dataset::<f64>().create("scissor")?.write_scalar(scissor)?;
         }
@@ -204,6 +208,7 @@ impl SPHamiltonian {
         let propmethod           = cfg.get_propmethod();
         let brange               = coup.get_brange();
         let reorder              = cfg.get_reorder();
+        let ndigit               = coup.get_ndigit();
 
         let mut nb = [0usize; 2];
         nb[0] = if basis_up.contains(&0) {
@@ -302,6 +307,7 @@ impl SPHamiltonian {
             temperature,
             propmethod,
             reorder,
+            ndigit,
             scissor: cfg.get_scissor(),
 
             eig_t,
@@ -326,6 +332,20 @@ impl SPHamiltonian {
     pub fn get_hamil0_rtime(&self, iion: usize, namdinit: usize) -> nd::ArrayView2<c64> {
         let [rtime, _] = Self::get_rtime_xtime(iion, self.nsw, namdinit);
         self.get_hamil(rtime)
+    }
+
+
+    pub fn get_ndigit(&self) -> usize { self.ndigit }
+
+
+    pub fn get_eigs_rtime(&self, iion: usize, namdinit: usize) -> nd::ArrayView1<f64> {
+        let [rtime, _] = Self::get_rtime_xtime(iion, self.nsw, namdinit);
+        self.eig_t.slice(nd::s![rtime, ..])
+    }
+
+
+    pub fn get_eigs_t(&self) -> nd::ArrayView2<f64> {
+        self.eig_t.view()
     }
 
 

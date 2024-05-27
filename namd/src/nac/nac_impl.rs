@@ -22,6 +22,7 @@ pub struct Nac {
     ikpoint: usize,
     nspin: usize,
     nbands: usize,
+    ndigit: usize,
 
     /// stores `(brange[0] ..= brange[1])` where `brange[1]` is included
     brange: [usize; 2],
@@ -97,6 +98,7 @@ impl Couplings for Nac {
         let ikpoint = f.dataset("ikpoint")?.read_scalar::<usize>()?;
         let nspin   = f.dataset("nspin")?.read_scalar::<usize>()?;
         let nbands  = f.dataset("nbands")?.read_scalar::<usize>()?;
+        let ndigit  = f.dataset("ndigit")?.read_scalar::<usize>()?;
         let brange  = f.dataset("brange")?.read_scalar::<[usize;2]>()?;
         let nbrange = f.dataset("nbrange")?.read_scalar::<usize>()?;
         let nsw     = f.dataset("nsw")?.read_scalar::<usize>()?;
@@ -124,6 +126,7 @@ impl Couplings for Nac {
             ikpoint,
             nspin,
             nbands,
+            ndigit,
             brange,
             nbrange,
             nsw,
@@ -144,6 +147,7 @@ impl Couplings for Nac {
         f.new_dataset::<usize>().create("ikpoint")?.write_scalar(&self.ikpoint)?;
         f.new_dataset::<usize>().create("nspin")?.write_scalar(&self.nspin)?;
         f.new_dataset::<usize>().create("nbands")?.write_scalar(&self.nbands)?;
+        f.new_dataset::<usize>().create("ndigit")?.write_scalar(&self.ndigit)?;
         f.new_dataset::<[usize;2]>().create("brange")?.write_scalar(&self.brange)?;
         f.new_dataset::<usize>().create("nbrange")?.write_scalar(&self.nbrange)?;
         f.new_dataset::<usize>().create("nsw")?.write_scalar(&self.nsw)?;
@@ -242,6 +246,7 @@ impl Nac {
             ikpoint,
             nspin,
             nbands,
+            ndigit,
             brange: cfg.get_brange(),
             nbrange,
             nsw,
@@ -428,4 +433,6 @@ impl Nac {
             efermi: wi.efermi,
         })
     }
+
+    pub fn get_ndigit(&self) -> usize { self.ndigit }
 }
