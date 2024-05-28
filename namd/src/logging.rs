@@ -81,32 +81,6 @@ fn gen_logger_config(path: Option<impl AsRef<Path>>) -> Result<Config> {
     };
 
     let config = builder.build(root)?;
-
-
-    //let config = if let Some(logfile) = logfile {
-        //Config::builder()
-            //.appender(Appender::builder().build("stderr", Box::new(stderr)))
-            //.appender(Appender::builder().build("global_log", Box::new(global_log)))
-            //.appender(Appender::builder().build("logfile", Box::new(logfile)))
-            //.build(
-                //Root::builder()
-                    //.appender("stderr")
-                    //.appender("global_log")
-                    //.appender("logfile")
-                    //.build(level)
-            //)?
-    //} else {
-        //Config::builder()
-            //.appender(Appender::builder().build("stderr", Box::new(stderr)))
-            //.appender(Appender::builder().build("global_log", Box::new(global_log)))
-            //.build(
-                //Root::builder()
-                    //.appender("stderr")
-                    //.appender("global_log")
-                    //.build(level)
-            //)?
-    //};
-
     return Ok(config);
 }
 
@@ -117,7 +91,7 @@ pub fn logger_init() {
 
 
 pub fn logger_redirect(path: impl AsRef<Path>) -> Result<()> {
-    let config =gen_logger_config(Some(path))?;
+    let config = gen_logger_config(Some(path))?;
     HANDLE.lock().unwrap().set_config(config);
     Ok(())
 }

@@ -1,4 +1,5 @@
 use std::fmt;
+use once_cell::sync::Lazy;
 use once_cell::sync::OnceCell;
 
 pub mod built_info {
@@ -15,6 +16,22 @@ fn built_time() -> &'static str {
     })
     .as_str()
 }
+
+
+static LOGO_STR: Lazy<&str> = Lazy::new(|| {
+    &r"
++-----------------------------------------------------------------------------+
+|                                                                             |
+|    _   _            __  __  _____           _      _    _  __  __  _____    |
+|   | \ | |    /\    |  \/  ||  __ \         | |    | |  | ||  \/  ||_   _|   |
+|   |  \| |   /  \   | \  / || |  | | ______ | |    | |  | || \  / |  | |     |
+|   | . ` |  / /\ \  | |\/| || |  | ||______|| |    | |  | || |\/| |  | |     |
+|   | |\  | / ____ \ | |  | || |__| |        | |____| |__| || |  | | _| |_    |
+|   |_| \_|/_/    \_\|_|  |_||_____/         |______|\____/ |_|  |_||_____|   |
+|                                                                             |
++-----------------------------------------------------------------------------+
+    ".trim()
+});
 
 
 #[derive(Debug)]
@@ -41,7 +58,7 @@ impl<'a> Version<'a> {
     pub fn new() -> Self {
         Self {
             name:           built_info::PKG_NAME,
-            logo:           include_str!("./logo.txt"),
+            logo:           &LOGO_STR,
             version_str:    built_info::PKG_VERSION,
             authors:        built_info::PKG_AUTHORS,
             built_time:     built_time(),

@@ -5,22 +5,17 @@ use shared::{
     info,
     //debug,
 };
-use clap::Parser;
-//use namd::commands::OptProcess;
-//use namd::commands::Command;
 
-//use namd::logging::logger_init;
+use namd::logging::logger_init;
+use namd::cli::run;
 
 fn main() -> Result<()> {
     let now = std::time::Instant::now();
-    //let cml = Command::parse();
 
-    //logger_init();
+    logger_init();
     info!("Global logger initialized with targets being stderr and \"./globalrun.log\"");
 
-    //match cml {
-        //Command::Run(run) => run.process()?,
-    //}
+    run()?;
 
     info!("Time used: {:?}", now.elapsed());
     Ok(())
