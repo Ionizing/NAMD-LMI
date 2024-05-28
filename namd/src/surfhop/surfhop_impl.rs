@@ -31,7 +31,7 @@ pub struct Surfhop {
     lexcitation: bool,
 
     ntraj: usize,
-    inistep: usize,
+    namdinit: usize,
     namdtime: usize,
     tdpops: nd::Array2<f64>,            // [namdtime, nbasis]
     tdenergy: nd::Array1<f64>,          // [namdtime]
@@ -51,16 +51,16 @@ impl<'a> SurfaceHopping for Surfhop {
     
     fn run(&mut self) -> Result<()> {
         use SHMethod::*;
+        let namdinit = self.namdinit;
+        let ndigit = self.hamil.get_ndigit();
 
-        log::info!("Running surface hopping with namdinit = {} ...", self.wfn.get_namdinit());
+        log::info!("Running surface hopping with namdinit = {} ...", namdinit);
 
         match self.shmethod {
             FSSH => self.fssh(),
             DISH => self.dish(),
             DCSH => self.dcsh(),
         }
-        let ndigit = self.hamil.get_ndigit();
-        let namdinit = self.wfn.get_namdinit();
         let fname = self.outdir.join(format!("result_{:0ndigit$}.h5", namdinit));
         self.save_to_h5(&fname)
     }
@@ -72,7 +72,7 @@ impl<'a> SurfaceHopping for Surfhop {
         let outdir = cfg.get_outdir().clone();
         let lexcitation = cfg.get_lexcitation();
         let ntraj = cfg.get_ntraj();
-        // inistep got in the closure
+        // namdinit got in the closure
         let namdtime = cfg.get_namdtime();
         let nbasis = hamil.get_nbasis();
         let tdpops = nd::Array2::<f64>::zeros((namdtime, nbasis));
@@ -83,7 +83,7 @@ impl<'a> SurfaceHopping for Surfhop {
         cfg.get_inisteps().iter()
             .map(|&istep| -> Result<Self> {
                 let hamil = hamil.clone();
-                let inistep = istep;
+                let namdinit = istep;
                 let wfn = SPWavefunction::from_hamil_and_params(
                     &hamil, cfg.get_iniband(), cfg.get_inispin(),
                     cfg.get_namdtime(), cfg.get_nelm(), istep)?;
@@ -96,7 +96,7 @@ impl<'a> SurfaceHopping for Surfhop {
                     lexcitation,
 
                     ntraj,
-                    inistep,
+                    namdinit,
                     namdtime,
                     tdpops: tdpops.clone(),
                     tdenergy: tdenergy.clone(),
@@ -111,7 +111,7 @@ impl<'a> SurfaceHopping for Surfhop {
     where P: AsRef<Path> {
         let f = H5File::create(fname)?;
 
-        f.new_dataset::<usize>().create("inistep")?.write_scalar(&self.inistep)?;
+        f.new_dataset::<usize>().create("namdinit")?.write_scalar(&self.namdinit)?;
         f.new_dataset::<usize>().create("namdtime")?.write_scalar(&self.namdtime)?;
         f.new_dataset::<usize>().create("ntraj")?.write_scalar(&self.ntraj)?;
         f.new_dataset::<bool>().create("lexcitation")?.write_scalar(&self.lexcitation)?;
@@ -134,7 +134,7 @@ impl<'a> SurfaceHopping for Surfhop {
 impl Surfhop {
     fn fssh(&mut self) {
         let namdtime = self.namdtime;
-        let namdinit = self.namdtime;
+        let namdinit = self.namdinit;
         let nbasis = self.hamil.get_nbasis();
 
         self.wfn.propagate_full(&self.hamil);
@@ -186,7 +186,6 @@ impl Surfhop {
                     //lmi *= scale;
 
                     let randnum2: f64 = rng.gen();
-                    //let eigs = self.hamil.get_eigs_rtime(iion, namdinit);
 
                     // downward hop: cur > nxt => tdxxx[cur, nxt] +1
                     if td_eigs[(iion, curstate)] > td_eigs[(iion, nxtstate)] {

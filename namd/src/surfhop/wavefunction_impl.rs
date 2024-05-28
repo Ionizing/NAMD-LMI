@@ -191,7 +191,8 @@ impl SPWavefunction {
     pub fn from_hamil_and_params(
         hamil: &SPHamiltonian,
         iniband: usize, inispin: usize,
-        namdtime: usize, nelm: usize, namdinit: usize) -> Result<Self> {
+        namdtime: usize, nelm: usize, namdinit: usize
+    ) -> Result<Self> {
         let nbasis = hamil.get_nbasis();
         let basisini = hamil.get_converted_index(iniband, inispin)?;
         // namdinit
