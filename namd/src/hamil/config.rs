@@ -184,7 +184,7 @@ impl fmt::Display for HamilConfig {
             writeln!(f, " {:>20} = {:?}", "efield", efield)?;
         }
         writeln!(f, " {:>20} = {:?}", "hamil_fname", self.hamil_fname)?;
-        writeln!(f, " {:>20} = {:?}", "propmethod", self.propmethod)?;
+        writeln!(f, " {:>20} = \"{:?}\"", "propmethod", self.propmethod)?;
 
         if let Some(s) = self.scissor.as_ref() {
             writeln!(f, " {:>20} = {:?}", "scissor", s)?;
@@ -227,6 +227,7 @@ impl NamdConfig for HamilConfig {
         if fname.as_ref().is_file() {
             log::warn!("File {:?} exists, overwriting ...", fname.as_ref());
         }
+        log::info!("Writing config to file {:?}", fname.as_ref());
         fs::write(fname.as_ref(), self.to_string())?;
         Ok(())
     }

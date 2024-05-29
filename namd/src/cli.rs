@@ -11,8 +11,6 @@ use clap::{
 
 use shared::Result;
 
-use crate::nac::command::NacCommand;
-
 
 pub fn get_style() -> Styles {
     static INSTANCE: OnceLock<Styles> = OnceLock::new();
@@ -40,9 +38,9 @@ pub trait OptProcess : Parser {
           author = "@Ionizing github.com/Ionizing/NAMD-lumi",
           styles = get_style())]
 enum Opt {
-    Nac(NacCommand),
-    Hamil,
-    Surfhop,
+    Nac(crate::nac::NacCommand),
+    Hamil(crate::hamil::HamilCommand),
+    Surfhop(crate::surfhop::SurfhopCommand),
 }
 
 
@@ -52,7 +50,8 @@ impl OptProcess for Opt {
         
         match self {
             Nac(cmd) => cmd.process(),
-            _ => todo!(),
+            Hamil(cmd) => cmd.process(),
+            Surfhop(cmd) => cmd.process(),
         }
     }
 }

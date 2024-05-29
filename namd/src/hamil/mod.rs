@@ -6,6 +6,7 @@ pub use config::HamilConfig;
 pub use config::PropagateMethod;
 
 pub mod command;
+pub use command::HamilCommand;
 
 pub mod efield;
 pub use efield::Efield;

@@ -196,7 +196,7 @@ impl Hamiltonian for SPHamiltonian {
 
 impl SPHamiltonian {
     fn with_config_and_coupling(cfg: &HamilConfig, coup: &Nac) -> Result<Self> {
-        cfg.check_config()?;
+        //cfg.check_config()?;      // I assume that you've checked the validity of config.
         ensure!(cfg.get_ikpoint() == coup.get_ikpoint());
 
         let ikpoint: usize       = cfg.get_ikpoint();
@@ -209,6 +209,7 @@ impl SPHamiltonian {
         let brange               = coup.get_brange();
         let reorder              = cfg.get_reorder();
         let ndigit               = coup.get_ndigit();
+        let nspin                = coup.get_nspin();
 
         let mut nb = [0usize; 2];
         nb[0] = if basis_up.contains(&0) {
@@ -241,6 +242,10 @@ impl SPHamiltonian {
         };
         let bdn_hamil = nb[0] .. nbasis;
 
+        if nb[1] > 0 {
+            ensure!(nspin == 2, "Invalid spin index: NAC has only ONE spin channel.");
+        }
+
         let nions = coup.get_tdproj().shape()[3];
         let nproj = coup.get_tdproj().shape()[4];
 
@@ -253,28 +258,38 @@ impl SPHamiltonian {
         // Damn, Range doesn't impl Copy trait. Fxxk up.
         eig_t.slice_mut(nd::s![.., bup_hamil.clone()])
             .assign(&coup.get_tdeigs().slice(nd::s![.., 0, bup_nac.clone()]));
-        eig_t.slice_mut(nd::s![.., bdn_hamil.clone()])
-            .assign(&coup.get_tdeigs().slice(nd::s![.., 1, bdn_nac.clone()]));
+        if 2 == nspin {
+            eig_t.slice_mut(nd::s![.., bdn_hamil.clone()])
+                .assign(&coup.get_tdeigs().slice(nd::s![.., 1, bdn_nac.clone()]));
+        }
 
         nac_t.slice_mut(nd::s![.., bup_hamil.clone(), bup_hamil.clone()])
             .assign(&coup.get_tdcoup().slice(nd::s![.., 0, bup_nac.clone(), bup_nac.clone()]));
-        nac_t.slice_mut(nd::s![.., bdn_hamil.clone(), bdn_hamil.clone()])
-            .assign(&coup.get_tdcoup().slice(nd::s![.., 1, bdn_nac.clone(), bdn_nac.clone()]));
+        if 2 == nspin {
+            nac_t.slice_mut(nd::s![.., bdn_hamil.clone(), bdn_hamil.clone()])
+                .assign(&coup.get_tdcoup().slice(nd::s![.., 1, bdn_nac.clone(), bdn_nac.clone()]));
+        }
 
         pij_t.slice_mut(nd::s![.., .., bup_hamil.clone(), bup_hamil.clone()])
             .assign(&coup.get_tdpij().slice(nd::s![.., 0, .., bup_nac.clone(), bup_nac.clone()]));
-        pij_t.slice_mut(nd::s![.., .., bdn_hamil.clone(), bdn_hamil.clone()])
-            .assign(&coup.get_tdpij().slice(nd::s![.., 1, .., bdn_nac.clone(), bdn_nac.clone()]));
+        if 2 == nspin {
+            pij_t.slice_mut(nd::s![.., .., bdn_hamil.clone(), bdn_hamil.clone()])
+                .assign(&coup.get_tdpij().slice(nd::s![.., 1, .., bdn_nac.clone(), bdn_nac.clone()]));
+        }
 
         rij_t.slice_mut(nd::s![.., .., bup_hamil.clone(), bup_hamil.clone()])
             .assign(&coup.get_tdrij().slice(nd::s![.., 0, .., bup_nac.clone(), bup_nac.clone()]));
-        rij_t.slice_mut(nd::s![.., .., bdn_hamil.clone(), bdn_hamil.clone()])
-            .assign(&coup.get_tdrij().slice(nd::s![.., 1, .., bdn_nac.clone(), bdn_nac.clone()]));
+        if 2 == nspin {
+            rij_t.slice_mut(nd::s![.., .., bdn_hamil.clone(), bdn_hamil.clone()])
+                .assign(&coup.get_tdrij().slice(nd::s![.., 1, .., bdn_nac.clone(), bdn_nac.clone()]));
+        }
 
         proj_t.slice_mut(nd::s![.., bup_hamil.clone(), .., ..])
             .assign(&coup.get_tdproj().slice(nd::s![.., 0, bup_hamil.clone(), .., ..]));
-        proj_t.slice_mut(nd::s![.., bdn_hamil.clone(), .., ..])
-            .assign(&coup.get_tdproj().slice(nd::s![.., 1, bdn_hamil.clone(), .., ..]));
+        if 2 == nspin {
+            proj_t.slice_mut(nd::s![.., bdn_hamil.clone(), .., ..])
+                .assign(&coup.get_tdproj().slice(nd::s![.., 1, bdn_hamil.clone(), .., ..]));
+        }
 
         // apply the reordering
         if cfg.get_reorder() {
