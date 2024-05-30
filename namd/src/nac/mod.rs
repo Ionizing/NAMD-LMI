@@ -1,8 +1,8 @@
-pub mod config;
+mod config;
 pub use config::NacConfig;
 
-pub mod nac_impl;
+mod nac_impl;
 pub use nac_impl::Nac;
 
-pub mod command;
+mod command;
 pub use command::NacCommand;

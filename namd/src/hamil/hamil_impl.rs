@@ -21,10 +21,10 @@ use crate::core::{
     Couplings,
     Hamiltonian,
 };
-use crate::nac::nac_impl::Nac;
-use crate::hamil::config::HamilConfig;
-use crate::hamil::config::PropagateMethod;
-use crate::hamil::efield::Efield;
+use crate::nac::Nac;
+use crate::hamil::HamilConfig;
+use crate::hamil::PropagateMethod;
+use crate::hamil::Efield;
 use crate::core::constants::*;
 
 

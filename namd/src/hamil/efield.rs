@@ -1,7 +1,9 @@
 use std::fs::{
     File,
     read_to_string,
+    write,
 };
+use std::fmt::Write;
 use std::io::{
     Write as _,
     BufWriter,
@@ -21,6 +23,7 @@ use rhai::{
 };
 
 use shared::{
+    log,
     info,
     warn,
     anyhow::ensure,
@@ -75,6 +78,19 @@ impl Efield<'_> {
 
     pub fn get_src(&self) -> &str {
         &self.raw
+    }
+
+
+    pub fn print_to_log(&self) {
+        let mut s = String::new();
+        let hashtag_line = "#".repeat(120);
+        writeln!(s, "{hashtag_line}").unwrap();
+        writeln!(s, "## Content of efield file:").unwrap();
+        for l in self.raw.lines() {
+            writeln!(s, "##     {}", l).unwrap();
+        }
+        writeln!(s, "{hashtag_line}").unwrap();
+        log::info!("{}", s);
     }
 
 
@@ -184,5 +200,12 @@ impl Efield<'_> {
         let instance = Efield::from_file(fname)?;
         *(EFIELD().lock().unwrap()) = instance;
         Ok(&EFIELD())
+    }
+
+
+    pub fn template_to_file<P>(fname: P) -> Result<()>
+    where P: AsRef<Path> {
+        write(fname, include_str!("./efield_template.rhai"))?;
+        Ok(())
     }
 }

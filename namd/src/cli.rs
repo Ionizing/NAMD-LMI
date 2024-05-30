@@ -9,7 +9,9 @@ use clap::{
     },
 };
 
-use shared::Result;
+use shared::{log, Result};
+use crate::version::Version;
+use crate::logging::logger_init;
 
 
 pub fn get_style() -> Styles {
@@ -33,7 +35,9 @@ pub trait OptProcess : Parser {
 
 #[derive(Debug, Parser)]
 #[command(name = "NAMD-LUMI",
-          about = "Non-Adiabatic Molecular Dynamics with external fields.",
+          //about = "Non-Adiabatic Molecular Dynamics with external fields.",
+          about = Version::new().to_string(),
+          long_about = format!("{:#}", Version::new()),
           version,
           author = "@Ionizing github.com/Ionizing/NAMD-lumi",
           styles = get_style())]
@@ -48,6 +52,9 @@ impl OptProcess for Opt {
     fn process(&self) -> Result<()> {
         use Opt::*;
         
+        logger_init();
+        log::info!("Global logger initialized with targets being stderr and \"./globalrun.log\"");
+
         match self {
             Nac(cmd) => cmd.process(),
             Hamil(cmd) => cmd.process(),

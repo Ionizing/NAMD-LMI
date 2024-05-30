@@ -15,8 +15,8 @@ use crate::core::{
     SurfaceHopping,
     Wavefunction,
 };
-use crate::hamil::hamil_impl::SPHamiltonian;
-use crate::surfhop::wavefunction_impl::SPWavefunction;
+use crate::hamil::SPHamiltonian;
+use crate::surfhop::SPWavefunction;
 use crate::surfhop::config::{
     SHMethod,
     SurfhopConfig,

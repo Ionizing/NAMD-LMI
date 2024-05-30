@@ -95,6 +95,12 @@ impl NacConfig {
 
         ret
     }
+
+    pub fn print_to_log(&self) {
+        let input_print = format!("{}", self);
+        let hashtag_line = "#".repeat(120);
+        log::info!("Input file loaded. The formatted input is:\n\n{hashtag_line}\n{}\n{hashtag_line}\n\n", input_print);
+    }
 }
 
 

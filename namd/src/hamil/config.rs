@@ -168,6 +168,13 @@ impl HamilConfig {
 
         ret
     }
+
+
+    pub fn print_to_log(&self) {
+        let input_print = format!("{}", self);
+        let hashtag_line = "#".repeat(120);
+        log::info!("Input file loaded. The formatted input is:\n\n{hashtag_line}\n{}\n{hashtag_line}\n\n", input_print);
+    }
 }
 
 
@@ -182,12 +189,16 @@ impl fmt::Display for HamilConfig {
         writeln!(f, " {:>20} = {:?}", "nac_fname", self.nac_fname)?;
         if let Some(efield) = self.efield_fname.as_ref() {
             writeln!(f, " {:>20} = {:?}", "efield", efield)?;
+        } else {
+            writeln!(f, "#{:>20} = # to be filled", "efield")?;
         }
         writeln!(f, " {:>20} = {:?}", "hamil_fname", self.hamil_fname)?;
         writeln!(f, " {:>20} = \"{:?}\"", "propmethod", self.propmethod)?;
 
         if let Some(s) = self.scissor.as_ref() {
             writeln!(f, " {:>20} = {:?}", "scissor", s)?;
+        } else {
+            writeln!(f, "#{:>20} = # to be filled", "scissor")?;
         }
 
         Ok(())

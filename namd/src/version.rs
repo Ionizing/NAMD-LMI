@@ -19,6 +19,7 @@ fn built_time() -> &'static str {
 
 
 static LOGO_STR: Lazy<&str> = Lazy::new(|| {
+    // https://www.asciiart.eu/text-to-ascii-art
     &r"
 +-----------------------------------------------------------------------------+
 |                                                                             |
@@ -36,7 +37,6 @@ static LOGO_STR: Lazy<&str> = Lazy::new(|| {
 
 #[derive(Debug)]
 pub struct Version<'a> {
-    // https://www.asciiart.eu/text-to-ascii-art
     name:           &'a str,
     logo:           &'a str,
     version_str:    &'a str,
@@ -77,13 +77,14 @@ impl<'a> Version<'a> {
 
 impl<'a> fmt::Display for Version<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.logo)?;
+        writeln!(f, "{}", self.logo)?;
+        writeln!(f)?;
         writeln!(f, "Welcome to use {}!", self.name)?;
         writeln!(f, "    current version:    {}", self.version_str)?;
         writeln!(f, "    git hash:           {}", self.git_hash_short.unwrap_or("NO GIT INFO"))?;
-        writeln!(f, "    authors:            {}", self.authors)?;
+        writeln!(f, "    author(s):          {}", self.authors)?;
         writeln!(f, "    host:               {}", self.host)?;
-        writeln!(f, "    build time:         {}", self.built_time)?;
+        writeln!(f, "    built time:         {}", self.built_time)?;
 
         if f.alternate() {
             writeln!(f, "        git_hash_long:  {}", self.git_hash_long.unwrap_or("NO GIT INFO"))?;

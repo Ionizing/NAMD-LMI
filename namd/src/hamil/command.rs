@@ -37,6 +37,11 @@ enum TemplateGenerator {
     /// Aliases: "config", "cfg" and "conf".
     ConfigTemplate,
 
+    #[value(aliases=["efield", "ef"])]
+    /// Generate script template for external electric field.
+    /// Aliases: "efield", "ef".
+    EfieldTemplate,
+
     #[value(aliases=["post-process", "postprocess", "pp"])]
     /// Generate post-process scripts for Hamiltonian analysis.
     /// Aliases: "post-process", "postprocess", "pp".
@@ -51,6 +56,7 @@ impl OptProcess for HamilCommand {
         if let Some(g) = self.generate {
             return match g {
                 ConfigTemplate => hamil::HamilConfig::default().to_file("hamil_config_template.toml"),
+                EfieldTemplate => hamil::Efield::template_to_file("efield_template.rhai"),
                 PostprocessTemplate => todo!(),
             }
         }

@@ -65,11 +65,18 @@ impl SurfhopConfig {
     pub fn get_ntraj(&self) -> usize { self.ntraj }
     pub fn get_shmethod(&self) -> SHMethod { self.shmethod }
     pub fn get_outdir(&self) -> &PathBuf { &self.outdir }
+    pub fn get_outdir_mut(&mut self) -> &mut PathBuf { &mut self.outdir }
     pub fn get_lexcitation(&self) -> bool { self.lexcitation }
 
     pub fn get_iniband(&self) -> usize { self.iniband }
     pub fn get_inispin(&self) -> usize { self.inispin }
     pub fn get_inisteps(&self) -> &[usize] { &self.inisteps }
+
+    pub fn print_to_log(&self) {
+        let config_print = format!("{}", self);
+        let hashtag_line = "#".repeat(120);
+        log::info!("SurfhopConfig file loaded. The formatted config is:\n\n{hashtag_line}\n{}{hashtag_line}\n\n", config_print);
+    }
 }
 
 

@@ -1,12 +1,12 @@
-pub mod hamil_impl;
+mod hamil_impl;
 pub use hamil_impl::SPHamiltonian;
 
-pub mod config;
+mod config;
 pub use config::HamilConfig;
 pub use config::PropagateMethod;
 
-pub mod command;
+mod command;
 pub use command::HamilCommand;
 
-pub mod efield;
+mod efield;
 pub use efield::Efield;
