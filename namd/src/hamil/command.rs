@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
 use clap::{Parser, ValueEnum};
-use shared::Result;
+use shared::{
+    log,
+    Result,
+};
 use crate::OptProcess;
 
 use crate::core::{
@@ -13,6 +16,7 @@ use crate::hamil;
 
 #[derive(Debug, Parser)]
 /// Generate the Hamiltonian from NAC according to config file.
+#[command(arg_required_else_help(true))]
 pub struct HamilCommand {
     #[arg(short='c', long, default_value="hamil_config.toml", aliases=["cfg", "conf"])]
     /// Config file name.
@@ -55,8 +59,14 @@ impl OptProcess for HamilCommand {
 
         if let Some(g) = self.generate {
             return match g {
-                ConfigTemplate => hamil::HamilConfig::default().to_file("hamil_config_template.toml"),
-                EfieldTemplate => hamil::Efield::template_to_file("efield_template.rhai"),
+                ConfigTemplate => {
+                    log::info!("Writing `hamil_config_template.toml` ...");
+                    hamil::HamilConfig::default().to_file("hamil_config_template.toml")
+                },
+                EfieldTemplate => {
+                    log::info!("Writing `efield_template.rhai` ...");
+                    hamil::Efield::template_to_file("efield_template.rhai")
+                },
                 PostprocessTemplate => todo!(),
             }
         }

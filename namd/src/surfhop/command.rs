@@ -22,6 +22,7 @@ use crate::surfhop;
 
 #[derive(Debug, Parser)]
 /// Perform the surface-hopping process with given Hamiltonian file and config file.
+#[command(arg_required_else_help(true))]
 pub struct SurfhopCommand {
     #[arg(short='n', long, default_value_t=0)]
     /// Number of threads for parallel calculation.
@@ -52,6 +53,11 @@ enum TemplateGenerator {
     /// Aliases: "config", "cfg" and "conf".
     ConfigTemplate,
 
+    #[value(name="inistep.py", aliases=["inistep", "ini"])]
+    /// Generate Python script to help append `inistep` field.
+    /// Aliases: "inistep" and "ini"
+    Inistep,
+
     #[value(aliases=["post-process", "postprocess", "pp"])]
     /// Generate post-process scripts for surface-hopping analysis.
     /// Aliases: "post-process", "postprocess", "pp".
@@ -65,14 +71,25 @@ impl OptProcess for SurfhopCommand {
 
         if let Some(g) = self.generate {
             return match g {
-                ConfigTemplate => surfhop::SurfhopConfig::default().to_file("surfhop_config_template.toml"),
+                ConfigTemplate => {
+                    {
+                        log::info!("writing `surfhop_config_template.toml` ...");
+                        surfhop::SurfhopConfig::default().to_file("surfhop_config_template.toml")
+                    }.and_then(|_| {
+                        log::info!("Writing `inistep.py` ...");
+                        surfhop::SurfhopConfig::write_inistep_py("inistep.py")
+                    })
+                },
+                Inistep => {
+                    log::info!("Writing `inistep.py` ...");
+                    surfhop::SurfhopConfig::write_inistep_py("inistep.py")
+                },
                 PostprocessTemplate => todo!(),
             }
         }
 
+        // Start running surface-hopping method.
         log::info!("Prepare to run surface-hopping method ...");
-
-
         rayon::ThreadPoolBuilder::new().num_threads(self.nthreads).build_global().unwrap();
 
         let mut cfg = surfhop::SurfhopConfig::from_file(&self.config)?;

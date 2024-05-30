@@ -19,6 +19,7 @@ use crate::nac;
 #[derive(Debug, Parser)]
 /// Calculate non-adiabatic coupling (NAC) including `<j| d/dt |k>` and
 /// momentum matrix `<i| p |j>`.
+#[command(arg_required_else_help(true))]
 pub struct NacCommand {
     #[arg(short='n', long, default_value_t=0)]
     /// Number of threads for parallel calculation.
@@ -60,7 +61,10 @@ impl OptProcess for NacCommand {
 
         if let Some(g) = self.generate {
             return match g {
-                ConfigTemplate => nac::NacConfig::default().to_file("nac_config_template.toml"),
+                ConfigTemplate => {
+                    log::info!("Writing `nac_config_template.toml ...`");
+                    nac::NacConfig::default().to_file("nac_config_template.toml")
+                },
                 PostprocessTemplate => todo!(),
             }
         }

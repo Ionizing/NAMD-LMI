@@ -35,7 +35,6 @@ pub trait OptProcess : Parser {
 
 #[derive(Debug, Parser)]
 #[command(name = "NAMD-LUMI",
-          //about = "Non-Adiabatic Molecular Dynamics with external fields.",
           about = Version::new().to_string(),
           long_about = format!("{:#}", Version::new()),
           version,

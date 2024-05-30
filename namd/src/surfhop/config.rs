@@ -23,6 +23,8 @@ pub enum SHMethod {
     DCSH,
 }
 
+const INISTEP_PY: &str = include_str!("./inisteps.py");
+
 
 impl fmt::Display for SHMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -76,6 +78,12 @@ impl SurfhopConfig {
         let config_print = format!("{}", self);
         let hashtag_line = "#".repeat(120);
         log::info!("SurfhopConfig file loaded. The formatted config is:\n\n{hashtag_line}\n{}{hashtag_line}\n\n", config_print);
+    }
+
+    pub fn write_inistep_py<P>(fname: P) -> Result<()>
+    where P: AsRef<Path> {
+        fs::write(fname, INISTEP_PY)?;
+        Ok(())
     }
 }
 
