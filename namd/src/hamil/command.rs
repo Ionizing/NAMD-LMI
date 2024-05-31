@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::fs;
 
 use clap::{Parser, ValueEnum};
 use shared::{
@@ -6,6 +7,7 @@ use shared::{
     Result,
 };
 use crate::OptProcess;
+use crate::cli::write_script;
 
 use crate::core::{
     Hamiltonian,
@@ -67,7 +69,10 @@ impl OptProcess for HamilCommand {
                     log::info!("Writing `efield_template.rhai` ...");
                     hamil::Efield::template_to_file("efield_template.rhai")
                 },
-                PostprocessTemplate => todo!(),
+                PostprocessTemplate => {
+                    log::info!("Writing `hamil_plot.py` ...");
+                    write_script("hamil_plot.py", include_str!("./hamil_plot.py"), true)
+                },
             }
         }
 

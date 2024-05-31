@@ -11,6 +11,7 @@ use shared::{
 };
 
 use crate::core::NamdConfig;
+use crate::cli::write_script;
 
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
@@ -23,7 +24,7 @@ pub enum SHMethod {
     DCSH,
 }
 
-const INISTEP_PY: &str = include_str!("./inisteps.py");
+const INISTEP_PY: &str = include_str!("./inistep.py");
 
 
 impl fmt::Display for SHMethod {
@@ -82,8 +83,7 @@ impl SurfhopConfig {
 
     pub fn write_inistep_py<P>(fname: P) -> Result<()>
     where P: AsRef<Path> {
-        fs::write(fname, INISTEP_PY)?;
-        Ok(())
+        write_script(fname, INISTEP_PY, true)
     }
 }
 

@@ -1,3 +1,6 @@
+use std::path::Path;
+use std::fs;
+use std::io::Write as _;
 use std::sync::OnceLock;
 
 use clap::{
@@ -65,4 +68,21 @@ impl OptProcess for Opt {
 
 pub fn run() -> Result<()> {
     Opt::parse().process()
+}
+
+
+pub fn write_script<P>(fname: P, content: &str, with_exe_permission: bool) -> Result<()>
+where P: AsRef<Path> {
+    let mut f = fs::File::create(fname)?;
+    f.write(content.as_bytes())?;
+
+    #[cfg(unix)]
+    if with_exe_permission {
+        use std::os::unix::fs::PermissionsExt;
+        let metadata = f.metadata()?;
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(0o755);
+    }
+
+    Ok(())
 }

@@ -199,7 +199,7 @@ impl fmt::Display for HamilConfig {
         if let Some(s) = self.scissor.as_ref() {
             writeln!(f, " {:>20} = {:?}", "scissor", s)?;
         } else {
-            writeln!(f, "#{:>20} = # to be filled", "scissor")?;
+            writeln!(f, "#{:>20} = # \"efield.rhai\"", "scissor")?;
         }
 
         Ok(())

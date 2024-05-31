@@ -211,6 +211,8 @@ impl SPHamiltonian {
         let ndigit               = coup.get_ndigit();
         let nspin                = coup.get_nspin();
 
+        let efermi               = coup.get_efermi();
+
         let mut nb = [0usize; 2];
         nb[0] = if basis_up.contains(&0) {
             0

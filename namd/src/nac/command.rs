@@ -9,6 +9,7 @@ use shared::{
     Result,
 };
 use crate::OptProcess;
+use crate::cli::write_script;
 
 use crate::core::{
     Couplings,
@@ -68,8 +69,7 @@ impl OptProcess for NacCommand {
                 },
                 PostprocessTemplate => {
                     log::info!("Writing `nac_plot.py` ...");
-                    fs::write("nac_plot.py", include_str!("./nac_plot.py"))?;
-                    Ok(())
+                    write_script("nac_plot.py", include_str!("./nac_plot.py"), true)
                 },
             }
         }
