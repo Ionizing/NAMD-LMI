@@ -9,7 +9,9 @@ def gen_rand(xmin: int, xmax: int, n: int):
     myset = set()
     while len(myset) < n:
         myset.add(randint(xmin, xmax))
-    return list(myset)
+    ret = list(myset)
+    ret.sort()
+    return ret
 
 
 def append_to_file(fname: str, inistep: list[int]):
@@ -23,7 +25,7 @@ def append_to_file(fname: str, inistep: list[int]):
 
 if "__main__" == __name__:
     assert len(sys.argv) == 4, "You need to provide three arguments: `cfg_fname`, `nsw` and `nsample`. \n\
-Example usage: 'inisteps.py surfhop_config.toml 3000 100'"
+Example usage: 'inisteps.py surfhop_config.toml 2000 100'"
 
     cfg_fname = sys.argv[1]
     nsw       = int(sys.argv[2])

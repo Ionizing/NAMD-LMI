@@ -194,6 +194,7 @@ impl fmt::Display for HamilConfig {
         }
         writeln!(f, " {:>20} = {:?}", "hamil_fname", self.hamil_fname)?;
         writeln!(f, " {:>20} = \"{:?}\"", "propmethod", self.propmethod)?;
+        writeln!(f, " {:>20} = {:?}", "reorder", self.reorder)?;
 
         if let Some(s) = self.scissor.as_ref() {
             writeln!(f, " {:>20} = {:?}", "scissor", s)?;

@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::fs;
 
 use rayon;
 
@@ -65,7 +66,11 @@ impl OptProcess for NacCommand {
                     log::info!("Writing `nac_config_template.toml ...`");
                     nac::NacConfig::default().to_file("nac_config_template.toml")
                 },
-                PostprocessTemplate => todo!(),
+                PostprocessTemplate => {
+                    log::info!("Writing `nac_plot.py` ...");
+                    fs::write("nac_plot.py", include_str!("./nac_plot.py"))?;
+                    Ok(())
+                },
             }
         }
 
