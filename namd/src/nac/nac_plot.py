@@ -13,12 +13,15 @@ HBAR = 0.6582119281559802
 
 class Nac:
     def __init__(self, fname: str):
+        self.fname = fname
         tree = h5py.File(fname)
         self._tree = tree
         for k, v in tree.items():
             setattr(self, k, v[()])
             pass
         pass
+        self.olaps = self.olaps_r + self.olaps_i * 1j
+        self.pij   = self.pij_r   + self.pij_i   * 1j
     
     def plot_bands(self, pngfname="nac_bands.png"):
         eigs = self.eigs
@@ -47,8 +50,34 @@ class Nac:
         fig.savefig(pngfname, dpi=400)
         pass
 
+    def plot_nac(self, pngfname="nac_nac.png"):
+        ispin = 0
+
+        nac = np.mean(np.abs(self.olaps)[ispin,...], axis=(0,)) * 1000 * HBAR / self.potim
+        np.fill_diagonal(nac, 0)
+
+        fig = plt.figure(figsize=(6,5))
+        ax = fig.add_subplot()
+        img = ax.pcolormesh(nac, cmap="Reds",
+                            linewidth=0,
+                            aa=True,
+                            edgecolor='none')
+        cb = fig.colorbar(img, fraction=0.046, pad=0.01)
+        cb.ax.set_title("(meV)")
+
+        if nac.shape[0] <= 15:
+            for (i, j), z in np.ndenumerate(nac):
+                ax.text(j+0.5, i+0.5, '{:0.2f}'.format(z), ha='center', va='center')
+
+        fig.suptitle("NA Coupling in {}".format(self.fname))
+        fig.tight_layout(pad=0.5)
+        print("Writing {}".format(pngfname))
+        fig.savefig(pngfname, dpi=400)
+        pass
+
 
 if "__main__" == __name__:
     nac = Nac("./NAC.h5")
     nac.plot_bands()
+    nac.plot_nac()
     pass
