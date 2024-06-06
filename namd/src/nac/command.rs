@@ -64,8 +64,8 @@ impl OptProcess for NacCommand {
         if let Some(g) = self.generate {
             return match g {
                 ConfigTemplate => {
-                    log::info!("Writing `nac_config_template.toml ...`");
-                    nac::NacConfig::default().to_file("nac_config_template.toml")
+                    log::info!("Writing `01_nac_config_template.toml ...`");
+                    nac::NacConfig::default().to_file("01_nac_config_template.toml")
                 },
                 PostprocessTemplate => {
                     log::info!("Writing `nac_plot.py` ...");

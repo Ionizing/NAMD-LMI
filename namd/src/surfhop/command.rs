@@ -76,13 +76,13 @@ impl OptProcess for SurfhopCommand {
                         log::info!("writing `surfhop_config_template.toml` ...");
                         surfhop::SurfhopConfig::default().to_file("surfhop_config_template.toml")
                     }.and_then(|_| {
-                        log::info!("Writing `inistep.py` ...");
-                        surfhop::SurfhopConfig::write_inistep_py("inistep.py")
+                        log::info!("Writing `inisteps.py` ...");
+                        surfhop::SurfhopConfig::write_inistep_py("inisteps.py")
                     })
                 },
                 Inistep => {
-                    log::info!("Writing `inistep.py` ...");
-                    surfhop::SurfhopConfig::write_inistep_py("inistep.py")
+                    log::info!("Writing `inisteps.py` ...");
+                    surfhop::SurfhopConfig::write_inistep_py("inisteps.py")
                 },
                 PostprocessTemplate => todo!(),
             }

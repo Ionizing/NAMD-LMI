@@ -10,7 +10,7 @@ use ordered_float::OrderedFloat;
 use hdf5::File as H5File;
 use shared::ndarray as nd;
 use shared::{
-    info,
+    log,
     c64,
     Result,
     anyhow::ensure,
@@ -95,7 +95,9 @@ impl Hamiltonian for SPHamiltonian {
         };
         let reorder  = f.dataset("reorder")?.read_scalar::<bool>()?;
         let ndigit   = f.dataset("ndigit")?.read_scalar::<usize>()?;
-        let scissor  = f.dataset("scissor")?.read_scalar::<f64>().ok();
+
+        let scissor = f.dataset("scissor").ok().and_then(|x| x.read_scalar::<f64>().ok());
+        //let scissor  = f.dataset("scissor")?.read_scalar::<f64>().ok();
 
         let eig_t: nd::Array2<f64> = f.dataset("eig_t")?.read()?;
         let nac_t = {
@@ -308,6 +310,10 @@ impl SPHamiltonian {
         let efield: Option<EfieldType> = cfg.get_efield_fname()
             .map(|fname| Efield::singleton_from_file(fname).unwrap());
 
+        // shift to Efermi = 0
+        log::info!("Found Efermi = {efermi:.3} eV, shift band eigvals to align with it ...");
+        eig_t.mapv_inplace(|x| x - efermi);
+
         if let Some(scissor) = cfg.get_scissor() {
             apply_scissor(&mut eig_t, scissor);
         }
@@ -433,7 +439,7 @@ impl SPHamiltonian {
         }
 
         for isw in 1 .. nsw {
-            let perm_ij = orders.slice(nd::s![isw, ..]).to_owned();
+            let perm_ij = orders.slice(nd::s![isw-1, ..]).to_owned();
             for iband in 0 .. nbasis {
                 orders[(isw, iband)] = orders[(isw-1, perm_ij[iband])];
             }
@@ -559,8 +565,8 @@ fn apply_scissor(eigs: &mut nd::Array2<f64>, scissor: f64) {
     let gap_t_min    = cbm_min - vbm_max + shift;
 
     eigs.slice_mut(nd::s![.., cbm ..]).mapv_inplace(|x| x + shift);
-    info!("Found scissor opeartor of {scissor:.4} eV. current system has gap of \
-           {gap_min:.4} .. {gap:.4} .. {gap_max:.4} (min .. avg .. max) (eV).
-                Now the gap is set to {newgap_min:.4} .. {scissor:.4} .. {newgap_max:.4} \
-                (min .. avg .. max) (eV). min(CBM_t) - max(VBM_t) = {:8.4}", gap_t_min);
+    log::info!("Found scissor opeartor of {scissor:.4} eV. current system has gap of \
+                {gap_min:.4} .. {gap:.4} .. {gap_max:.4} (min .. avg .. max) (eV).
+                     Now the gap is set to {newgap_min:.4} .. {scissor:.4} .. {newgap_max:.4} \
+                     (min .. avg .. max) (eV). min(CBM_t) - max(VBM_t) = {:8.4}", gap_t_min);
 }

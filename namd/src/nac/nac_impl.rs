@@ -7,7 +7,8 @@ use rayon::prelude::*;
 
 #[cfg(not(test))]
 use shared::{info, warn, anyhow::ensure};
-use shared::{c64, ndarray as nd, Context, Result};
+use shared::{c64, ndarray as nd, Context, Result, ndarray_linalg as nl};
+use nl::Norm;
 #[cfg(test)]
 use std::{println as info, println as warn, assert as ensure};
 
@@ -19,7 +20,7 @@ use crate::nac::config::NacConfig;
 /// All the indices are counted from 1, and use closed inverval.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Nac {
-    ikpoint: usize,
+    ikpoint: usize,         // In this struct, ikpoint starts from 1.
     nspin: usize,
     nbands: usize,
     ndigit: usize,
@@ -31,6 +32,7 @@ pub struct Nac {
     efermi: f64,
     potim: f64,
     temperature: f64,
+    phasecorrection: bool,
 
     olaps: nd::Array4<c64>, // istep, ispin, iband, iband
     eigs: nd::Array3<f64>,  // istep, ispin, iband
@@ -81,10 +83,11 @@ impl Couplings for Nac {
         if cfg.get_nacfname().is_file() {
             info!("Found pre-calculated NAC available in {:?}, reading NAC from it ...", cfg.get_nacfname());
             let nac = Self::from_h5(cfg.get_nacfname())?;
-            ensure!(cfg.get_ikpoint() == nac.ikpoint + 1, "Inconsistent ikpoint from config and NAC file.");
+            ensure!(cfg.get_ikpoint() == nac.ikpoint,     "Inconsistent ikpoint from config and NAC file.");
             ensure!(cfg.get_brange()  == nac.brange,      "Inconsistent brange from config and NAC file.");
             ensure!(cfg.get_nsw()     == nac.nsw,         "Inconsistent nsw from config and NAC file.");
             ensure!(cfg.get_potim()   == nac.potim,       "Inconsistent potim from config and NAC file.");
+            ensure!(cfg.get_phasecorrection() == nac.phasecorrection, "Inconsistent phasecorrection from config and NAC file.");
             return Ok(nac);
         }
 
@@ -95,6 +98,7 @@ impl Couplings for Nac {
     where P: AsRef<Path> {
         let f = H5File::open(fname)?;
 
+        // ikpoint counts from 1
         let ikpoint = f.dataset("ikpoint")?.read_scalar::<usize>()?;
         let nspin   = f.dataset("nspin")?.read_scalar::<usize>()?;
         let nbands  = f.dataset("nbands")?.read_scalar::<usize>()?;
@@ -105,6 +109,7 @@ impl Couplings for Nac {
         let efermi  = f.dataset("efermi")?.read_scalar::<f64>()?;
         let potim   = f.dataset("potim")?.read_scalar::<f64>()?;
         let temperature = f.dataset("temperature")?.read_scalar::<f64>()?;
+        let phasecorrection = f.dataset("phasecorrection")?.read_scalar::<bool>()?;
 
         let olaps = {
             let olaps_r: nd::Array4<f64> = f.dataset("olaps_r")?.read()?;
@@ -133,6 +138,7 @@ impl Couplings for Nac {
             efermi,
             potim,
             temperature,
+            phasecorrection,
             olaps,
             eigs,
             pij,
@@ -144,6 +150,7 @@ impl Couplings for Nac {
     where P: AsRef<Path> {
         let f = H5File::create(fname)?;
 
+        // In NAC.h5, ikpoint counts from 1, but in struct, ikpoint starts from 0.
         f.new_dataset::<usize>().create("ikpoint")?.write_scalar(&self.ikpoint)?;
         f.new_dataset::<usize>().create("nspin")?.write_scalar(&self.nspin)?;
         f.new_dataset::<usize>().create("nbands")?.write_scalar(&self.nbands)?;
@@ -154,6 +161,7 @@ impl Couplings for Nac {
         f.new_dataset::<f64>().create("efermi")?.write_scalar(&self.efermi)?;
         f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
         f.new_dataset::<f64>().create("temperature")?.write_scalar(&self.temperature)?;
+        f.new_dataset::<bool>().create("phasecorrection")?.write_scalar(&self.phasecorrection)?;
 
         f.new_dataset_builder().with_data(&self.olaps.mapv(|v| v.re)).create("olaps_r")?;
         f.new_dataset_builder().with_data(&self.olaps.mapv(|v| v.im)).create("olaps_i")?;
@@ -175,12 +183,13 @@ impl Nac {
         info!("No pre-calculated NAC available, start calculating from scratch in {:?}/.../WAVECARs ...", cfg.get_rundir());
         let rundir  = Path::new(cfg.get_rundir());
         let nsw     = cfg.get_nsw();
-        let ikpoint = cfg.get_ikpoint();
+        let ikpoint = cfg.get_ikpoint() - 1;        // count from 0
         let brange  = Range { start: cfg.get_brange()[0] - 1, end: cfg.get_brange()[1] };
         let nbrange = brange.len();
         let ndigit  = cfg.get_ndigit();
         let potim   = cfg.get_potim();
         let temperature = cfg.get_temperature();
+        let phasecorrection = cfg.get_phasecorrection();
 
         let path_1 = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
         let w1 = Wavecar::from_file(&path_1)
@@ -239,11 +248,11 @@ impl Nac {
         };
 
         let CoupTotRet {olaps, eigs, pij, proj, efermi} = Self::from_wavecars(
-            &phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, lncl, nions, nproj, &gvecs
+            &phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, lncl, nions, nproj, &gvecs, phasecorrection
         )?;
 
         Ok(Self {
-            ikpoint,
+            ikpoint: ikpoint + 1,
             nspin,
             nbands,
             ndigit,
@@ -253,6 +262,7 @@ impl Nac {
             efermi,
             potim,
             temperature,
+            phasecorrection,
 
             olaps,
             eigs,
@@ -266,7 +276,7 @@ impl Nac {
     fn from_wavecars(
         phi_1s: &nd::Array3<c64>,
         rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize,
-        nspin: usize, lncl: bool, nions: usize, nproj: usize, gvecs: &nd::Array2<c64>
+        nspin: usize, lncl: bool, nions: usize, nproj: usize, gvecs: &nd::Array2<c64>, phasecorrection: bool,
         ) -> Result<CoupTotRet>
     {
         let nbrange = brange.clone().count();
@@ -287,15 +297,21 @@ impl Nac {
                 ));
         let efermi_sum = Arc::new(Mutex::new(0.0f64));
 
+        let remain_count = Arc::new(Mutex::new(nsw - 1));
 
         (0 .. nsw-1).into_par_iter().for_each(|isw| {
             let path_i = rundir.join(format!("{:0ndigit$}", isw + 1));
             let path_j = rundir.join(format!("{:0ndigit$}", isw + 2));
 
-            info!(" Calculating couplings between {:?} and {:?} ...", &path_i, &path_j);
+            {
+                let mut remain_now = remain_count.lock().unwrap();
+                let remains: usize = *remain_now;
+                info!(" Calculating couplings between {:?} and {:?} ..., remains: {:6}", &path_i, &path_j, &remains);
+                *remain_now -= 1;
+            }
 
             let CoupIjRet {c_ij, e_ij, p_ij, proj, efermi} = Self::coupling_ij(
-                phi_1s, path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs
+                phi_1s, path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs, phasecorrection
                 )
                 .with_context(|| format!("Failed to calculate couplings between {:?} and {:?}.", &path_i, &path_j))
                 .unwrap();
@@ -330,7 +346,7 @@ impl Nac {
     fn coupling_ij(phi_1s: &nd::Array3<c64>,
         path_i: &Path, path_j: &Path,
         ikpoint: usize, brange: Range<usize>,
-        gvecs: &nd::Array2<c64>)
+        gvecs: &nd::Array2<c64>, phasecorrection: bool)
         -> Result<CoupIjRet>
     {
         let wi = Wavecar::from_file(&path_i.join("WAVECAR"))?;
@@ -379,20 +395,23 @@ impl Nac {
             // phase_0i = -------------------
             //            |< phi_0 | phi_i >|
             // phi_i[:] *= conj(phase_0i)
+            if phasecorrection {
+                phase_i.assign(&(phi_1s.slice(nd::s![ispin, .., ..])
+                                       .mapv(|x| x.conj()) * &phi_i)
+                                       .sum_axis(nd::Axis(1)));
+                phase_i.mapv_inplace(|x| x.conj() / x.norm());
+                phi_i.axis_iter_mut(nd::Axis(0)).zip(phase_i.iter())
+                     .par_bridge()
+                     .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
 
-            phase_i.assign(&(phi_1s.slice(nd::s![ispin, .., ..])
-                                   .mapv(|x| x.conj()) * &phi_i)
-                                   .sum_axis(nd::Axis(1)));
-            phase_i.mapv_inplace(|x| x.conj() / x.norm());
-            phi_i.axis_iter_mut(nd::Axis(0)).zip(phase_i.iter())
-                 .par_bridge()
-                 .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
-
-            phase_j.assign( &(phi_1s.slice(nd::s![ispin, .., ..]).mapv(|x| x.conj()) * &phi_j).sum_axis(nd::Axis(1)) );
-            phase_j.mapv_inplace(|x| x.conj() / x.norm());
-            phi_j.axis_iter_mut(nd::Axis(0)).zip(phase_j.iter())
-                .par_bridge()
-                .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
+                phase_j.assign(&(phi_1s.slice(nd::s![ispin, .., ..])
+                                       .mapv(|x| x.conj()) * &phi_j)
+                                       .sum_axis(nd::Axis(1)));
+                phase_j.mapv_inplace(|x| x.conj() / x.norm());
+                phi_j.axis_iter_mut(nd::Axis(0)).zip(phase_j.iter())
+                     .par_bridge()
+                     .for_each(|(mut row, phase)| row.mapv_inplace(|x| x * phase));
+            }
 
 
             let phi_ij = phi_i.mapv(|v| v.conj()).dot(&phi_j.t());

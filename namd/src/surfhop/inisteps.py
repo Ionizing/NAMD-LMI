@@ -17,7 +17,7 @@ def gen_rand(xmin: int, xmax: int, n: int):
 def append_to_file(fname: str, inistep: list[int]):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     header  = "\n\n## Appended by inisteps.py @ {}\n".format(now)
-    stepstr = "{:>20} = [\n".format("inistep") + " ,\n".join(map(lambda x: "{:>10d}".format(x), inistep)) + "\n]\n"
+    stepstr = "{:>20} = [\n".format("inisteps") + " ,\n".join(map(lambda x: "{:>10d}".format(x), inistep)) + "\n]\n"
 
     with open(fname, "a+") as f:
         f.writelines([header, stepstr])

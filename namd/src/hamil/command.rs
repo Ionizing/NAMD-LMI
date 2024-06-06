@@ -62,8 +62,8 @@ impl OptProcess for HamilCommand {
         if let Some(g) = self.generate {
             return match g {
                 ConfigTemplate => {
-                    log::info!("Writing `hamil_config_template.toml` ...");
-                    hamil::HamilConfig::default().to_file("hamil_config_template.toml")
+                    log::info!("Writing `02_hamil_config_template.toml` ...");
+                    hamil::HamilConfig::default().to_file("02_hamil_config_template.toml")
                 },
                 EfieldTemplate => {
                     log::info!("Writing `efield_template.rhai` ...");
