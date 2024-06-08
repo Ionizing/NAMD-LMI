@@ -77,6 +77,11 @@ impl OptProcess for HamilCommand {
         }
 
         let cfg = hamil::HamilConfig::from_file(&self.config)?;
+        log::info!("Got Hamiltonnian config:\n{}", &cfg);
+        if let Some(e) = cfg.get_efield_fname() {
+            let src = fs::read_to_string(e)?;
+            log::info!("Got electric field from file {:?} with content of:\n{}", e, src);
+        }
         let ham = hamil::SPHamiltonian::from_config(&cfg)?;
         ham.save_to_h5(cfg.get_hamil_fname())
     }

@@ -13,7 +13,6 @@ use crate::core::Wavefunction;
 use crate::core::Hamiltonian;
 use crate::hamil::{
     PropagateMethod,
-    Efield,
     SPHamiltonian,
 };
 
@@ -30,7 +29,7 @@ pub struct SPWavefunction {
     pop_t: nd::Array2<f64>, // [namdtime, nbasis]
     eig_t: nd::Array1<f64>, // [namdtime]
 
-    efield_array: Option<[MatX3<f64>;2]>,
+    eafield_array: Option<[MatX3<f64>;2]>,
 }
 
 
@@ -81,6 +80,8 @@ impl Wavefunction for SPWavefunction {
             self.psi_t.slice_mut(nd::s![iion+1, ..]).assign(&psi);
             let pop_c = psi.mapv(|v| v.norm_sqr());
             self.pop_t.slice_mut(nd::s![iion+1, ..]).assign(&pop_c);
+            let eig = (hamil_i.diag().mapv(|v| v.re) * pop_c).sum();
+            self.eig_t[iion+1] = eig;
         }
     }
 
@@ -105,17 +106,8 @@ impl Wavefunction for SPWavefunction {
 
 
 impl SPWavefunction {
-    pub fn calculate_efield_array(&mut self, efield: &mut Efield) {
-        if self.efield_array.is_some() {
-            return;
-        }
-        let (_tt, efield_array) = efield.get_eafield_array(self.namdtime, self.potim, self.nelm);
-        self.efield_array = Some(efield_array);
-    }
-
-
-    pub fn get_efield_array(&self) -> Option<&[MatX3<f64>; 2]> {
-        self.efield_array.as_ref()
+    pub fn get_eafield_array(&self) -> Option<&[MatX3<f64>; 2]> {
+        self.eafield_array.as_ref()
     }
 
 
@@ -167,7 +159,7 @@ impl SPWavefunction {
         let pij_j  = hamil.get_pij_rtime(iion, self.namdinit).to_owned();
 
         let pij = pij_i.clone() + (pij_j - pij_i) / (self.nelm as f64) * (ielm  as f64);
-        let afield = self.get_efield_array()
+        let afield = self.get_eafield_array()
             .map(|[_e, a]| a[itime])
             .unwrap_or([0.0; 3]);
 
@@ -191,7 +183,8 @@ impl SPWavefunction {
     pub fn from_hamil_and_params(
         hamil: &SPHamiltonian,
         iniband: usize, inispin: usize,
-        namdtime: usize, nelm: usize, namdinit: usize
+        namdtime: usize, nelm: usize, namdinit: usize,
+        eafield_array: Option<[MatX3<f64>; 2]>,
     ) -> Result<Self> {
         let nbasis = hamil.get_nbasis();
         let basisini = hamil.get_converted_index(iniband, inispin)?;
@@ -207,12 +200,6 @@ impl SPWavefunction {
         let pop_t = nd::Array2::<f64>::zeros((namdtime, nbasis));
         let eig_t = nd::Array1::<f64>::zeros(namdtime);
 
-        let efield_array = if let Some(efield) = hamil.get_efield() {
-            Some(efield.lock().unwrap().get_eafield_array(namdtime, hamil.get_potim(), nelm).1)
-        } else {
-            None
-        };
-
         Ok(Self {
             nbasis,
             basisini,
@@ -225,7 +212,7 @@ impl SPWavefunction {
             psi_t,
             pop_t,
             eig_t,
-            efield_array,
+            eafield_array,
         })
     }
 }

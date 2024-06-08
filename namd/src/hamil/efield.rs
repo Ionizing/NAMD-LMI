@@ -9,10 +9,8 @@ use std::io::{
     BufWriter,
 };
 use std::path::Path;
-use std::sync::{
-    OnceLock,
-    Mutex,
-};
+use std::sync::RwLock;
+use once_cell::sync::Lazy;
 
 use rhai::{
     AST,
@@ -43,10 +41,7 @@ pub struct Efield<'a> {
 
 
 #[allow(non_snake_case)]
-pub fn EFIELD() -> &'static Mutex<Efield<'static>> {
-    static EFIELD: OnceLock<Mutex<Efield>> = OnceLock::new();
-    EFIELD.get_or_init(|| Mutex::new(Efield::from_str("").unwrap()))
-}
+static EFIELD: Lazy<RwLock<Efield>> = Lazy::new(|| RwLock::new(Efield::from_str("").unwrap()));
 
 
 impl Efield<'_> {
@@ -120,7 +115,7 @@ impl Efield<'_> {
                     .unwrap()
                     .into_typed_array::<FLOAT>()
                     .unwrap();
-                [ret[0], ret[1], ret[3]]
+                [ret[0], ret[1], ret[2]]
             })
             .collect()
     }
@@ -160,7 +155,7 @@ impl Efield<'_> {
     where P: AsRef<Path> {
         let dir = dir.as_ref().to_owned();
         ensure!(dir.is_dir(), "The parameter dir should be a valid directory.");
-        let eafield_fname = dir.with_file_name("EAFIELD.txt");
+        let eafield_fname = dir.join("EAFIELD.txt");
 
         let (t, [efield, afield]) = self.get_eafield_array(namdtime, potim, nelm);
 
@@ -188,18 +183,18 @@ impl Efield<'_> {
     }
 
 
-    pub fn singleton_from_str(raw: &str) -> Result<&'static Mutex<Self>> {
+    pub fn singleton_from_str(raw: &str) -> Result<&'static RwLock<Self>> {
         let instance = Efield::from_str(raw)?;
-        *(EFIELD().lock().unwrap()) = instance;
-        Ok(&EFIELD())
+        *EFIELD.write().unwrap() = instance;
+        Ok(&EFIELD)
     }
 
 
-    pub fn singleton_from_file<P>(fname: P) -> Result<&'static Mutex<Self>>
+    pub fn singleton_from_file<P>(fname: P) -> Result<&'static RwLock<Self>>
     where P: AsRef<Path> {
         let instance = Efield::from_file(fname)?;
-        *(EFIELD().lock().unwrap()) = instance;
-        Ok(&EFIELD())
+        *EFIELD.write().unwrap() = instance;
+        Ok(&EFIELD)
     }
 
 

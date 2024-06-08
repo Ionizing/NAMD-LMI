@@ -97,6 +97,7 @@ impl OptProcess for SurfhopCommand {
         let cfg = cfg;      // cancel mutability
 
         crate::logging::logger_redirect(&cfg.get_outdir())?;
+        log::info!("Got Surface Hopping config:\n{}", &cfg);
         let sh = surfhop::Surfhop::from_config(&cfg)?;
 
         sh.into_par_iter()
@@ -109,39 +110,39 @@ impl OptProcess for SurfhopCommand {
 
 
 fn create_outputdir(dir: &mut PathBuf) -> Result<()> {
-	if dir.is_file() {
-		bail!("The output dir {:?} exists as a regular file, please change.", dir);
-	}
+    if dir.is_file() {
+        bail!("The output dir {:?} exists as a regular file, please change.", dir);
+    }
 
-	if dir.file_name().is_none() {
-		bail!("The output dir {:?} cannot be current working dir, please change.", dir);
-	}
+    if dir.file_name().is_none() {
+        bail!("The output dir {:?} cannot be current working dir, please change.", dir);
+    }
 
-	if dir.is_dir() {
-		let parent = dir.parent().unwrap();
-		let subdir = dir.file_name().unwrap().to_str().unwrap();
-		let mut newdir: Option<PathBuf> = None;
-		let mut tmpdir = PathBuf::new();
+    if dir.is_dir() {
+        let parent = dir.parent().unwrap();
+        let subdir = dir.file_name().unwrap().to_str().unwrap();
+        let mut newdir: Option<PathBuf> = None;
+        let mut tmpdir = PathBuf::new();
 
-		for i in 1 ..= 99 {
-			let dirstr = format!("{}_{:02}", &subdir, i);
-			tmpdir = parent.join(&dirstr);
-			if !tmpdir.is_file() && !tmpdir.is_dir() {
-				newdir = Some(tmpdir.clone());
-				break;
-			}
-		}
+        for i in 1 ..= 99 {
+            let dirstr = format!("{}_{:02}", &subdir, i);
+            tmpdir = parent.join(&dirstr);
+            if !tmpdir.is_file() && !tmpdir.is_dir() {
+                newdir = Some(tmpdir.clone());
+                break;
+            }
+        }
 
-		if let Some(newdir) = newdir {
-			log::warn!("The outdir {:?} is already exists and will be switched to {:?} for this run.", dir, newdir);
-			*dir = newdir;
-		} else {
-			bail!("Existed outdir reached maximum homonymy outdirs: {:?}", tmpdir);
-		}
-	}
+        if let Some(newdir) = newdir {
+            log::warn!("The outdir {:?} is already exists and will be switched to {:?} for this run.", dir, newdir);
+            *dir = newdir;
+        } else {
+            bail!("Existed outdir reached maximum homonymy outdirs: {:?}", tmpdir);
+        }
+    }
 
-	log::info!("Log and output files will be stored in {:?} .", dir);
-	create_dir_all(dir)?;
+    log::info!("Log and output files will be stored in {:?} .", dir);
+    create_dir_all(dir)?;
 
-	Ok(())
+    Ok(())
 }

@@ -77,6 +77,7 @@ impl OptProcess for NacCommand {
         rayon::ThreadPoolBuilder::new().num_threads(self.nthreads).build_global().unwrap();
 
         let cfg  = nac::NacConfig::from_file(&self.config)?;
+        log::info!("Got NAC config:\n{}", &cfg);
         if cfg.get_nacfname().is_file() {
             log::info!("Found existing NAC: {:?}, exiting.", cfg.get_nacfname());
             return Ok(())

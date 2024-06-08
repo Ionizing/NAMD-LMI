@@ -15,7 +15,10 @@ use crate::core::{
     SurfaceHopping,
     Wavefunction,
 };
-use crate::hamil::SPHamiltonian;
+use crate::hamil::{
+    Efield,
+    SPHamiltonian,
+};
 use crate::surfhop::SPWavefunction;
 use crate::surfhop::config::{
     SHMethod,
@@ -35,8 +38,8 @@ pub struct Surfhop {
     namdtime: usize,
     tdpops: nd::Array2<f64>,            // [namdtime, nbasis]
     tdenergy: nd::Array1<f64>,          // [namdtime]
-    tdphotons: nd::Array3<usize>,       // [namdtime, nbasis, nbasis], emit => plus, absorb => minus
-    tdphonons: nd::Array3<usize>,       // [namdtime, nbasis, nbasis]
+    tdphotons: nd::Array3<f64>,         // [namdtime, nbasis, nbasis], emit => plus, absorb => minus
+    tdphonons: nd::Array3<f64>,         // [namdtime, nbasis, nbasis]
 }
 
 
@@ -77,8 +80,18 @@ impl<'a> SurfaceHopping for Surfhop {
         let nbasis = hamil.get_nbasis();
         let tdpops = nd::Array2::<f64>::zeros((namdtime, nbasis));
         let tdenergy = nd::Array1::<f64>::zeros(namdtime);
-        let tdphotons = nd::Array3::<usize>::zeros((namdtime, nbasis, nbasis));
-        let tdphonons = nd::Array3::<usize>::zeros((namdtime, nbasis, nbasis));
+        let tdphotons = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
+        let tdphonons = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
+
+        let potim = hamil.get_potim();
+        let nelm = cfg.get_nelm();
+        let efield = hamil.get_efield().map(|x| Efield::singleton_from_str(x).unwrap());
+        let eafield = efield.map(|x| {
+            let mut e = x.write().unwrap();
+            e.print_eafield_tofile(outdir.clone(), namdtime, potim, nelm).unwrap();
+            let (_tt, arr) = e.get_eafield_array(namdtime, potim, nelm);
+            arr
+        });
 
         cfg.get_inisteps().iter()
             .map(|&istep| -> Result<Self> {
@@ -86,7 +99,7 @@ impl<'a> SurfaceHopping for Surfhop {
                 let namdinit = istep;
                 let wfn = SPWavefunction::from_hamil_and_params(
                     &hamil, cfg.get_iniband(), cfg.get_inispin(),
-                    cfg.get_namdtime(), cfg.get_nelm(), istep)?;
+                    cfg.get_namdtime(), cfg.get_nelm(), istep, eafield.clone())?;
 
                 Ok(Self {
                     shmethod,
@@ -190,16 +203,16 @@ impl Surfhop {
                     // downward hop: cur > nxt => tdxxx[cur, nxt] +1
                     if td_eigs[(iion, curstate)] > td_eigs[(iion, nxtstate)] {
                         if randnum2 < epc {     // phonon emitted
-                            self.tdphonons[(iion, curstate, nxtstate)] += 1;
+                            self.tdphonons[(iion, curstate, nxtstate)] += 1.0;
                         } else {                // photon emitted
-                            self.tdphotons[(iion, curstate, nxtstate)] += 1;
+                            self.tdphotons[(iion, curstate, nxtstate)] += 1.0;
                         }
                     // upward hop: cur < nxt => tdxxx[cur, nxt] -1
                     } else {
                         if randnum2 < epc {     // phonon absorbed
-                            self.tdphonons[(iion, curstate, nxtstate)] -= 1;
+                            self.tdphonons[(iion, curstate, nxtstate)] -= 1.0;
                         } else {                // photon absorbed
-                            self.tdphotons[(iion, curstate, nxtstate)] -= 1;
+                            self.tdphotons[(iion, curstate, nxtstate)] -= 1.0;
                         }
                     }
                 }
@@ -209,6 +222,8 @@ impl Surfhop {
             }
         }
 
+        self.tdphotons /= self.ntraj as f64;
+        self.tdphonons /= self.ntraj as f64;
         self.tdpops /= self.ntraj as f64;
 
         for iion in 0 .. namdtime {
@@ -243,10 +258,10 @@ impl Surfhop {
         ).mapv(|v| v.im.max(0.0));
 
         // determine if the electric field is still present
-        let has_efield = self.wfn.get_efield_array()
-            .map(|e| {
+        let has_efield = self.wfn.get_eafield_array()
+            .map(|[e, _a]| {
                 let idx = iion * self.wfn.get_nelm();
-                let v = e[idx][0];
+                let v = e[idx];
                 v[0] * v[0] + v[1] * v[1] + v[2] * v[2]
             })
             .unwrap_or(0.0) > EPS;

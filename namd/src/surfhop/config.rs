@@ -24,7 +24,7 @@ pub enum SHMethod {
     DCSH,
 }
 
-const INISTEP_PY: &str = include_str!("./inistep.py");
+const INISTEPS_PY: &str = include_str!("./inisteps.py");
 
 
 impl fmt::Display for SHMethod {
@@ -83,7 +83,7 @@ impl SurfhopConfig {
 
     pub fn write_inistep_py<P>(fname: P) -> Result<()>
     where P: AsRef<Path> {
-        write_script(fname, INISTEP_PY, true)
+        write_script(fname, INISTEPS_PY, true)
     }
 }
 

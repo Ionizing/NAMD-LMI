@@ -28,9 +28,6 @@ use crate::hamil::Efield;
 use crate::core::constants::*;
 
 
-pub type EfieldType = &'static Mutex<Efield<'static>>;
-
-
 /// Sing-Particle Hamiltonian
 #[derive(Clone)]
 pub struct SPHamiltonian {
@@ -51,7 +48,7 @@ pub struct SPHamiltonian {
     pij_t:     nd::Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     rij_t:     nd::Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     proj_t:    nd::Array4<f64>,     // [nsw-1, nbasis, nions, nproj]
-    efield:    Option<EfieldType>,
+    efield:    Option<String>,
 
     // pre-calculated hamiltonian = eig_t in diag + nac_t in off-diag
     hamil0:    nd::Array3<c64>,     // [nsw-1, nbasis, nbasis]
@@ -123,7 +120,9 @@ impl Hamiltonian for SPHamiltonian {
             } else {
                 let raw: Vec<u8> = f.dataset("efield")?.read_raw()?;
                 let efield_src = String::from_utf8(raw)?;
-                Some(Efield::singleton_from_str(&efield_src)?)
+                let instance = Efield::singleton_from_str(&efield_src)?;
+                instance.write().unwrap().eval(1.0);
+                Some(efield_src)
             }
         };
 
@@ -184,11 +183,9 @@ impl Hamiltonian for SPHamiltonian {
 
         f.new_dataset_builder().with_data(&self.proj_t).create("proj_t")?;
 
-        if let Some(efield) = self.efield {
-            let e: String = efield      // Mutex<...>
-                .lock().unwrap()        // Efield
-                .get_src().to_owned();  // String
-            f.new_dataset_builder().with_data(&e).create("efield")?;
+        if let Some(efield) = self.efield.as_ref() {        // this is the source code of efield,
+                                                            // not the instance itself.
+            f.new_dataset_builder().with_data(efield).create("efield")?;
         }
 
         Ok(())
@@ -307,8 +304,11 @@ impl SPHamiltonian {
         }
 
 
-        let efield: Option<EfieldType> = cfg.get_efield_fname()
-            .map(|fname| Efield::singleton_from_file(fname).unwrap());
+        let efield: Option<String> = cfg.get_efield_fname()
+            .map(|fname| {
+                let instance = Efield::singleton_from_file(fname).unwrap();
+                instance.write().unwrap().get_src().to_owned()
+            });
 
         // shift to Efermi = 0
         log::info!("Found Efermi = {efermi:.3} eV, shift band eigvals to align with it ...");
@@ -394,8 +394,8 @@ impl SPHamiltonian {
     }
 
 
-    pub fn get_efield(&self) -> Option<EfieldType> {
-        self.efield
+    pub fn get_efield(&self) -> Option<&str> {
+        self.efield.as_ref().map(|x| x.as_ref())
     }
 
 
