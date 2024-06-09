@@ -45,7 +45,17 @@ impl fmt::Display for SHMethod {
 }
 
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+pub enum SmearingMethod {
+    #[serde(alias="Gaussian", alias="gaussian")]
+    GaussianSmearing,
+
+    #[serde(alias="Lorentzian", alias="lorentzian")]
+    LorentzianSmearing,
+}
+
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct SurfhopConfig {
     hamil_fname: PathBuf,
     namdtime: usize,
@@ -55,6 +65,17 @@ pub struct SurfhopConfig {
     outdir: PathBuf,
     lexcitation: bool,
 
+    /// Which type of smearing to use:
+    ///
+    /// - GaussianSmearing: `f(x) = exp(-(x-μ)^2 / (2*σ^2)) / (σ*sqrt(2π))` \n{}
+    /// - LorentzianSmearing: `f(x) = Γ/(2π) / ((x-μ)^2 + (Γ/2)^2)`
+    #[serde(default = "SurfhopConfig::default_smearing_method")]
+    smearing_method: SmearingMethod,
+
+    /// Smearing linewidth, in eV
+    #[serde(default = "SurfhopConfig::default_smearing_sigma")]
+    smearing_sigma: f64,
+
     iniband: usize,
     inispin: usize,
     inisteps: Vec<usize>,
@@ -62,6 +83,9 @@ pub struct SurfhopConfig {
 
 
 impl SurfhopConfig {
+    fn default_smearing_method() -> SmearingMethod { SmearingMethod::LorentzianSmearing }
+    fn default_smearing_sigma() -> f64 { 0.01 }
+
     pub fn get_hamil_fname(&self) -> &PathBuf { &self.hamil_fname }
     pub fn get_namdtime(&self) -> usize { self.namdtime }
     pub fn get_nelm(&self) -> usize { self.nelm }
@@ -98,6 +122,8 @@ impl Default for SurfhopConfig {
             shmethod: SHMethod::FSSH,
             outdir: ".".into(),
             lexcitation: true,
+            smearing_method: SmearingMethod::LorentzianSmearing,
+            smearing_sigma: 0.01,
 
             iniband: 0,
             inispin: 1,
@@ -120,6 +146,9 @@ impl fmt::Display for SurfhopConfig {
         writeln!(f, " {:>20} = {:#}", "shmethod", self.shmethod)?;
         writeln!(f, " {:>20} = {:?}", "outdir", self.outdir)?;
         writeln!(f, " {:>20} = {:?}", "lexcitation", self.lexcitation)?;
+        writeln!(f, " {:>20} = \"{:?}\"", "smearing_method", self.smearing_method)?;
+        writeln!(f, " {:>20} = {:?}", "smearing_sigma", self.smearing_sigma)?;
+        writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "iniband", self.iniband)?;
         writeln!(f, " {:>20} = {:?}", "inispin", self.inispin)?;
@@ -169,6 +198,8 @@ mod tests {
         shmethod = "DISH"
         outdir = "shout"
         lexcitation = true
+        smearing_method = "gaussian"
+        smearing_sigma = 0.05
 
         iniband = 3
         inispin = 2
@@ -187,6 +218,8 @@ mod tests {
             shmethod: SHMethod::DISH,
             outdir: "shout".into(),
             lexcitation: true,
+            smearing_method: SmearingMethod::GaussianSmearing,
+            smearing_sigma: 0.05,
 
             iniband: 3,
             inispin: 2,

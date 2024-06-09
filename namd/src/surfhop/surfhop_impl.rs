@@ -8,6 +8,7 @@ use hdf5::File as H5File;
 use shared::ndarray as nd;
 use shared::log;
 use shared::Result;
+use shared::copy_file_to;
 
 use crate::core::{
     constants::*,
@@ -83,12 +84,15 @@ impl<'a> SurfaceHopping for Surfhop {
         let tdphotons = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
         let tdphonons = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
 
+        log::info!("Copying Hamiltonian file {:?} to {:?}", cfg.get_hamil_fname(), &outdir);
+        copy_file_to(cfg.get_hamil_fname(), &outdir)?;
+
         let potim = hamil.get_potim();
         let nelm = cfg.get_nelm();
         let efield = hamil.get_efield().map(|x| Efield::singleton_from_str(x).unwrap());
         let eafield = efield.map(|x| {
             let mut e = x.write().unwrap();
-            e.print_eafield_tofile(outdir.clone(), namdtime, potim, nelm).unwrap();
+            e.print_eafield_tofile(&outdir, namdtime, potim, nelm).unwrap();
             let (_tt, arr) = e.get_eafield_array(namdtime, potim, nelm);
             arr
         });

@@ -1,15 +1,18 @@
+use std::path::Path;
 use std::path::PathBuf;
 use std::fs::create_dir_all;
 
 use rayon::prelude::*;
 
+use hdf5::File as H5File;
 use clap::{Parser, ValueEnum};
 use shared::{
+    ndarray as nd,
+    c64,
     Result,
     bail,
     log,
     copy_file_to,
-    link_file_to,
 };
 use crate::OptProcess;
 
@@ -84,7 +87,7 @@ impl OptProcess for SurfhopCommand {
                     log::info!("Writing `inisteps.py` ...");
                     surfhop::SurfhopConfig::write_inistep_py("inisteps.py")
                 },
-                PostprocessTemplate => todo!(),
+                PostprocessTemplate => todo!("Not implemented."),
             }
         }
 
@@ -97,6 +100,7 @@ impl OptProcess for SurfhopCommand {
         let cfg = cfg;      // cancel mutability
 
         crate::logging::logger_redirect(&cfg.get_outdir())?;
+        copy_file_to(&self.config, cfg.get_outdir())?;
         log::info!("Got Surface Hopping config:\n{}", &cfg);
         let sh = surfhop::Surfhop::from_config(&cfg)?;
 
@@ -146,3 +150,46 @@ fn create_outputdir(dir: &mut PathBuf) -> Result<()> {
 
     Ok(())
 }
+
+
+fn collect_results<P: AsRef<Path>>(cfg: &surfhop::SurfhopConfig, collected_fname: P, ndigit: usize) -> Result<()> {
+    struct ResultType {
+        time:           nd::Array1<f64>, // [namdtime]
+        prop_energy:    nd::Array1<f64>, // [namdtime]
+        psi_t:          nd::Array2<f64>, // [namdtime, nbasis]
+        sh_energy:      nd::Array1<f64>, // [namdtime]
+        sh_pops:        nd::Array2<f64>, // [namdtime, nbasis]
+        eigs_t:         nd::Array2<f64>, // [namdtime, nbasis]
+        proj_t:         nd::Array2<f64>, // [namdtime, nbasis]
+        photons_emit_t: nd::Array2<f64>, // [namdtime, npoints]
+        photons_absp_t: nd::Array2<f64>, // [namdtime, npoints]
+        phonons_emit_t: nd::Array2<f64>, // [namdtime, npoints]
+        phonons_absp_t: nd::Array2<f64>, // [namdtime, npoints]
+    }
+
+
+    //for namdinit in cfg.get_inisteps() {
+    //}
+
+    cfg.get_inisteps().par_iter()
+        .map(|namdinit| -> Result<ResultType> {
+            let fname = cfg.get_outdir().join(format!("{:0ndigit$}.h5", namdinit));
+            let f = H5File::open(fname)?;
+
+            let time:        nd::Array1<f64> = f.dataset("time")?.read()?;
+            let prop_energy: nd::Array1<f64> = f.dataset("prop_energy")?.read()?;
+            let psi_t_r:     nd::Array2<f64> = f.dataset("psi_t_r")?.read()?;
+            let psi_t_i:     nd::Array2<f64> = f.dataset("psi_t_i")?.read()?;
+            let psi_t = psi_t_r.map(|x| x*x) + psi_t_i.map(|x| x*x);
+            let sh_energy: nd::Array1<f64> = f.dataset("sh_energy")?.read()?;
+            let sh_pops:   nd::Array2<f64> = f.dataset("sh_pops")?.read()?;
+
+            todo!()
+        });
+
+
+    todo!()
+}
+
+
+//fn smearing
