@@ -15,7 +15,6 @@ pub use ndarray::{
 };
 pub use ndarray_linalg;
 pub use regex::Regex;
-pub use clap::Parser;
 pub use log::{
     self,
     warn,
@@ -23,6 +22,9 @@ pub use log::{
     debug,
     error,
 };
+
+mod numeric_methods;
+pub use numeric_methods::*;
 
 #[allow(non_camel_case_types)]
 pub type c64 = ndrustfft::Complex<f64>;
@@ -35,10 +37,7 @@ pub type Matrix<T> = Array2<T>;
 pub type Cube<T>   = Array3<T>;
 pub type MatX3<T> = Vec<[T;3]>;  // Nx3 matrix
 pub type Mat33<T> = [[T;3];3];   // 3x3 matrix
-
-pub trait OptProcess : Parser {
-    fn process(&self) -> Result<()>;
-}
+                                 //
 
 /// Index array containing negative indices => Index array full of positive indices.
 /// `-1` means the last index,
