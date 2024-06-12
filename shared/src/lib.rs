@@ -22,6 +22,7 @@ pub use log::{
     debug,
     error,
 };
+pub use ndrustfft;
 
 mod numeric_methods;
 pub use numeric_methods::*;

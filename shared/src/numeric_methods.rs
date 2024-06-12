@@ -60,21 +60,26 @@ where T: NumAssign + Copy + Div<f64, Output=T>,
 /// Similar to `scipy.integrate.cumtrapz`
 ///
 /// Requirements: `ys.len() >= 2`.
-pub fn cumtrapz2<T, In>(ys: In, dx: T) -> Vec<T>
+pub fn cumtrapz2<T, In>(ys: In, dx: T, init: bool) -> Vec<T>
 where T: NumAssign + Copy + Div<f64, Output=T>,
       In: AsRef<[T]>,
 {
     let len = ys.as_ref().len();
     assert!(len >= 2);
 
-    let mut ret = vec![T::zero(); len - 1];
-    cumtrapz(ys, dx, &mut ret);
-
-    ret
+    if init {
+        let mut ret = vec![T::zero(); len];
+        cumtrapz(ys, dx, &mut ret[1..]);
+        ret
+    } else {
+        let mut ret = vec![T::zero(); len - 1];
+        cumtrapz(ys, dx, &mut ret);
+        ret
+    }
 }
 
 
-/// Calculate the self-correlate function
+/// Calculate the self-correlate function. The result is stored in the given contiguous array.
 ///
 /// `y[i] = SUM(x[0 .. n-i] * x[i .. n])`
 ///
@@ -107,6 +112,11 @@ where T: NumAssign + iter::Sum + Div<f64, Output=T> + Copy,
 }
 
 
+/// Calculate the self-correlate function and then return the result in a new `Vec`
+///
+/// `y[i] = SUM(x[0 .. n-i] * x[i .. n])`
+///
+/// where `xs.len() == n` and `ys.len() == n`
 pub fn auto_correlation2<T, In>(xs: In) -> Vec<T>
 where T: NumAssign + iter::Sum + Div<f64, Output=T> + Copy,
       In: AsRef<[T]>
@@ -120,6 +130,31 @@ where T: NumAssign + iter::Sum + Div<f64, Output=T> + Copy,
     ret
 }
 
+
+/// Calculate the frequencies for generic FFT.
+pub fn fft_freq_1d<R>(n: usize, dx: f64) -> R
+where R: FromIterator<f64>
+{
+    let n = n as i64;
+
+    let positive_end = if n % 2 == 0 { n / 2 - 1 } else { (n-1) / 2 };
+    let negative_beg = if n % 2 == 0 { -n / 2 } else { -(n-1) / 2 };
+
+    (0 ..= positive_end).chain(negative_beg ..= -1)
+        .map(|x| x as f64 / (dx * n as f64))
+        .collect()
+}
+
+
+/// Calculate the frequencies for real-to-complex FFT.
+pub fn rfft_freq_1d<R>(n: usize, dx: f64) -> R
+where R: FromIterator<f64>
+{
+    let end = if n % 2 == 0 { n / 2 } else { (n-1) / 2 };
+    (0 ..= end)
+        .map(|x| x as f64 / (dx * n as f64))
+        .collect()
+}
 
 
 #[cfg(test)]
@@ -139,7 +174,7 @@ mod tests{
     fn test_cumtrapz() {
         let ys = &[1.0f64, 2.0, 3.0, 4.0, 5.0];
         let dx = 0.3f64;
-        let ret = cumtrapz2(ys, dx);
+        let ret = cumtrapz2(ys, dx, false);
         assert_eq!(ret[2], 2.25);
         assert_eq!(ret[3], 3.5999999999999996);
     }
@@ -152,5 +187,26 @@ mod tests{
         assert_eq!(ys[0], 10.0);
         assert_eq!(ys[1], 4.0);
         assert_eq!(ys[4], -4.0);
+    }
+
+
+    #[test]
+    fn test_fft_freq() {
+        let freq: Vec<f64> = fft_freq_1d(4, 0.5);
+        assert_eq!(freq[1],  0.5);
+        assert_eq!(freq[2], -1.0);
+
+        let freq: Vec<f64> = fft_freq_1d(5, 0.5);
+        assert_eq!(freq[1],  0.4);
+        assert_eq!(freq[2],  0.8);
+        assert_eq!(freq[3], -0.8);
+
+        let freq: Vec<f64> = rfft_freq_1d(4, 0.5);
+        assert_eq!(freq.len(), 3);
+        assert_eq!(freq[2], 1.0);
+
+        let freq: Vec<f64> = rfft_freq_1d(5, 0.5);
+        assert_eq!(freq.len(), 3);
+        assert_eq!(freq[2], 0.8);
     }
 }
