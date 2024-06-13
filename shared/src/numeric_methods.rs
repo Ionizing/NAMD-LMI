@@ -137,8 +137,8 @@ where R: FromIterator<f64>
 {
     let n = n as i64;
 
-    let positive_end = if n % 2 == 0 { n / 2 - 1 } else { (n-1) / 2 };
-    let negative_beg = if n % 2 == 0 { -n / 2 } else { -(n-1) / 2 };
+    let positive_end = n/2;
+    let negative_beg = 1 + n/2 - n;
 
     (0 ..= positive_end).chain(negative_beg ..= -1)
         .map(|x| x as f64 / (dx * n as f64))
@@ -150,7 +150,7 @@ where R: FromIterator<f64>
 pub fn rfft_freq_1d<R>(n: usize, dx: f64) -> R
 where R: FromIterator<f64>
 {
-    let end = if n % 2 == 0 { n / 2 } else { (n-1) / 2 };
+    let end = n / 2;
     (0 ..= end)
         .map(|x| x as f64 / (dx * n as f64))
         .collect()
@@ -194,7 +194,7 @@ mod tests{
     fn test_fft_freq() {
         let freq: Vec<f64> = fft_freq_1d(4, 0.5);
         assert_eq!(freq[1],  0.5);
-        assert_eq!(freq[2], -1.0);
+        assert_eq!(freq[3], -0.5);
 
         let freq: Vec<f64> = fft_freq_1d(5, 0.5);
         assert_eq!(freq[1],  0.4);
