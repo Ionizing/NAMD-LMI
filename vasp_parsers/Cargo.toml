@@ -9,7 +9,7 @@ edition        = "2021"
 byteorder = "1.4.3"
 colored   = "2.0.0"
 flate2    = "1.0.26"
-itertools = "0.10.5"
+itertools = "0.13.0"
 ndrustfft = "0.4.0"
 rayon     = "1.7.0"
 shared    = { path = "../shared" }

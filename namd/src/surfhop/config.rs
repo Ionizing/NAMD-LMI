@@ -1,6 +1,7 @@
 use std::fs;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::f64::consts::PI;
 
 use serde::Deserialize;
 use toml;
@@ -55,6 +56,78 @@ pub enum SmearingMethod {
 }
 
 
+impl SmearingMethod {
+    pub fn apply_smearing<I1, I2, I3, R>(&self, x: I1, centers: I2, width: f64, scales: Option<I3>) -> R
+    where I1: AsRef<[f64]>,
+          I2: AsRef<[f64]>,
+          I3: AsRef<[f64]>,
+          R: FromIterator<f64>,
+    {
+        //let centers_len = centers.as_ref()
+        let x = x.as_ref();
+        let centers = centers.as_ref();
+        let centers_len = centers.len();
+        let scales = scales
+            .map(|x| x.as_ref().to_owned())
+            .unwrap_or(vec![1.0; centers_len]);
+
+        match self {
+            Self::GaussianSmearing   => Self::gaussian(x, centers, width, &scales),
+            Self::LorentzianSmearing => Self::lorentzian(x, centers, width, &scales),
+        }
+    }
+
+
+    /// f(x,μ,σ) = exp(-(x-μ)^2 / (2*σ^2) / (σ*sqrt(2π))
+    fn gaussian<I1, I2, I3, R>(x: I1, mus: I2, sigma: f64, scales: I3) -> R
+    where I1: AsRef<[f64]>,
+          I2: AsRef<[f64]>,
+          I3: AsRef<[f64]>,
+          R: FromIterator<f64>,
+    {
+        let x   = x.as_ref();
+        let mus = mus.as_ref();
+        let scales = scales.as_ref();
+
+        let inv_two_sgm_sqr = 1.0 / (2.0 * sigma.powi(2));           // 1.0/(2*σ^2)
+        let inv_sgm_sqrt2pi = 1.0 / (sigma * (2.0 * PI).sqrt());     // 1.0/(σ*sqrt(2π))
+
+        x.iter().cloned()
+            .map(|x| { mus.iter().cloned().zip(scales.iter().cloned())
+                .map(|(c, s)| {
+                    -((x - c).powi(2) * inv_two_sgm_sqr).exp() * inv_sgm_sqrt2pi * s
+                })
+                .sum()
+            })
+            .collect()
+    }
+
+
+    /// lorentz_smearing(x::AbstractArray, x0::Float64, Γ=0.05) = @. Γ/(2π) / ((x-x0)^2 + (Γ/2)^2)
+    fn lorentzian<I1, I2, I3, R>(x: I1, x0s: I2, gamma: f64, scales: I3) -> R
+    where I1: AsRef<[f64]>,
+          I2: AsRef<[f64]>,
+          I3: AsRef<[f64]>,
+          R: FromIterator<f64>,
+    {
+        let x   = x.as_ref();
+        let x0s = x0s.as_ref();
+        let scales = scales.as_ref();
+        let gam_div_2pi  = gamma / (2.0 * PI);      // Γ/(2π)
+        let gam_half_sqr = (gamma / 2.0).powi(2);   // (Γ/2)^2
+
+        x.iter().cloned()
+            .map(|x| { x0s.iter().cloned().zip(scales.iter().cloned())
+                .map(|(c, s)| {
+                    gam_div_2pi / ((x - c).powi(2) + gam_half_sqr) * s
+                })
+                .sum()
+            })
+            .collect()
+    }
+}
+
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct SurfhopConfig {
     hamil_fname: PathBuf,
@@ -76,6 +149,11 @@ pub struct SurfhopConfig {
     #[serde(default = "SurfhopConfig::default_smearing_sigma")]
     smearing_sigma: f64,
 
+    /// Number of points PER eV in photon spectra.
+    #[serde(rename = "smearing_npoints_per_eV",
+            default = "SurfhopConfig::default_smearing_npoints_per_ev")]
+    smearing_npoints_per_ev: usize,
+
     iniband: usize,
     inispin: usize,
     inisteps: Vec<usize>,
@@ -85,6 +163,7 @@ pub struct SurfhopConfig {
 impl SurfhopConfig {
     fn default_smearing_method() -> SmearingMethod { SmearingMethod::LorentzianSmearing }
     fn default_smearing_sigma() -> f64 { 0.01 }
+    fn default_smearing_npoints_per_ev() -> usize { 500 }
 
     pub fn get_hamil_fname(&self) -> &PathBuf { &self.hamil_fname }
     pub fn get_namdtime(&self) -> usize { self.namdtime }
@@ -94,6 +173,9 @@ impl SurfhopConfig {
     pub fn get_outdir(&self) -> &PathBuf { &self.outdir }
     pub fn get_outdir_mut(&mut self) -> &mut PathBuf { &mut self.outdir }
     pub fn get_lexcitation(&self) -> bool { self.lexcitation }
+    pub fn get_smearing_method(&self) -> SmearingMethod { self.smearing_method }
+    pub fn get_smearing_sigma(&self) -> f64 { self.smearing_sigma }
+    pub fn get_npoints_per_ev(&self) -> usize { self.smearing_npoints_per_ev }
 
     pub fn get_iniband(&self) -> usize { self.iniband }
     pub fn get_inispin(&self) -> usize { self.inispin }
@@ -124,6 +206,7 @@ impl Default for SurfhopConfig {
             lexcitation: true,
             smearing_method: SmearingMethod::LorentzianSmearing,
             smearing_sigma: 0.01,
+            smearing_npoints_per_ev: 500,
 
             iniband: 0,
             inispin: 1,
@@ -148,6 +231,7 @@ impl fmt::Display for SurfhopConfig {
         writeln!(f, " {:>20} = {:?}", "lexcitation", self.lexcitation)?;
         writeln!(f, " {:>20} = \"{:?}\"", "smearing_method", self.smearing_method)?;
         writeln!(f, " {:>20} = {:?}", "smearing_sigma", self.smearing_sigma)?;
+        writeln!(f, " {:>20} = {:?}", "smearing_npoints_per_eV", self.smearing_npoints_per_ev)?;
         writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "iniband", self.iniband)?;
@@ -200,6 +284,7 @@ mod tests {
         lexcitation = true
         smearing_method = "gaussian"
         smearing_sigma = 0.05
+        smearing_npoints_per_eV = 1000
 
         iniband = 3
         inispin = 2
@@ -220,6 +305,7 @@ mod tests {
             lexcitation: true,
             smearing_method: SmearingMethod::GaussianSmearing,
             smearing_sigma: 0.05,
+            smearing_npoints_per_ev: 1000,
 
             iniband: 3,
             inispin: 2,

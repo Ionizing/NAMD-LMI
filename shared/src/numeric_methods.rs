@@ -1,6 +1,13 @@
 use std::iter;
 use std::ops::Div;
+use std::mem;
 use num_traits::NumAssign;
+
+
+pub fn lower_triangle_matrix_index(mut i: usize, mut j: usize) -> usize {
+    if i < j { mem::swap(&mut i, &mut j) }
+    i * (i + 1) / 2 + j
+}
 
 
 pub fn mean<T, I>(xs: I) -> T
@@ -160,6 +167,17 @@ where R: FromIterator<f64>
 #[cfg(test)]
 mod tests{
     use super::*;
+
+    #[test]
+    fn test_lower_triangle_matrix_index() {
+        assert_eq!(lower_triangle_matrix_index(0, 0,), 0);
+        assert_eq!(lower_triangle_matrix_index(0, 1,), 1);
+        assert_eq!(lower_triangle_matrix_index(1, 1,), 2);
+        assert_eq!(lower_triangle_matrix_index(2, 1,), 4);
+        assert_eq!(lower_triangle_matrix_index(1, 2,), 4);
+        assert_eq!(lower_triangle_matrix_index(3, 3,), 9);
+        assert_eq!(lower_triangle_matrix_index(4, 4,), 14);
+    }
 
     #[test]
     fn test_cumsum() {

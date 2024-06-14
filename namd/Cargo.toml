@@ -12,6 +12,7 @@ built = { version = "0.7.1", features = ["chrono", "git2"] }
 clap         = { version = "4.4.8", features   = ["derive"] }
 hdf5         = "0.8.1"
 hdf5-sys     = { version = "0.8.1", features   = ["static"] }
+itertools = "0.13.0"
 log4rs = "1.2.0"
 #katexit = "0.1.4"
 #mpi          = { version = "0.6.0", features   = ["derive"] }

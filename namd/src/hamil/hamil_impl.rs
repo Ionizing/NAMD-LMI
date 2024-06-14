@@ -404,6 +404,11 @@ impl SPHamiltonian {
     }
 
 
+    pub fn get_proj(&self) -> nd::ArrayView4<f64> {
+        self.proj_t.view()
+    }
+
+
     // H_diag = eig_t
     // H_offdiag = nac_t * -i hbar
     fn calculate_hamil0(eig_t: &nd::Array2<f64>, nac_t: &nd::Array3<c64>) -> nd::Array3<c64> {
