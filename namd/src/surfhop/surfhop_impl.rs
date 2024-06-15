@@ -37,6 +37,7 @@ pub struct Surfhop {
     ntraj: usize,
     namdinit: usize,
     namdtime: usize,
+    time: nd::Array1<f64>,
     tdpops: nd::Array2<f64>,            // [namdtime, nbasis]
     tdenergy: nd::Array1<f64>,          // [namdtime]
     tdphotons: nd::Array3<f64>,         // [namdtime, nbasis, nbasis], emit => plus, absorb => minus
@@ -89,6 +90,7 @@ impl<'a> SurfaceHopping for Surfhop {
 
         let potim = hamil.get_potim();
         let nelm = cfg.get_nelm();
+        let time: nd::Array1<f64> = (0 .. namdtime).map(|i| i as f64 * potim).collect();
         let efield = hamil.get_efield().map(|x| Efield::singleton_from_str(x).unwrap());
         let eafield = efield.map(|x| {
             let mut e = x.write().unwrap();
@@ -115,6 +117,7 @@ impl<'a> SurfaceHopping for Surfhop {
                     ntraj,
                     namdinit,
                     namdtime,
+                    time: time.clone(),
                     tdpops: tdpops.clone(),
                     tdenergy: tdenergy.clone(),
                     tdphotons: tdphotons.clone(),
@@ -133,6 +136,7 @@ impl<'a> SurfaceHopping for Surfhop {
         f.new_dataset::<usize>().create("ntraj")?.write_scalar(&self.ntraj)?;
         f.new_dataset::<bool>().create("lexcitation")?.write_scalar(&self.lexcitation)?;
 
+        f.new_dataset_builder().with_data(&self.time).create("time")?;
         f.new_dataset_builder().with_data(&self.shmethod.to_string()).create("shmethod")?;
         f.new_dataset_builder().with_data(&self.wfn.get_psi_t().mapv(|v| v.re)).create("psi_t_r")?;
         f.new_dataset_builder().with_data(&self.wfn.get_psi_t().mapv(|v| v.im)).create("psi_t_i")?;

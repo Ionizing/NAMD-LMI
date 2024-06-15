@@ -41,11 +41,11 @@ pub struct SurfhopCommand {
     /// If 0 is set, it will fall back to the number of logic CPU cores of you machine.
     nthreads: usize,
 
-    #[arg(short='c', long, default_value="surfhop_config.toml", aliases=["cfg", "conf"])]
+    #[arg(short='c', long, aliases=["cfg", "conf"])]
     /// Config file name.
     ///
     /// Aliases: "cfg", "conf".
-    config: PathBuf,
+    config: Option<PathBuf>,
 
     #[arg(long, value_enum, alias="gen")]
     /// Generate auxiliary files for the calculation and analysis.
@@ -54,6 +54,14 @@ pub struct SurfhopCommand {
     ///
     /// Alias: "gen".
     generate: Option<TemplateGenerator>,
+
+    #[arg(long, aliases=["collect", "cr"])]
+    /// Collect results produced by the surface-hopping.
+    ///
+    /// The surface-hopping will not run if this flag is set.
+    ///
+    /// Aliases: "collect", "cr"
+    collect_results: Option<PathBuf>,
 }
 
 
@@ -78,11 +86,11 @@ enum TemplateGenerator {
 
 impl OptProcess for SurfhopCommand {
     fn process(&self) -> Result<()> {
-        use TemplateGenerator::*;
+        use TemplateGenerator as TG;
 
         if let Some(g) = self.generate {
             return match g {
-                ConfigTemplate => {
+                TG::ConfigTemplate => {
                     {
                         log::info!("writing `surfhop_config_template.toml` ...");
                         surfhop::SurfhopConfig::default().to_file("surfhop_config_template.toml")
@@ -91,32 +99,44 @@ impl OptProcess for SurfhopCommand {
                         surfhop::SurfhopConfig::write_inistep_py("inisteps.py")
                     })
                 },
-                Inistep => {
+                TG::Inistep => {
                     log::info!("Writing `inisteps.py` ...");
                     surfhop::SurfhopConfig::write_inistep_py("inisteps.py")
                 },
-                PostprocessTemplate => todo!("Not implemented."),
+                TG::PostprocessTemplate => todo!("Not implemented."),
             }
         }
 
+        let config_fname = self.config.clone()
+            .context("A connfig file is required via `-c surfhop_config.toml`.")?;
+
+        if let Some(outdir) = self.collect_results.to_owned() {
+            log::info!("Collecting results from existing surface hopping artifact ...");
+            let cfg = surfhop::SurfhopConfig::from_file(&config_fname)?;
+            collect_results(&cfg, outdir, "averaged_results.h5")?;
+            return Ok(())
+        }
+
+
         // Start running surface-hopping method.
-        log::info!("Prepare to run surface-hopping method ...");
+        log::info!("Prepare to run surface-hopping ...");
         rayon::ThreadPoolBuilder::new().num_threads(self.nthreads).build_global().unwrap();
 
-        let mut cfg = surfhop::SurfhopConfig::from_file(&self.config)?;
+        let mut cfg = surfhop::SurfhopConfig::from_file(&config_fname)?;
         create_outputdir(cfg.get_outdir_mut())?;
         let cfg = cfg;      // cancel mutability
 
         crate::logging::logger_redirect(&cfg.get_outdir())?;
-        copy_file_to(&self.config, cfg.get_outdir())?;
+        copy_file_to(&config_fname, cfg.get_outdir())?;
+
         log::info!("Got Surface Hopping config:\n{}", &cfg);
         let sh = surfhop::Surfhop::from_config(&cfg)?;
-
         let _ = sh.into_par_iter()
             .map(|mut v| v.run())
             .collect::<Result<Vec<()>>>()?;
 
-        collect_results(&cfg, "averaged_results.h5")?;
+        log::info!("Collecting results ...");
+        collect_results(&cfg, cfg.get_outdir(), "averaged_results.h5")?;
         Ok(())
     }
 }
@@ -161,7 +181,11 @@ fn create_outputdir(dir: &mut PathBuf) -> Result<()> {
 }
 
 
-fn collect_results<P: AsRef<Path>>(cfg: &surfhop::SurfhopConfig, collected_fname: P) -> Result<()> {
+fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
+    cfg: &surfhop::SurfhopConfig,
+    outdir: P1,
+    collected_fname: P2) -> Result<()>
+{
     struct ResultType {
         time:           nd::Array1<f64>, // [namdtime]
         prop_energy:    nd::Array1<f64>, // [namdtime]
@@ -175,6 +199,8 @@ fn collect_results<P: AsRef<Path>>(cfg: &surfhop::SurfhopConfig, collected_fname
         phonons_emit_t: nd::Array2<f64>, // [namdtime, nfreqs]
         phonons_absp_t: nd::Array2<f64>, // [namdtime, nfreqs]
     }
+
+    let outdir = outdir.as_ref();
 
     let smearing_method = cfg.get_smearing_method();
     let smearing_sigma  = cfg.get_smearing_sigma();
@@ -197,7 +223,7 @@ fn collect_results<P: AsRef<Path>>(cfg: &surfhop::SurfhopConfig, collected_fname
     let nsample = cfg.get_inisteps().len() as f64;
     let result_sum = cfg.get_inisteps().par_iter()
         .map(|&namdinit| -> Result<ResultType> {
-            let fname = cfg.get_outdir().join(format!("{:0ndigit$}.h5", namdinit));
+            let fname = outdir.join(format!("result_{:0ndigit$}.h5", namdinit));
             let f = H5File::open(fname)?;
 
             let time:        nd::Array1<f64> = f.dataset("time")?.read()?;
@@ -331,7 +357,10 @@ fn collect_results<P: AsRef<Path>>(cfg: &surfhop::SurfhopConfig, collected_fname
     let phonons_absp_t = result_sum.phonons_absp_t / nsample;
 
     // Writing results.
-    let f = H5File::create(cfg.get_outdir().join(collected_fname))?;
+    let ret_fname = outdir.join(collected_fname);
+    log::info!("Collecting down. Writing to {:?} ...", &ret_fname);
+
+    let f = H5File::create(ret_fname)?;
     f.new_dataset::<usize>().create("ndigit")?.write_scalar(&ndigit)?;
     f.new_dataset::<f64>().create("potim")?.write_scalar(&potim)?;
 
@@ -349,6 +378,11 @@ fn collect_results<P: AsRef<Path>>(cfg: &surfhop::SurfhopConfig, collected_fname
 
     f.new_dataset_builder().with_data(&photons_emit_t).create("photons_emit_t")?;
     f.new_dataset_builder().with_data(&photons_absp_t).create("photons_absp_t")?;
+
+    f.new_dataset_builder().with_data(&frequencies).create("phonon_spectra_frequencies")?;
+    f.new_dataset_builder().with_data(&spectra).create("phonons_spectra")?;
+    f.new_dataset_builder().with_data(&xvals).create("photon_spectra_xvals")?;
+    f.new_dataset_builder().with_data(&delta_et).create("delta_et")?;
 
     Ok(())
 }
