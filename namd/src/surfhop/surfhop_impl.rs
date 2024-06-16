@@ -9,6 +9,7 @@ use shared::ndarray as nd;
 use shared::log;
 use shared::Result;
 use shared::copy_file_to;
+use rayon::prelude::*;
 
 use crate::core::{
     constants::*,
@@ -99,7 +100,7 @@ impl<'a> SurfaceHopping for Surfhop {
             arr
         });
 
-        cfg.get_inisteps().iter()
+        cfg.get_inisteps().par_iter()
             .map(|&istep| -> Result<Self> {
                 let hamil = hamil.clone();
                 let namdinit = istep;
@@ -140,10 +141,10 @@ impl<'a> SurfaceHopping for Surfhop {
         f.new_dataset_builder().with_data(&self.shmethod.to_string()).create("shmethod")?;
         f.new_dataset_builder().with_data(&self.wfn.get_psi_t().mapv(|v| v.re)).create("psi_t_r")?;
         f.new_dataset_builder().with_data(&self.wfn.get_psi_t().mapv(|v| v.im)).create("psi_t_i")?;
-        f.new_dataset_builder().with_data(&self.wfn.get_prop_eigs()).create("prop_eigs_t")?;
+        f.new_dataset_builder().with_data(&self.wfn.get_prop_eigs()).create("prop_energy")?;
 
-        f.new_dataset_builder().with_data(&self.tdpops).create("sh_pops_t")?;
-        f.new_dataset_builder().with_data(&self.tdenergy).create("sh_eigs_t")?;
+        f.new_dataset_builder().with_data(&self.tdpops).create("sh_pops")?;
+        f.new_dataset_builder().with_data(&self.tdenergy).create("sh_energy")?;
         f.new_dataset_builder().with_data(&self.tdphotons).create("sh_photons_t")?;
         f.new_dataset_builder().with_data(&self.tdphonons).create("sh_phonons_t")?;
 
