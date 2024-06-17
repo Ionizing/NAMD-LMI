@@ -21,6 +21,7 @@ use shared::{
     lower_triangle_matrix_index,
 };
 use crate::OptProcess;
+use crate::cli::write_script;
 
 use crate::core::{
     Hamiltonian,
@@ -103,7 +104,10 @@ impl OptProcess for SurfhopCommand {
                     log::info!("Writing `inisteps.py` ...");
                     surfhop::SurfhopConfig::write_inistep_py("inisteps.py")
                 },
-                TG::PostprocessTemplate => todo!("Not implemented."),
+                TG::PostprocessTemplate => {
+                    log::info!("Writing `surfhop_plot.py` ...");
+                    write_script("surfhop_plot.py", include_str!("./surfhop_plot.py"), true)
+                },
             }
         }
 
