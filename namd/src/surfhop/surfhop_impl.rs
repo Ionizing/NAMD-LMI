@@ -8,7 +8,7 @@ use hdf5::File as H5File;
 use shared::ndarray as nd;
 use shared::log;
 use shared::Result;
-use shared::copy_file_to;
+use shared::link_file_to;
 use rayon::prelude::*;
 
 use crate::core::{
@@ -86,8 +86,8 @@ impl<'a> SurfaceHopping for Surfhop {
         let tdphotons = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
         let tdphonons = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
 
-        log::info!("Copying Hamiltonian file {:?} to {:?}", cfg.get_hamil_fname(), &outdir);
-        copy_file_to(cfg.get_hamil_fname(), &outdir)?;
+        log::info!("Linking Hamiltonian file {:?} to {:?}", cfg.get_hamil_fname(), &outdir);
+        link_file_to(cfg.get_hamil_fname(), &outdir)?;
 
         let potim = hamil.get_potim();
         let nelm = cfg.get_nelm();
