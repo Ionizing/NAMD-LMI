@@ -8,6 +8,7 @@ use shared::{
 };
 use crate::OptProcess;
 use crate::cli::write_script;
+use crate::version::Version;
 
 use crate::core::{
     Hamiltonian,
@@ -75,6 +76,8 @@ impl OptProcess for HamilCommand {
                 },
             }
         }
+
+        log::info!("\n{}", Version::new());
 
         let cfg = hamil::HamilConfig::from_file(&self.config)?;
         log::info!("Got Hamiltonnian config:\n{}", &cfg);

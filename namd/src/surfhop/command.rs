@@ -22,6 +22,7 @@ use shared::{
 };
 use crate::OptProcess;
 use crate::cli::write_script;
+use crate::version::Version;
 
 use crate::core::{
     Hamiltonian,
@@ -123,7 +124,8 @@ impl OptProcess for SurfhopCommand {
 
 
         // Start running surface-hopping method.
-        log::info!("Prepare to run surface-hopping ...");
+        log::info!("\n{}", Version::new());
+        log::info!("Prepare to run surface-hopping in {} threads ...", self.nthreads);
         rayon::ThreadPoolBuilder::new().num_threads(self.nthreads).build_global().unwrap();
 
         let mut cfg = surfhop::SurfhopConfig::from_file(&config_fname)?;

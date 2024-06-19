@@ -10,6 +10,7 @@ use shared::{
 };
 use crate::OptProcess;
 use crate::cli::write_script;
+use crate::version::Version;
 
 use crate::core::{
     Couplings,
@@ -74,6 +75,9 @@ impl OptProcess for NacCommand {
             }
         }
 
+        log::info!("\n{}", Version::new());
+
+        log::info!("Running with {} threads.", self.nthreads);
         rayon::ThreadPoolBuilder::new().num_threads(self.nthreads).build_global().unwrap();
 
         let cfg  = nac::NacConfig::from_file(&self.config)?;
