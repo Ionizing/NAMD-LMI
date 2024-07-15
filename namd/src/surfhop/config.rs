@@ -129,6 +129,7 @@ impl SmearingMethod {
 
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct SurfhopConfig {
     hamil_fname: PathBuf,
     namdtime: usize,

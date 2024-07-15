@@ -94,8 +94,8 @@ impl OptProcess for SurfhopCommand {
             return match g {
                 TG::ConfigTemplate => {
                     {
-                        log::info!("writing `surfhop_config_template.toml` ...");
-                        surfhop::SurfhopConfig::default().to_file("surfhop_config_template.toml")
+                        log::info!("writing `03_surfhop_config_template.toml` ...");
+                        surfhop::SurfhopConfig::default().to_file("03_surfhop_config_template.toml")
                     }.and_then(|_| {
                         log::info!("Writing `inisteps.py` ...");
                         surfhop::SurfhopConfig::write_inistep_py("inisteps.py")

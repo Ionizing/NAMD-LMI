@@ -79,9 +79,9 @@ where P: AsRef<Path> {
     #[cfg(unix)]
     if with_exe_permission {
         use std::os::unix::fs::PermissionsExt;
-        let metadata = f.metadata()?;
-        let mut permissions = metadata.permissions();
-        permissions.set_mode(0o755);
+        let mut perms = f.metadata()?.permissions();
+        perms.set_mode(0o755);
+        f.set_permissions(perms)?;
     }
 
     Ok(())

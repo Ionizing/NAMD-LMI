@@ -19,9 +19,9 @@ class Nac:
         for k, v in tree.items():
             setattr(self, k, v[()])
             pass
-        pass
         self.olaps = self.olaps_r + self.olaps_i * 1j
         self.pij   = self.pij_r   + self.pij_i   * 1j
+        pass
     
     def plot_bands(self, pngfname="nac_bands.png"):
         eigs = self.eigs
@@ -53,7 +53,7 @@ class Nac:
     def plot_nac(self, pngfname="nac_nac.png"):
         ispin = 0
 
-        nac = np.mean(np.abs(self.olaps)[ispin,...], axis=(0,)) * 1000 * HBAR / self.potim
+        nac = np.mean(np.abs(self.olaps)[ispin,...], axis=(0,)) * 1000 * HBAR / self.potim / 2
         np.fill_diagonal(nac, 0)
 
         fig = plt.figure(figsize=(6,5))

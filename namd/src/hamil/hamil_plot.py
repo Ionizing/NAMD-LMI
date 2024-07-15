@@ -90,6 +90,29 @@ class Hamil:
         fig.savefig(pngfname, dpi=400)
         pass
 
+    def plot_pij(self, pngfname="hamil_pij.png"):
+        pij = np.mean(np.abs(self.pij_t), axis=(0,1))
+        np.fill_diagonal(pij, 0)
+
+        fig, ax = plt.subplots(figsize=(6,5))
+        
+        img = ax.pcolormesh(pij, cmap="Reds",
+                            linewidth=0,
+                            aa=True,
+                            edgecolor="none")
+        cb = fig.colorbar(img, fraction=0.046, pad=0.01)
+        cb.ax.set_title("(eV·fs/Å)")
+
+        if pij.shape[0] <= 15:
+            for (i, j), z in np.ndenumerate(pij):
+                ax.text(j+0.5, i+0.5, "{:0.2f}".format(z), ha="center", va="center")
+
+        fig.suptitle("<i|p|j> in {}".format(self.fname))
+        fig.tight_layout(pad=0.5)
+        print("Writing {}".format(pngfname))
+        fig.savefig(pngfname, dpi=400)
+        pass
+
 
 if "__main__" == __name__:
     args = parseArgs()
@@ -101,4 +124,5 @@ if "__main__" == __name__:
         (2, 3, "213-214 Gu-Gd"),
         (4, 5, "215-216 Ku-K'd"),
         ])
+    hamil.plot_pij()
     pass

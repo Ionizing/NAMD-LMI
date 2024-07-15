@@ -72,8 +72,8 @@ fn efield(t) {
     let hnu   = 1.4;                // photon energy = h * nu = 1.4 (eV)
     let omega = hnu / hbar;         // omega = hnu / hbar (rad/fs)
     
-    let x = amp * sin(omega * t);   // electric field at `x` direction at time `t`
-    let y = amp * cos(omega * t);   // electric field at `y` direction at time `t`
+    let x = amp * cos(omega * t);   // electric field at `x` direction at time `t`
+    let y = amp * sin(omega * t);   // electric field at `y` direction at time `t`
     let z = 0.0;                    // no electric field at `z` direction
 
     return [x, y, z];               // this statement is required.

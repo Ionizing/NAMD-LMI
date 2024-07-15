@@ -52,6 +52,7 @@ impl PropagateMethod {
 
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HamilConfig {
     #[serde(default = "HamilConfig::default_ikpoint")]
     ikpoint: usize,
@@ -188,18 +189,18 @@ impl fmt::Display for HamilConfig {
         writeln!(f, " {:>20} = {:?}", "basis_dn", self.basis_dn)?;
         writeln!(f, " {:>20} = {:?}", "nac_fname", self.nac_fname)?;
         if let Some(efield) = self.efield_fname.as_ref() {
-            writeln!(f, " {:>20} = {:?}", "efield", efield)?;
+            writeln!(f, " {:>20} = {:?}", "efield_fname", efield)?;
         } else {
-            writeln!(f, "#{:>20} = # to be filled", "efield")?;
+            writeln!(f, "#{:>20} = # to be filled", "efield_fname")?;
         }
         writeln!(f, " {:>20} = {:?}", "hamil_fname", self.hamil_fname)?;
         writeln!(f, " {:>20} = \"{:?}\"", "propmethod", self.propmethod)?;
-        writeln!(f, " {:>20} = {:?}", "reorder", self.reorder)?;
+        //writeln!(f, " {:>20} = {:?}", "reorder", self.reorder)?;
 
         if let Some(s) = self.scissor.as_ref() {
             writeln!(f, " {:>20} = {:?}", "scissor", s)?;
         } else {
-            writeln!(f, "#{:>20} = # \"efield.rhai\"", "scissor")?;
+            writeln!(f, "#{:>20} = 1.5 # unit: eV", "scissor")?;
         }
 
         Ok(())

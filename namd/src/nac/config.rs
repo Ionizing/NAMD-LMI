@@ -12,6 +12,7 @@ use shared::{
 use crate::core::config::NamdConfig;
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NacConfig {
     rundir:   PathBuf,
 
