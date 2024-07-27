@@ -128,6 +128,49 @@ impl SmearingMethod {
 }
 
 
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+/// Maintain the detailed balance?
+///
+/// Always: The detailed balance always works, meaning that the upward hoppings would
+///     be reduced by the Boltzmann factor P = P0 * exp( -(Ei-Ej) /kBT ), Ei > Ej;
+///
+/// DependsOnEField: When the external electric field norm |E| > 0, the detailed balance
+///     is nolonger maintained since there is external energy input, and the upward
+///     hoppings are allowed; When the |E| = 0, the detailed balance works.
+///
+/// Never: The detailed balances will never be maintained, allowing all upward hoppings.
+pub enum DetailedBalance {
+    #[serde(alias="always", alias="Always")]
+    Always,
+
+    #[serde(alias="depends-on-efield", alias="DependsOnEField")]
+    DependsOnEField,
+
+    #[serde(alias="never", alias="Never")]
+    Never,
+}
+
+
+impl Default for DetailedBalance {
+    fn default() -> Self {
+        DetailedBalance::DependsOnEField
+    }
+}
+
+
+impl fmt::Display for DetailedBalance {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use DetailedBalance as DB;
+        let s: &str = match self {
+            DB::Always => "Always",
+            DB::DependsOnEField => "DependsOnEField",
+            DB::Never => "Never",
+        };
+        f.write_str(s)
+    }
+}
+
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SurfhopConfig {
@@ -137,7 +180,9 @@ pub struct SurfhopConfig {
     ntraj: usize,
     shmethod: SHMethod,
     outdir: PathBuf,
-    lexcitation: bool,
+
+    #[serde(default = "SurfhopConfig::default_detailed_balance")]
+    detailed_balance: DetailedBalance,
 
     /// Which type of smearing to use:
     ///
@@ -162,6 +207,7 @@ pub struct SurfhopConfig {
 
 
 impl SurfhopConfig {
+    fn default_detailed_balance() -> DetailedBalance { DetailedBalance::default() }
     fn default_smearing_method() -> SmearingMethod { SmearingMethod::LorentzianSmearing }
     fn default_smearing_sigma() -> f64 { 0.01 }
     fn default_smearing_npoints_per_ev() -> usize { 500 }
@@ -173,7 +219,7 @@ impl SurfhopConfig {
     pub fn get_shmethod(&self) -> SHMethod { self.shmethod }
     pub fn get_outdir(&self) -> &PathBuf { &self.outdir }
     pub fn get_outdir_mut(&mut self) -> &mut PathBuf { &mut self.outdir }
-    pub fn get_lexcitation(&self) -> bool { self.lexcitation }
+    pub fn get_detailed_balance(&self) -> DetailedBalance { self.detailed_balance }
     pub fn get_smearing_method(&self) -> SmearingMethod { self.smearing_method }
     pub fn get_smearing_sigma(&self) -> f64 { self.smearing_sigma }
     pub fn get_npoints_per_ev(&self) -> usize { self.smearing_npoints_per_ev }
@@ -204,7 +250,7 @@ impl Default for SurfhopConfig {
             ntraj: 10000,
             shmethod: SHMethod::FSSH,
             outdir: ".".into(),
-            lexcitation: true,
+            detailed_balance: DetailedBalance::default(),
             smearing_method: SmearingMethod::LorentzianSmearing,
             smearing_sigma: 0.01,
             smearing_npoints_per_ev: 500,
@@ -229,7 +275,7 @@ impl fmt::Display for SurfhopConfig {
         writeln!(f, " {:>20} = {:?}", "ntraj", self.ntraj)?;
         writeln!(f, " {:>20} = {:#}", "shmethod", self.shmethod)?;
         writeln!(f, " {:>20} = {:?}", "outdir", self.outdir)?;
-        writeln!(f, " {:>20} = {:?}", "lexcitation", self.lexcitation)?;
+        writeln!(f, " {:>20} = \"{:?}\"", "detailed_balance", self.detailed_balance)?;
         writeln!(f, " {:>20} = \"{:?}\"", "smearing_method", self.smearing_method)?;
         writeln!(f, " {:>20} = {:?}", "smearing_sigma", self.smearing_sigma)?;
         writeln!(f, " {:>20} = {:?}", "smearing_npoints_per_eV", self.smearing_npoints_per_ev)?;
@@ -282,7 +328,7 @@ mod tests {
         ntraj = 20000
         shmethod = "DISH"
         outdir = "shout"
-        lexcitation = true
+        detailed_balance = "never"
         smearing_method = "gaussian"
         smearing_sigma = 0.05
         smearing_npoints_per_eV = 1000
@@ -303,7 +349,7 @@ mod tests {
             ntraj: 20000,
             shmethod: SHMethod::DISH,
             outdir: "shout".into(),
-            lexcitation: true,
+            detailed_balance: DetailedBalance::Never,
             smearing_method: SmearingMethod::GaussianSmearing,
             smearing_sigma: 0.05,
             smearing_npoints_per_ev: 1000,

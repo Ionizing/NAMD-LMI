@@ -24,6 +24,7 @@ use crate::hamil::{
 use crate::surfhop::SPWavefunction;
 use crate::surfhop::config::{
     SHMethod,
+    DetailedBalance as DB,
     SurfhopConfig,
 };
 
@@ -33,7 +34,7 @@ pub struct Surfhop {
     hamil: SPHamiltonian,
     wfn: SPWavefunction,
     outdir: PathBuf,
-    lexcitation: bool,
+    detailed_balance: DB,
 
     ntraj: usize,
     namdinit: usize,
@@ -51,7 +52,6 @@ impl<'a> SurfaceHopping for Surfhop {
     type HamiltonianType = SPHamiltonian;
 
     fn get_ntraj(&self) -> usize { self.ntraj }
-    fn get_lexcitation(&self) -> bool { self.lexcitation }
     fn get_tdpops(&self) -> nd::ArrayView2<f64> { self.tdpops.view() }
     fn get_tdenergy(&self) -> nd::ArrayView1<f64> { self.tdenergy.view() }
     
@@ -76,7 +76,7 @@ impl<'a> SurfaceHopping for Surfhop {
         let hamil = SPHamiltonian::from_h5(cfg.get_hamil_fname())?;
         // wfn constructed inside the closure
         let outdir = cfg.get_outdir().clone();
-        let lexcitation = cfg.get_lexcitation();
+        let detailed_balance = cfg.get_detailed_balance();
         let ntraj = cfg.get_ntraj();
         // namdinit got in the closure
         let namdtime = cfg.get_namdtime();
@@ -113,7 +113,7 @@ impl<'a> SurfaceHopping for Surfhop {
                     hamil,
                     wfn,
                     outdir: outdir.clone(),
-                    lexcitation,
+                    detailed_balance,
 
                     ntraj,
                     namdinit,
@@ -135,8 +135,8 @@ impl<'a> SurfaceHopping for Surfhop {
         f.new_dataset::<usize>().create("namdinit")?.write_scalar(&self.namdinit)?;
         f.new_dataset::<usize>().create("namdtime")?.write_scalar(&self.namdtime)?;
         f.new_dataset::<usize>().create("ntraj")?.write_scalar(&self.ntraj)?;
-        f.new_dataset::<bool>().create("lexcitation")?.write_scalar(&self.lexcitation)?;
 
+        f.new_dataset_builder().with_data(&self.detailed_balance.to_string()).create("detailed_balance")?;
         f.new_dataset_builder().with_data(&self.time).create("time")?;
         f.new_dataset_builder().with_data(&self.shmethod.to_string()).create("shmethod")?;
         f.new_dataset_builder().with_data(&self.wfn.get_psi_t().mapv(|v| v.re)).create("psi_t_r")?;
@@ -154,6 +154,8 @@ impl<'a> SurfaceHopping for Surfhop {
 
 
 impl Surfhop {
+    pub fn get_detailed_balance(&self) -> DB { self.detailed_balance }
+
     fn fssh(&mut self) {
         let namdtime = self.namdtime;
         let namdinit = self.namdinit;
@@ -279,7 +281,8 @@ impl Surfhop {
         // upward hops is restricted only when
         //     - not excitation process
         //     - |EFIELD| != 0
-        if !self.lexcitation && !has_efield {
+        if DB::Always == self.detailed_balance ||
+            (DB::DependsOnEField == self.detailed_balance && !has_efield) {
             let eig = self.hamil.get_eigs_rtime(iion, namdinit);
             let thermal_factor = (eig[istate] - eig.to_owned())
                 .mapv(|v| f64::exp(

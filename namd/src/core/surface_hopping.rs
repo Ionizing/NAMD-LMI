@@ -11,7 +11,6 @@ pub trait SurfaceHopping {
     type HamiltonianType: Hamiltonian;
 
     fn get_ntraj(&self) -> usize;
-    fn get_lexcitation(&self) -> bool;
     fn get_tdpops(&self) -> nd::ArrayView2<f64>;
     fn get_tdenergy(&self) -> nd::ArrayView1<f64>;
 
