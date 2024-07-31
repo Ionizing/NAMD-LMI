@@ -7,8 +7,14 @@ use rayon::prelude::*;
 
 #[cfg(not(test))]
 use shared::{info, warn, anyhow::ensure};
-use shared::{c64, ndarray as nd, Context, Result, ndarray_linalg as nl};
-use nl::Norm;
+use shared::{
+    c64,
+    ndarray as nd,
+    Context,
+    Result,
+    //ndarray_linalg as nl
+};
+//use nl::Norm;
 #[cfg(test)]
 use std::{println as info, println as warn, assert as ensure};
 
