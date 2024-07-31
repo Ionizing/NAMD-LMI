@@ -200,6 +200,8 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
         sh_pops:        nd::Array2<f64>, // [namdtime, nbasis]
         eigs_t:         nd::Array2<f64>, // [namdtime, nbasis]
         proj_t:         nd::Array4<f64>, // [namdtime, nbasis, nions, nproj]
+        sh_phonons_t:   nd::Array3<f64>, // [namdtime, nbasis, nbasis]
+        sh_photons_t:   nd::Array3<f64>, // [namdtime, nbasis, nbasis]
         photons_emit_t: nd::Array2<f64>, // [namdtime, npoints], May it's better to plot theses things in python
         photons_absp_t: nd::Array2<f64>, // [namdtime, npoints]
         phonons_emit_t: nd::Array2<f64>, // [namdtime, nfreqs]
@@ -226,7 +228,6 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
     let npoints = xvals.len();
     let nfreqs  = frequencies.len();
 
-    let nsample = cfg.get_inisteps().len() as f64;
     let result_sum = cfg.get_inisteps().par_iter()
         .map(|&namdinit| -> Result<ResultType> {
             let fname = outdir.join(format!("result_{:0ndigit$}.h5", namdinit));
@@ -321,6 +322,8 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
                 sh_pops,
                 eigs_t: eigs,
                 proj_t: proj,
+                sh_phonons_t: tdphonons,
+                sh_photons_t: tdphotons,
                 photons_emit_t,
                 photons_absp_t,
                 phonons_emit_t,
@@ -341,6 +344,9 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
                 eigs_t:      acc.eigs_t + e.eigs_t,
                 proj_t:      acc.proj_t + e.proj_t,
 
+                sh_phonons_t: acc.sh_phonons_t + e.sh_phonons_t,
+                sh_photons_t: acc.sh_photons_t + e.sh_photons_t,
+
                 photons_emit_t: acc.photons_emit_t + e.photons_emit_t,
                 photons_absp_t: acc.photons_absp_t + e.photons_absp_t,
 
@@ -350,13 +356,17 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
         })
         .context("No results collected")??;
 
-    let time = result_sum.time;
+    let time    = result_sum.time;
+    let nsample = cfg.get_inisteps().len() as f64;
+
     let prop_energy = result_sum.prop_energy / nsample;
     let psi_t     = result_sum.psi_t / nsample;
     let sh_energy = result_sum.sh_energy / nsample;
     let sh_pops   = result_sum.sh_pops / nsample;
     let eigs_t    = result_sum.eigs_t / nsample;
     let proj_t    = result_sum.proj_t / nsample;
+    let sh_phonons_t = result_sum.sh_phonons_t / nsample;
+    let sh_photons_t = result_sum.sh_photons_t / nsample;
     let photons_emit_t = result_sum.photons_emit_t / nsample;
     let photons_absp_t = result_sum.photons_absp_t / nsample;
     let phonons_emit_t = result_sum.phonons_emit_t / nsample;
@@ -378,6 +388,9 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
 
     f.new_dataset_builder().with_data(&eigs_t).create("eigs_t")?;
     f.new_dataset_builder().with_data(&proj_t).create("proj_t")?;
+
+    f.new_dataset_builder().with_data(&sh_phonons_t).create("sh_phonons_t")?;
+    f.new_dataset_builder().with_data(&sh_photons_t).create("sh_photons_t")?;
 
     f.new_dataset_builder().with_data(&phonons_emit_t).create("phonons_emit_t")?;
     f.new_dataset_builder().with_data(&phonons_absp_t).create("phonons_absp_t")?;
