@@ -200,8 +200,7 @@ pub struct SurfhopConfig {
             default = "SurfhopConfig::default_smearing_npoints_per_ev")]
     smearing_npoints_per_ev: usize,
 
-    iniband: usize,
-    inispin: usize,
+    iniband: i32,
     inisteps: Vec<usize>,
 }
 
@@ -224,8 +223,7 @@ impl SurfhopConfig {
     pub fn get_smearing_sigma(&self) -> f64 { self.smearing_sigma }
     pub fn get_npoints_per_ev(&self) -> usize { self.smearing_npoints_per_ev }
 
-    pub fn get_iniband(&self) -> usize { self.iniband }
-    pub fn get_inispin(&self) -> usize { self.inispin }
+    pub fn get_iniband(&self) -> i32 { self.iniband }
     pub fn get_inisteps(&self) -> &[usize] { &self.inisteps }
 
     pub fn print_to_log(&self) {
@@ -256,7 +254,6 @@ impl Default for SurfhopConfig {
             smearing_npoints_per_ev: 500,
 
             iniband: 0,
-            inispin: 1,
             inisteps: vec![1, 2, 3],
         }
     }
@@ -282,7 +279,6 @@ impl fmt::Display for SurfhopConfig {
         writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "iniband", self.iniband)?;
-        writeln!(f, " {:>20} = {:?}", "inispin", self.inispin)?;
         writeln!(f, " {:>20} = [", "inisteps")?;
         for step in self.inisteps.iter() {
             writeln!(f, "{:>10} ,", step)?;
@@ -333,8 +329,7 @@ mod tests {
         smearing_sigma = 0.05
         smearing_npoints_per_eV = 1000
 
-        iniband = 3
-        inispin = 2
+        iniband = -3
         inisteps = [
             114,
             514,
@@ -354,8 +349,7 @@ mod tests {
             smearing_sigma: 0.05,
             smearing_npoints_per_ev: 1000,
 
-            iniband: 3,
-            inispin: 2,
+            iniband: -3,
             inisteps: vec![114, 514],
         };
 

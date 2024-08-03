@@ -14,4 +14,4 @@ ndarray-linalg = { git = "https://github.com/matthagan15/ndarray-linalg", rev = 
 ndrustfft = "0.4.0"
 num-traits = "0.2.19"
 rayon   = "1.7.0"
-regex   = "1.8.1"
+regex   = "1.10.6"

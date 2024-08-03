@@ -105,7 +105,7 @@ impl<'a> SurfaceHopping for Surfhop {
                 let hamil = hamil.clone();
                 let namdinit = istep;
                 let wfn = SPWavefunction::from_hamil_and_params(
-                    &hamil, cfg.get_iniband(), cfg.get_inispin(),
+                    &hamil, cfg.get_iniband(),
                     cfg.get_namdtime(), cfg.get_nelm(), istep, eafield.clone())?;
 
                 Ok(Self {

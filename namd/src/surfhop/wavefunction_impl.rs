@@ -182,12 +182,12 @@ impl SPWavefunction {
 impl SPWavefunction {
     pub fn from_hamil_and_params(
         hamil: &SPHamiltonian,
-        iniband: usize, inispin: usize,
+        iniband: i32,
         namdtime: usize, nelm: usize, namdinit: usize,
         eafield_array: Option<[MatX3<f64>; 2]>,
     ) -> Result<Self> {
         let nbasis = hamil.get_nbasis();
-        let basisini = hamil.get_converted_index(iniband, inispin)?;
+        let basisini = hamil.get_converted_index(iniband)?;
         // namdinit
         // namdtime
         let potim = hamil.get_potim();

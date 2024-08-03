@@ -1,6 +1,4 @@
 use std::path::Path;
-use std::sync::Mutex;
-//use std::fmt;
 
 use pathfinding::prelude::{
     kuhn_munkres,
@@ -12,6 +10,7 @@ use shared::ndarray as nd;
 use shared::{
     log,
     c64,
+    Context,
     Result,
     anyhow::ensure,
     anyhow::bail,
@@ -32,8 +31,7 @@ use crate::core::constants::*;
 #[derive(Clone)]
 pub struct SPHamiltonian {
     ikpoint:     usize,
-    basis_up:    [usize; 2],
-    basis_dn:    [usize; 2],
+    basis_list:  Vec<i32>,
     nbasis:      usize,
     potim:       f64,
     nsw:         usize,
@@ -79,11 +77,10 @@ impl Hamiltonian for SPHamiltonian {
         let f = H5File::open(fname)?;
 
         let ikpoint  = f.dataset("ikpoint")?.read_scalar::<usize>()?;
-        let basis_up = f.dataset("basis_up")?.read_scalar::<[usize;2]>()?;
-        let basis_dn = f.dataset("basis_dn")?.read_scalar::<[usize;2]>()?;
         let nbasis   = f.dataset("nbasis")?.read_scalar::<usize>()?;
         let potim    = f.dataset("potim")?.read_scalar::<f64>()?;
         let nsw      = f.dataset("nsw")?.read_scalar::<usize>()?;
+        let basis_list  = f.dataset("basis_list")?.read_raw::<i32>()?;
         let temperature = f.dataset("temperature")?.read_scalar::<f64>()?;
         let propmethod = {
             let raw: Vec<u8> = f.dataset("propmethod")?.read_raw()?;
@@ -130,8 +127,7 @@ impl Hamiltonian for SPHamiltonian {
 
         Ok(Self {
             ikpoint,
-            basis_up,
-            basis_dn,
+            basis_list,
             nbasis,
             potim,
             nsw,
@@ -157,8 +153,6 @@ impl Hamiltonian for SPHamiltonian {
         let f = H5File::create(fname)?;
 
         f.new_dataset::<usize>().create("ikpoint")?.write_scalar(&self.ikpoint)?;
-        f.new_dataset::<[usize;2]>().create("basis_up")?.write_scalar(&self.basis_up)?;
-        f.new_dataset::<[usize;2]>().create("basis_dn")?.write_scalar(&self.basis_dn)?;
         f.new_dataset::<usize>().create("nbasis")?.write_scalar(&self.nbasis)?;
         f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
         f.new_dataset::<usize>().create("nsw")?.write_scalar(&self.nsw)?;
@@ -169,6 +163,7 @@ impl Hamiltonian for SPHamiltonian {
             f.new_dataset::<f64>().create("scissor")?.write_scalar(scissor)?;
         }
 
+        f.new_dataset_builder().with_data(&self.basis_list).create("basis_list")?;
         f.new_dataset_builder().with_data(&self.propmethod.to_string()).create("propmethod")?;
         f.new_dataset_builder().with_data(&self.eig_t).create("eig_t")?;
 
@@ -199,8 +194,7 @@ impl SPHamiltonian {
         ensure!(cfg.get_ikpoint() == coup.get_ikpoint());
 
         let ikpoint: usize       = cfg.get_ikpoint();
-        let basis_up: [usize; 2] = cfg.get_basis_up();
-        let basis_dn: [usize; 2] = cfg.get_basis_dn();
+        let basis_list           = cfg.get_basis_list().to_owned();
         let potim: f64           = coup.get_potim();
         let nsw: usize           = coup.get_nsw();
         let temperature: f64     = coup.get_temperature();
@@ -209,42 +203,17 @@ impl SPHamiltonian {
         let reorder              = cfg.get_reorder();
         let ndigit               = coup.get_ndigit();
         let nspin                = coup.get_nspin();
-
         let efermi               = coup.get_efermi();
 
-        let mut nb = [0usize; 2];
-        nb[0] = if basis_up.contains(&0) {
-            0
-        } else {
-            basis_up[1] - basis_up[0] + 1
-        };
-        nb[1] = if basis_dn.contains(&0) {
-            0
-        } else {
-            basis_dn[1] - basis_dn[0] + 1
-        };
+        let nbasis = basis_list.len();
+        if nbasis <= 1 {
+            bail!("At least 2 bands are required to form a valid basis.");
+        }
 
-        let nbasis = nb[0] + nb[1];
-        let bup_nac = if nb[0] == 0 {
-            0 .. 0
-        } else {
-            idx_convert(&brange, basis_up[0], 0)?
-                ..
-            idx_convert(&brange, basis_up[1], 1)?
-        };
-        let bup_hamil = 0 .. nb[0];
-
-        let bdn_nac = if nb[1] == 0 {
-            0 .. 0
-        } else {
-            idx_convert(&brange, basis_dn[0], 0)?
-                ..
-            idx_convert(&brange, basis_dn[1], 1)?
-        };
-        let bdn_hamil = nb[0] .. nbasis;
-
-        if nb[1] > 0 {
-            ensure!(nspin == 2, "Invalid spin index: NAC has only ONE spin channel.");
+        if basis_list.iter().any(|x| *x < 0) {
+            ensure!(nspin == 2,
+                "You selected spin down band as basis while current NAC has only one spin channel."
+            );
         }
 
         let nions = coup.get_tdproj().shape()[3];
@@ -256,41 +225,31 @@ impl SPHamiltonian {
         let mut rij_t = nd::Array4::<c64>::zeros((nsw-1, 3, nbasis, nbasis));
         let mut proj_t = nd::Array4::<f64>::zeros((nsw-1, nbasis, nions, nproj));
 
-        // Damn, Range doesn't impl Copy trait. Fxxk up.
-        eig_t.slice_mut(nd::s![.., bup_hamil.clone()])
-            .assign(&coup.get_tdeigs().slice(nd::s![.., 0, bup_nac.clone()]));
-        if 2 == nspin {
-            eig_t.slice_mut(nd::s![.., bdn_hamil.clone()])
-                .assign(&coup.get_tdeigs().slice(nd::s![.., 1, bdn_nac.clone()]));
+        for (i, &iband) in basis_list.iter().enumerate() {
+            let nac_ii = iband_to_nac_index(&brange, iband.abs() as _)?;
+            let ispin: usize = if iband > 0 { 0 } else { 1 };
+            eig_t.slice_mut(nd::s![.., i])
+                .assign(&coup.get_tdeigs().slice(nd::s![.., ispin, nac_ii]));
+            proj_t.slice_mut(nd::s![.., i, .., ..])
+                .assign(&coup.get_tdproj().slice(nd::s![.., ispin, nac_ii, .., ..]));
+            
+            // This basis_list should be not very large, a duplicated conversion will not affect
+            // too much performance.
+            for (j, &jband) in basis_list.iter().enumerate() {
+                if iband * jband < 0 {  // There are no inter-spin coupling in NAC & Pij
+                    continue;
+                }
+
+                let nac_jj = iband_to_nac_index(&brange, jband.abs() as _)?;
+                nac_t.slice_mut(nd::s![.., i, j])
+                    .assign(&coup.get_tdcoup().slice(nd::s![.., ispin, nac_ii, nac_jj]));
+                pij_t.slice_mut(nd::s![.., .., i, j])
+                    .assign(&coup.get_tdpij().slice(nd::s![.., ispin, .., nac_ii, nac_jj]));
+                rij_t.slice_mut(nd::s![.., .., i, j])
+                    .assign(&coup.get_tdrij().slice(nd::s![.., ispin, .., nac_ii, nac_jj]));
+            }
         }
 
-        nac_t.slice_mut(nd::s![.., bup_hamil.clone(), bup_hamil.clone()])
-            .assign(&coup.get_tdcoup().slice(nd::s![.., 0, bup_nac.clone(), bup_nac.clone()]));
-        if 2 == nspin {
-            nac_t.slice_mut(nd::s![.., bdn_hamil.clone(), bdn_hamil.clone()])
-                .assign(&coup.get_tdcoup().slice(nd::s![.., 1, bdn_nac.clone(), bdn_nac.clone()]));
-        }
-
-        pij_t.slice_mut(nd::s![.., .., bup_hamil.clone(), bup_hamil.clone()])
-            .assign(&coup.get_tdpij().slice(nd::s![.., 0, .., bup_nac.clone(), bup_nac.clone()]));
-        if 2 == nspin {
-            pij_t.slice_mut(nd::s![.., .., bdn_hamil.clone(), bdn_hamil.clone()])
-                .assign(&coup.get_tdpij().slice(nd::s![.., 1, .., bdn_nac.clone(), bdn_nac.clone()]));
-        }
-
-        rij_t.slice_mut(nd::s![.., .., bup_hamil.clone(), bup_hamil.clone()])
-            .assign(&coup.get_tdrij().slice(nd::s![.., 0, .., bup_nac.clone(), bup_nac.clone()]));
-        if 2 == nspin {
-            rij_t.slice_mut(nd::s![.., .., bdn_hamil.clone(), bdn_hamil.clone()])
-                .assign(&coup.get_tdrij().slice(nd::s![.., 1, .., bdn_nac.clone(), bdn_nac.clone()]));
-        }
-
-        proj_t.slice_mut(nd::s![.., bup_hamil.clone(), .., ..])
-            .assign(&coup.get_tdproj().slice(nd::s![.., 0, bup_hamil.clone(), .., ..]));
-        if 2 == nspin {
-            proj_t.slice_mut(nd::s![.., bdn_hamil.clone(), .., ..])
-                .assign(&coup.get_tdproj().slice(nd::s![.., 1, bdn_hamil.clone(), .., ..]));
-        }
 
         // apply the reordering
         if cfg.get_reorder() {
@@ -322,8 +281,7 @@ impl SPHamiltonian {
 
         Ok(Self {
             ikpoint,
-            basis_up,
-            basis_dn,
+            basis_list,
             nbasis,
             potim,
             nsw,
@@ -504,7 +462,7 @@ impl SPHamiltonian {
                     // alternative form, may be much slower
                     //pij_t.slice_mut(nd::s![isw, .., iorder[iband], jorder[jband]])
                         //.assign(&pij_t_org.slice(nd::s![.., iband, jband]));
-                    //rij_t.slice_mut(nd::s![isw, .., iorder[iband], jorder[jband]])
+                   //rij_t.slice_mut(nd::s![isw, .., iorder[iband], jorder[jband]])
                         //.assign(&rij_t_org.slice(nd::s![.., iband, jband]));
                 }
             }
@@ -513,40 +471,21 @@ impl SPHamiltonian {
     }
 
 
-    pub fn get_converted_index(&self, iband: usize, ispin: usize) -> Result<usize> {
-        let mut nb = [0usize; 2];
-        nb[0] = if self.basis_up.contains(&0) {
-            0
-        } else {
-            self.basis_up[1] - self.basis_up[0] + 1
-        };
-        nb[1] = if self.basis_dn.contains(&0) {
-            0
-        } else {
-            self.basis_dn[1] - self.basis_dn[0] + 1
-        };
-
-        ensure!(ispin == 1 || ispin == 2);
-        
-        match ispin {
-            1 => {
-                ensure!(nb[0] != 0);
-                ensure!(self.basis_up[0] <= iband && iband <= self.basis_up[1]);
-                Ok( iband - self.basis_up[0] )
-            },
-            2 => {
-                ensure!(nb[1] != 0);
-                ensure!(self.basis_dn[0] <= iband && iband <= self.basis_dn[1]);
-                Ok( nb[0] + iband - self.basis_dn[0] )
-            },
-            s => { bail!("Invalid ispin: {}", s) }
-        }
+    pub fn get_converted_index(&self, iband: i32) -> Result<usize> {
+        return self.basis_list.iter().position(|x| *x == iband)
+            .context(format!("Cannot find selected band {} in the basis.", iband))
     }
 }
 
-fn idx_convert(brange: &[usize; 2], idx: usize, shift: usize) -> Result<usize> {
-    ensure!(idx >= brange[0] && idx <= brange[1], "Index out of bounds.");
-    Ok(idx - brange[0] + shift)
+//fn idx_convert(brange: &[usize; 2], idx: usize, shift: usize) -> Result<usize> {
+    //ensure!(idx >= brange[0] && idx <= brange[1], "Index out of bounds.");
+    //Ok(idx - brange[0] + shift)
+//}
+
+
+fn iband_to_nac_index(brange: &[usize; 2], iband: usize) -> Result<usize> {
+    ensure!(iband >= brange[0] && iband <= brange[1], "Index out of bounds.");
+    Ok(iband - brange[0])
 }
 
 

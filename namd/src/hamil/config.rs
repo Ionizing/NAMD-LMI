@@ -4,6 +4,7 @@ use std::fmt;
 
 use serde::{de::Error, Deserialize, Deserializer};
 use toml;
+use regex::Regex;
 use shared::{
     log,
     anyhow::ensure,
@@ -57,11 +58,35 @@ pub struct HamilConfig {
     #[serde(default = "HamilConfig::default_ikpoint")]
     ikpoint: usize,
 
-    #[serde(default = "HamilConfig::default_basis")]
-    basis_up: [usize; 2],
+    // List of bands to form the basis.
+    //
+    // - Positive one indicates for the spin-up band;
+    // - Negative one indicates for the spin-down band.
+    // - Zeros are not allowed
+    //
+    // You can specify a consecutive bands with multiple `range`s or singletons:
+    //
+    // A `range` is a pattern of `start..end` where
+    //   - start and end are integers with same sign (both + or both -)
+    //   - |start| <= |end|
+    //   - no other characters (whitespace or any other thinds) around `..` 
+    //
+    // And multiple ranges and singletons are separated with one or more whitespaces.
+    //
+    // EXAMPLE:
+    //   - `1..4` expands to `[1, 2, 3, 4]`;
+    //   - `1..1` expands to `[1]`;
+    //   - `4..1` expands to empty list `[]`;
+    //
+    //   - `-1..-4` expands to `[-1, -2, -3, -4]`.
+    //   - `-4..-4` expands to `[-4]`
+    //   - `-4..-1` expands to empty list `[]`;
+    //
+    //   - Tokens like `-4..4` `1 ..3`, `0`, `-3..0`, `-3..3` are not allowed.
+    #[serde(deserialize_with="HamilConfig::parse_basis_list")]
+    basis_list: Vec<i32>,
 
-    #[serde(default = "HamilConfig::default_basis")]
-    basis_dn: [usize; 2],
+    basis_labels: Option<Vec<String>>,
 
     nac_fname: PathBuf,
 
@@ -82,7 +107,6 @@ pub struct HamilConfig {
 
 impl HamilConfig {
     fn default_ikpoint() -> usize { 1 }
-    fn default_basis() -> [usize; 2] { [0, 0] }
     fn default_hamil_fname() -> PathBuf { PathBuf::from("HAMIL.h5") }
     fn default_reorder() -> bool { false }
 
@@ -100,13 +124,62 @@ impl HamilConfig {
                         )),
         }
     }
-}
+
+    fn parse_basis_list<'de, D>(deserializer: D) -> std::result::Result<Vec<i32>, D::Error>
+    where D: Deserializer<'de> {
+        let input = String::deserialize(deserializer)?;
+        let mut ret = vec![];
+
+        let re_range = Regex::new(r"^(-?\d+)\.\.(-?\d+)$").unwrap();
+        let re_digit = Regex::new(r"^-?\d+$").unwrap();
+
+        for s in input.split_ascii_whitespace() {
+            if re_digit.is_match(s) {
+                let num = s.parse::<i32>().unwrap();
+                if num == 0 {
+                    return Err(D::Error::custom(
+                        format!("Invalid integer '{}' from `basis_list`, 0 is not allowed.", s)
+                    ));
+                }
+                ret.push(s.parse().unwrap())
+            } else if re_range.is_match(s) {
+                let m = re_range.captures(s).unwrap();
+                let start = m.get(1).unwrap().as_str().parse::<i32>().unwrap();
+                let end   = m.get(2).unwrap().as_str().parse::<i32>().unwrap();
+
+                if start * end <= 0 {
+                    return Err(D::Error::custom(
+                        format!("Invalid range '{}' from `basis_list`, start and end must have save sign.", s)
+                    ));
+                }
+
+                let sign = start.signum();
+                let to_be_extend = (start.abs() ..= end.abs()).map(|x| x*sign).collect::<Vec<_>>();
+                ret.extend(to_be_extend);
+            } else {
+                return Err(D::Error::custom(
+                    format!("Invalid token '{}' from `basis_list`, it should be either range (start..end) or integer.", s)
+                ));
+            }
+        }
+
+        // check duplication
+        let mut ret_dedup = ret.clone();
+        ret_dedup.sort();
+        ret_dedup.dedup();
+
+        if ret.len() != ret_dedup.len() {
+            return Err(D::Error::custom(
+                format!("Invalid `basis_list`, each band in the basis should be unique. \nThe expanded list is: {:?}", ret_dedup)
+            ));
+        }
+        
+        return Ok(ret)
+    }
 
 
-impl HamilConfig {
     pub fn get_ikpoint(&self) -> usize { self.ikpoint }
-    pub fn get_basis_up(&self) -> [usize; 2] { self.basis_up }
-    pub fn get_basis_dn(&self) -> [usize; 2] { self.basis_dn }
+    pub fn get_basis_list(&self) -> &[i32] { &self.basis_list }
     pub fn get_nac_fname(&self) -> &PathBuf { &self.nac_fname }
     pub fn get_efield_fname(&self) -> Option<&PathBuf> { self.efield_fname.as_ref() }
     pub fn get_hamil_fname(&self) -> &PathBuf { &self.hamil_fname }
@@ -121,26 +194,9 @@ impl HamilConfig {
             ret = ret.context("Field 'ikpoint' counts from 1, thus cannot be 0.");
         }
 
-        if self.basis_up[0] > self.basis_up[1] || self.basis_dn[0] > self.basis_dn[1] {
-            ret = ret.context("Field 'basis_up' and 'basis_dn' must include valid and closed interval of bands.")
-        }
-        
-        let nbasis = 
-            if self.basis_up.contains(&0) {
-                0
-            } else {
-                self.basis_up[1] - self.basis_up[0] + 1
-            }
-                +
-            if self.basis_dn.contains(&0) {
-                0
-            } else {
-                self.basis_dn[1] - self.basis_dn[0] + 1
-            }
-        ;
-
+        let nbasis = self.basis_list.len();
         if nbasis <= 1 {
-            ret = ret.context("Field 'basis_up' and 'basis_dn' must include at least two bands to form a valid Hamiltonian.");
+            ret = ret.context("Field `basis_list` must include at least two bands to form a valid Hamiltonian.");
         }
 
         if !self.nac_fname.is_file() {
@@ -185,8 +241,8 @@ impl fmt::Display for HamilConfig {
         writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "ikpoint", self.ikpoint)?;
-        writeln!(f, " {:>20} = {:?}", "basis_up", self.basis_up)?;
-        writeln!(f, " {:>20} = {:?}", "basis_dn", self.basis_dn)?;
+        //writeln!(f, " {:>20} = {:?}", "basis_up", self.basis_up)?;
+        //writeln!(f, " {:>20} = {:?}", "basis_dn", self.basis_dn)?;
         writeln!(f, " {:>20} = {:?}", "nac_fname", self.nac_fname)?;
         if let Some(efield) = self.efield_fname.as_ref() {
             writeln!(f, " {:>20} = {:?}", "efield_fname", efield)?;
@@ -212,8 +268,8 @@ impl Default for HamilConfig {
     fn default() -> Self {
         Self {
             ikpoint: 1,
-            basis_up: [0, 0],
-            basis_dn: [0, 0],
+            basis_list: vec![0],
+            basis_labels: Some(vec!["0".into()]),
             nac_fname: PathBuf::from("NAC.h5"),
             efield_fname: None,
             hamil_fname: PathBuf::from("HAMIL.h5"),
@@ -255,8 +311,7 @@ mod tests {
     fn test_deserialize() {
         let txt = r#"
         ikpoint = 2
-        basis_up = [114, 514]
-        basis_dn = [256, 512]
+        basis_list = "-1..-4 1..4"
         nac_fname = "NAC_test.h5"
         hamil_fname = "HAMIL_test.h5"
         propmethod = "fd"
@@ -266,8 +321,8 @@ mod tests {
         let actual_cfg: HamilConfig = toml::from_str(txt).unwrap();
         let expect_cfg: HamilConfig = HamilConfig {
             ikpoint: 2,
-            basis_up: [114, 514],
-            basis_dn: [256, 512],
+            basis_list: ((-4..=-1).rev().chain(1..=4)).collect(),
+            basis_labels: None,
             nac_fname: PathBuf::from("NAC_test.h5"),
             efield_fname: None,
             hamil_fname: PathBuf::from("HAMIL_test.h5"),
