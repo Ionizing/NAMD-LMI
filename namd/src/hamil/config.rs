@@ -86,6 +86,8 @@ pub struct HamilConfig {
     #[serde(deserialize_with="HamilConfig::parse_basis_list")]
     basis_list: Vec<i32>,
 
+    // Corresponding labels to the basis_list, must have same length
+    // The labels must not contain newline related characters like CRLF.
     basis_labels: Option<Vec<String>>,
 
     nac_fname: PathBuf,
@@ -180,6 +182,11 @@ impl HamilConfig {
 
     pub fn get_ikpoint(&self) -> usize { self.ikpoint }
     pub fn get_basis_list(&self) -> &[i32] { &self.basis_list }
+
+    pub fn get_basis_labels(&self) -> Option<&Vec<String>> {
+        self.basis_labels.as_ref()
+    }
+
     pub fn get_nac_fname(&self) -> &PathBuf { &self.nac_fname }
     pub fn get_efield_fname(&self) -> Option<&PathBuf> { self.efield_fname.as_ref() }
     pub fn get_hamil_fname(&self) -> &PathBuf { &self.hamil_fname }
@@ -197,6 +204,23 @@ impl HamilConfig {
         let nbasis = self.basis_list.len();
         if nbasis <= 1 {
             ret = ret.context("Field `basis_list` must include at least two bands to form a valid Hamiltonian.");
+        }
+
+        if let Some(labels) = self.basis_labels.as_ref() {
+            if labels.len() != nbasis {
+                ret = ret.context(
+                    format!("Number of entries in `basis_labels` is not consistent with basis size: {} != {}",
+                        labels.len(), nbasis)
+                );
+            }
+
+            if labels.iter().any(|s| s.is_empty()) {
+                ret = ret.context("`basis_labels` contains empty entries, which is not allowed.");
+            }
+
+            if labels.iter().any(|s| s.contains('\n') || s.contains('\r')) {
+                ret = ret.context("`basis_labels` contains newline character `CRLF`, which is not allowed.");
+            }
         }
 
         if !self.nac_fname.is_file() {
@@ -241,8 +265,10 @@ impl fmt::Display for HamilConfig {
         writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "ikpoint", self.ikpoint)?;
-        //writeln!(f, " {:>20} = {:?}", "basis_up", self.basis_up)?;
-        //writeln!(f, " {:>20} = {:?}", "basis_dn", self.basis_dn)?;
+        writeln!(f, " {:>20} = {:?}", "basis_list", self.basis_list)?;
+        if let Some(labels) = self.basis_labels.as_ref() {
+            writeln!(f, " {:>20} = {:?}", "basis_labels", labels)?;
+        }
         writeln!(f, " {:>20} = {:?}", "nac_fname", self.nac_fname)?;
         if let Some(efield) = self.efield_fname.as_ref() {
             writeln!(f, " {:>20} = {:?}", "efield_fname", efield)?;

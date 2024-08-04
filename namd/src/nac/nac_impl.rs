@@ -6,7 +6,7 @@ use hdf5::File as H5File;
 use rayon::prelude::*;
 
 #[cfg(not(test))]
-use shared::{info, warn, anyhow::ensure};
+use shared::{info, anyhow::ensure};
 use shared::{
     c64,
     ndarray as nd,
@@ -16,7 +16,7 @@ use shared::{
 };
 //use nl::Norm;
 #[cfg(test)]
-use std::{println as info, println as warn, assert as ensure};
+use std::{println as info, assert as ensure};
 
 use vasp_parsers::{procar::Procar, Wavecar, WavecarType};
 

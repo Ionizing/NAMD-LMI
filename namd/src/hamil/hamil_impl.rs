@@ -32,6 +32,7 @@ use crate::core::constants::*;
 pub struct SPHamiltonian {
     ikpoint:     usize,
     basis_list:  Vec<i32>,
+    basis_labels: Option<Vec<String>>,
     nbasis:      usize,
     potim:       f64,
     nsw:         usize,
@@ -111,6 +112,16 @@ impl Hamiltonian for SPHamiltonian {
         };
         let proj_t: nd::Array4<f64> = f.dataset("proj_t")?.read()?;
 
+        let basis_labels = {
+            if f.dataset("basis_labels").is_err() {
+                None
+            } else {
+                let raw: Vec<u8> = f.dataset("basis_labels")?.read_raw()?;
+                let basis_labels_src = String::from_utf8(raw)?;
+                Some(basis_labels_src.split('\n').into_iter().map(|s| s.to_owned()).collect::<Vec<_>>())
+            }
+        };
+
         let efield = {
             if f.dataset("efield").is_err() {
                 None
@@ -128,6 +139,7 @@ impl Hamiltonian for SPHamiltonian {
         Ok(Self {
             ikpoint,
             basis_list,
+            basis_labels,
             nbasis,
             potim,
             nsw,
@@ -164,6 +176,11 @@ impl Hamiltonian for SPHamiltonian {
         }
 
         f.new_dataset_builder().with_data(&self.basis_list).create("basis_list")?;
+        if let Some(labels) = self.basis_labels.as_ref() {
+            let data = labels.join("\n");
+            f.new_dataset_builder().with_data(&data).create("basis_labels")?;
+        }
+
         f.new_dataset_builder().with_data(&self.propmethod.to_string()).create("propmethod")?;
         f.new_dataset_builder().with_data(&self.eig_t).create("eig_t")?;
 
@@ -195,6 +212,7 @@ impl SPHamiltonian {
 
         let ikpoint: usize       = cfg.get_ikpoint();
         let basis_list           = cfg.get_basis_list().to_owned();
+        let basis_labels         = cfg.get_basis_labels().map(|labels| labels.to_owned());
         let potim: f64           = coup.get_potim();
         let nsw: usize           = coup.get_nsw();
         let temperature: f64     = coup.get_temperature();
@@ -282,6 +300,7 @@ impl SPHamiltonian {
         Ok(Self {
             ikpoint,
             basis_list,
+            basis_labels,
             nbasis,
             potim,
             nsw,

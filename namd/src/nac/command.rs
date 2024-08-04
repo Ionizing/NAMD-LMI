@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::fs;
 
 use rayon;
 
