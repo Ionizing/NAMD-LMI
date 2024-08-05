@@ -206,6 +206,9 @@ impl Hamiltonian for SPHamiltonian {
 
 
 impl SPHamiltonian {
+    pub fn get_basis_list(&self) -> &[i32] { &self.basis_list }
+    pub fn get_basis_labels(&self) -> Option<&Vec<String>> { self.basis_labels.as_ref() }
+
     fn with_config_and_coupling(cfg: &HamilConfig, coup: &Nac) -> Result<Self> {
         //cfg.check_config()?;      // I assume that you've checked the validity of config.
         ensure!(cfg.get_ikpoint() == coup.get_ikpoint());

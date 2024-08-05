@@ -376,11 +376,31 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
     let ret_fname = outdir.join(collected_fname);
     log::info!("Collecting down. Writing to {:?} ...", &ret_fname);
 
+    let (basis_list, basis_labels_src) = {
+        let namdinit = cfg.get_inisteps()[0];
+        let fname = outdir.join(format!("result_{:0ndigit$}.h5", namdinit));
+        let f = H5File::open(fname)?;
+
+        let basis_list: Vec<i32> = f.dataset("basis_list")?.read_raw::<i32>()?;
+        let basis_labels = if f.dataset("basis_labels").is_err() {
+            None
+        } else {
+            let raw: Vec<u8> = f.dataset("basis_labels")?.read_raw()?;
+            Some(raw)
+        };
+        (basis_list, basis_labels)
+    };
+
     let f = H5File::create(ret_fname)?;
     f.new_dataset::<usize>().create("ndigit")?.write_scalar(&ndigit)?;
     f.new_dataset::<f64>().create("potim")?.write_scalar(&potim)?;
 
     f.new_dataset_builder().with_data(&time).create("time")?;
+    f.new_dataset_builder().with_data(&basis_list).create("basis_list")?;
+    if let Some(src) = basis_labels_src {
+        f.new_dataset_builder().with_data(&src).create("basis_labels")?;
+    }
+    
     f.new_dataset_builder().with_data(&prop_energy).create("prop_energy")?;
     f.new_dataset_builder().with_data(&psi_t).create("psi_t")?;
     f.new_dataset_builder().with_data(&sh_energy).create("sh_energy")?;

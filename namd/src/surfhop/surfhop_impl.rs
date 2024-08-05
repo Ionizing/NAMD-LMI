@@ -36,6 +36,9 @@ pub struct Surfhop {
     outdir: PathBuf,
     detailed_balance: DB,
 
+    basis_list: Vec<i32>,
+    basis_labels: Option<Vec<String>>,
+
     ntraj: usize,
     namdinit: usize,
     namdtime: usize,
@@ -77,6 +80,9 @@ impl<'a> SurfaceHopping for Surfhop {
         // wfn constructed inside the closure
         let outdir = cfg.get_outdir().clone();
         let detailed_balance = cfg.get_detailed_balance();
+
+        let basis_list = hamil.get_basis_list().to_owned();
+        let basis_labels = hamil.get_basis_labels().map(|v| v.clone());
         let ntraj = cfg.get_ntraj();
         // namdinit got in the closure
         let namdtime = cfg.get_namdtime();
@@ -115,6 +121,9 @@ impl<'a> SurfaceHopping for Surfhop {
                     outdir: outdir.clone(),
                     detailed_balance,
 
+                    basis_list: basis_list.clone(),
+                    basis_labels: basis_labels.clone(),
+
                     ntraj,
                     namdinit,
                     namdtime,
@@ -135,6 +144,12 @@ impl<'a> SurfaceHopping for Surfhop {
         f.new_dataset::<usize>().create("namdinit")?.write_scalar(&self.namdinit)?;
         f.new_dataset::<usize>().create("namdtime")?.write_scalar(&self.namdtime)?;
         f.new_dataset::<usize>().create("ntraj")?.write_scalar(&self.ntraj)?;
+
+        f.new_dataset_builder().with_data(&self.basis_list).create("basis_list")?;
+        if let Some(labels) = self.basis_labels.as_ref() {
+            let data = labels.join("\n");
+            f.new_dataset_builder().with_data(&data).create("basis_labels")?;
+        }
 
         f.new_dataset_builder().with_data(&self.detailed_balance.to_string()).create("detailed_balance")?;
         f.new_dataset_builder().with_data(&self.time).create("time")?;
