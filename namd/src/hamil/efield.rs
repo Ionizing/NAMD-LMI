@@ -127,8 +127,8 @@ impl Efield<'_> {
 
         for iion in 0 .. namdtime {
             let t0 = potim * iion as f64;
-            for _ielm in 0 .. nelm {
-                let t = t0 + edt * nelm as f64;
+            for ielm in 0 .. nelm {
+                let t = t0 + edt * ielm as f64;
                 tt.push(t);
             }
         }
