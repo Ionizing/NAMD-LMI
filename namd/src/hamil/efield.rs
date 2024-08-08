@@ -155,8 +155,12 @@ impl Efield<'_> {
     where P: AsRef<Path> {
         let dir = dir.as_ref().to_owned();
         ensure!(dir.is_dir(), "The parameter dir should be a valid directory.");
-        let eafield_fname = dir.join("EAFIELD.txt");
 
+        info!("Writing electric field source file to efield.rhai ...");
+        File::create(dir.join("efield.rhai"))?
+            .write_all(self.raw.as_bytes())?;
+
+        let eafield_fname = dir.join("EAFIELD.txt");
         let (t, [efield, afield]) = self.get_eafield_array(namdtime, potim, nelm);
 
         info!("Writing electric field to {:?} ...", &eafield_fname);
