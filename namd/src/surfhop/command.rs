@@ -374,7 +374,7 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
 
     // Writing results.
     let ret_fname = outdir.join(collected_fname);
-    log::info!("Collecting down. Writing to {:?} ...", &ret_fname);
+    log::info!("Collecting done. Writing to {:?} ...", &ret_fname);
 
     let (basis_list, basis_labels_src) = {
         let namdinit = cfg.get_inisteps()[0];
