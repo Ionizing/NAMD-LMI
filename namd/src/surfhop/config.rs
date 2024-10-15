@@ -146,6 +146,9 @@ pub enum DetailedBalance {
     #[serde(alias="depends-on-efield", alias="DependsOnEField")]
     DependsOnEField,
 
+    #[serde(alias="nac-only", alias="NacOnly")]
+    NacOnly,
+
     #[serde(alias="never", alias="Never")]
     Never,
 }
@@ -164,6 +167,7 @@ impl fmt::Display for DetailedBalance {
         let s: &str = match self {
             DB::Always => "Always",
             DB::DependsOnEField => "DependsOnEField",
+            DB::NacOnly => "NacOnly",
             DB::Never => "Never",
         };
         f.write_str(s)

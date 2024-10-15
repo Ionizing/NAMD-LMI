@@ -51,6 +51,9 @@ pub struct SPHamiltonian {
 
     // pre-calculated hamiltonian = eig_t in diag + nac_t in off-diag
     hamil0:    nd::Array3<c64>,     // [nsw-1, nbasis, nbasis]
+
+    // pre-calculated thermal factor = exp(-dE / kB*T)
+    thermal_factor: nd::Array3<f64>,
 }
 
 
@@ -135,6 +138,7 @@ impl Hamiltonian for SPHamiltonian {
         };
 
         let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t);
+        let thermal_factor = Self::calculate_thermal_factor(&eig_t, temperature);
 
         Ok(Self {
             ikpoint,
@@ -157,6 +161,7 @@ impl Hamiltonian for SPHamiltonian {
             efield,
 
             hamil0,
+            thermal_factor,
         })
     }
 
@@ -299,6 +304,7 @@ impl SPHamiltonian {
         }
 
         let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t);
+        let thermal_factor = Self::calculate_thermal_factor(&eig_t, temperature);
 
         Ok(Self {
             ikpoint,
@@ -321,6 +327,7 @@ impl SPHamiltonian {
             efield,
 
             hamil0,
+            thermal_factor,
         })
     }
 
@@ -404,6 +411,34 @@ impl SPHamiltonian {
         }
 
         ret
+    }
+
+
+    // calculate exp(-dE / kB * T)
+    fn calculate_thermal_factor(eigs_t: &nd::Array2<f64>, temperature: f64) -> nd::Array3<f64> {
+        let nsw    = eigs_t.shape()[0];
+        let nbasis = eigs_t.shape()[1];
+        let mut factor = nd::Array3::<f64>::ones((nsw, nbasis, nbasis));
+
+        for isw in 0 .. nsw {
+            let eig = eigs_t.slice(nd::s![isw, ..]);
+            for istate in 0 .. nbasis {
+                let de = eig[istate] - eig.to_owned();
+                factor.slice_mut(nd::s![isw, istate, ..]).assign(
+                    &de.mapv(|v| f64::exp(
+                            f64::min(v, 0.0) / (BOLKEV * temperature)
+                    ))
+                );
+            }
+        }
+
+        factor
+    }
+
+
+    pub fn get_thermal_factor_rtime(&self, iion: usize, namdinit: usize) -> nd::ArrayView2<f64> {
+        let [rtime, _] = Self::get_rtime_xtime(iion, self.nsw, namdinit);
+        self.thermal_factor.slice(nd::s![rtime, .., ..])
     }
 
 
