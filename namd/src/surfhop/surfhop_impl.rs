@@ -193,6 +193,11 @@ impl Surfhop {
                 .assign(&self.wfn.get_lmi(&self.hamil, iion, 0).mapv(|v| v.norm_sqr()));
             td_eigs.slice_mut(nd::s![iion, ..])
                 .assign(&self.hamil.get_eigs_rtime(iion, namdinit));
+
+            if DB::NacOnly == self.detailed_balance {
+                // epc *= exp(-dE/kBT) for upward coupling
+                epc_normsqr *= &self.hamil.get_thermal_factor_rtime(iion, namdinit);
+            }
         }
 
         // cancel mutability
@@ -270,7 +275,16 @@ impl Surfhop {
         let rho_jk = self.wfn.get_psi_t()[(iion, istate)].conj() * self.wfn.get_psi(iion).to_owned();
 
         // -i hbar <phi(j) | d/dt | phi(k)>
-        let epc = self.hamil.get_hamil0_rtime(iion, namdinit);       // view
+        let epc = {
+            let _epc = self.hamil.get_hamil0_rtime(iion, namdinit).to_owned();      // owned
+
+            if DB::NacOnly == self.detailed_balance {
+                // epc *= exp(-dE/kBT) for upward coupling
+                _epc * self.hamil.get_thermal_factor_rtime(iion, namdinit)
+            } else {
+                _epc
+            }
+        };
 
         // e A <phi(j) | p | phi(k)>/m
         let lmi = self.wfn.get_lmi(&self.hamil, iion, 0);            // owned
@@ -296,15 +310,18 @@ impl Surfhop {
         // upward hops is restricted only when
         //     - not excitation process
         //     - |EFIELD| != 0
-        if DB::Always == self.detailed_balance ||
-            (DB::DependsOnEField == self.detailed_balance && !has_efield) {
-            let eig = self.hamil.get_eigs_rtime(iion, namdinit);
-            let thermal_factor = (eig[istate] - eig.to_owned())
-                .mapv(|v| f64::exp(
-                        f64::min(v, 0.0) / (BOLKEV * self.hamil.get_temperature())
-                ));
-            prob *= &thermal_factor;
-        }
+        match self.detailed_balance {
+            DB::Always => {
+                prob *= &self.hamil.get_thermal_factor_rtime(iion, self.namdinit).slice(nd::s![istate, ..]);
+            },
+            DB::DependsOnEField => {
+                if !has_efield {
+                    prob *= &self.hamil.get_thermal_factor_rtime(iion, self.namdinit).slice(nd::s![istate, ..]);
+                }
+            },
+            DB::NacOnly => { /* Constraint added to epc already, no more action needed */ },
+            DB::Never => { },
+        };
 
         // cumulative sum
         prob.into_iter()
