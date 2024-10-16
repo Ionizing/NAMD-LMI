@@ -116,7 +116,8 @@ impl OptProcess for SurfhopCommand {
             .context("A connfig file is required via `-c surfhop_config.toml`.")?;
 
         if let Some(outdir) = self.collect_results.to_owned() {
-            log::info!("Collecting results from existing surface hopping artifact ...");
+            log::info!("Collecting results from existing surface hopping artifact with {} threads ...", self.nthreads);
+            rayon::ThreadPoolBuilder::new().num_threads(self.nthreads).build_global().unwrap();
             let cfg = surfhop::SurfhopConfig::from_file(&config_fname)?;
             collect_results(&cfg, outdir, "averaged_results.h5")?;
             return Ok(())
