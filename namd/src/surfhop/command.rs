@@ -232,6 +232,7 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
     let result_sum = cfg.get_inisteps().par_iter()
         .map(|&namdinit| -> Result<ResultType> {
             let fname = outdir.join(format!("result_{:0ndigit$}.h5", namdinit));
+            log::info!("Processing {:?} ...", fname);
             let f = H5File::open(fname)?;
 
             let time:        nd::Array1<f64> = f.dataset("time")?.read()?;
