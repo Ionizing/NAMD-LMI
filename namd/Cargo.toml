@@ -30,7 +30,7 @@ vasp_parsers = { path    = "../vasp_parsers" }
 #specialfunctions = { git = "ssh://git@github.com/Ionizing/SpecialFunctions-rs.git" }
 
 [[bin]]
-name = "namd_lumi"
+name = "namd_lmi"
 path = "src/main.rs"
 
 [dev-dependencies]
