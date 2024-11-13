@@ -266,7 +266,7 @@ impl Default for SurfhopConfig {
 
 impl fmt::Display for SurfhopConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "####            NAMD-lumi config for surface-hopping calculation            ####")?;
+        writeln!(f, "####             NAMD-lmi config for surface-hopping calculation            ####")?;
         writeln!(f, "#### YOUT NEED TO CHANGE THE PARAMETERS IN THE FOLLOWING TO FIT YOUR SYSTEM ####")?;
         writeln!(f)?;
 

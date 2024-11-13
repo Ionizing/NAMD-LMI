@@ -37,11 +37,11 @@ pub trait OptProcess : Parser {
 
 
 #[derive(Debug, Parser)]
-#[command(name = "NAMD-LUMI",
+#[command(name = "NAMD-LMI",
           about = Version::new().to_string(),
           long_about = format!("{:#}", Version::new()),
           version,
-          author = "@Ionizing github.com/Ionizing/NAMD-lumi",
+          author = "@Ionizing github.com/Ionizing/NAMD-LMI",
           styles = get_style())]
 enum Opt {
     Nac(crate::nac::NacCommand),

@@ -36,7 +36,7 @@ use crate::commands::{
 #[derive(Args, Debug)]
 pub struct Run {
     #[arg(default_value_t = String::from("./input.toml") )]
-    /// Specify the input file name for namd_lumi.
+    /// Specify the input file name for namd_lmi.
     input: String,
 
     #[arg(short, long, default_value_t = 0)]

@@ -261,7 +261,7 @@ impl HamilConfig {
 
 impl fmt::Display for HamilConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "# NAMD-lumi config for Hamiltonian generation")?;
+        writeln!(f, "# NAMD-lmi config for Hamiltonian generation")?;
         writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "ikpoint", self.ikpoint)?;

@@ -129,7 +129,7 @@ impl Default for NacConfig {
 
 impl fmt::Display for NacConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "####        NAMD-lumi config for Non-Adiabatic Coupling (NAC) calculation       ####")?;
+        writeln!(f, "####         NAMD-lmi config for Non-Adiabatic Coupling (NAC) calculation       ####")?;
         writeln!(f, "####    YOU NEED TO CHANGE THE PARAMETERS IN THE FOLLOWING TO FIT YOU SYSTEM    ####")?;
         writeln!(f)?;
 
