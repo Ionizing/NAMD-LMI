@@ -188,6 +188,7 @@ fn create_outputdir(dir: &mut PathBuf) -> Result<()> {
 }
 
 
+// TODO: refactor to reduce memory usage
 fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
     cfg: &surfhop::SurfhopConfig,
     outdir: P1,
