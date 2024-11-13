@@ -135,7 +135,7 @@ where
     let target = to.as_ref().join(&fname);
 
     #[cfg(target_os = "windows")]
-    std::os::winodws::fs::symlink_file(from, &target)?;
+    std::os::windows::fs::symlink_file(from, &target)?;
 
     #[cfg(not(target_os = "windows"))]
     std::os::unix::fs::symlink(from, &target)?;
