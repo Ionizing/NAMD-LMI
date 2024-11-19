@@ -52,9 +52,9 @@ jobs:
           echo 'NLSPATH="/opt/intel/compilers_and_libraries/linux/compiler/lib/intel64/locale/%l_%t/%N:/opt/intel/compilers_and_libraries/linux/mkl/lib/intel64_lin/locale/%l_%t/%N"' >> $GITHUB_ENV
           echo 'PKG_CONFIG_PATH="/opt/intel/mkl/bin/pkgconfig"' >> $GITHUB_ENV
 
-      - name: Build
+      - name: Build with system MKL
         run: |
-          cargo build --verbose --release --target x86_64-unknown-linux-gnu
+          cargo build --verbose --release --target x86_64-unknown-linux-gnu --no-default-features --features intel-mkl-system
 
       - name: Optimize and package binary
         run: |
@@ -67,10 +67,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          asset_name: namd_lmi-${{ github.event.release.tag_name }}-linux-x86_64.tar.gz
+          asset_name: namd_lmi-${{ github.event.release.tag_name }}-linux-x86_64-mkl-system.tar.gz
           asset_path: target/x86_64-unknown-linux-gnu/release/namd_lmi.tar.gz
           upload_url: ${{ github.event.release.upload_url }}
           asset_content_type: application/zip
+
+      - name: Build with static MKL
+        run: |
+          cargo build --verbose --release --target x86_64-unknown-linux-gnu --no-default-features --features intel-mkl-static
+
+      - name: Optimize and package binary
+        run: |
+          cd target/x86_64-unknown-linux-gnu/release
+          chmod +x namd_lmi
+          tar -c namd_lmi | gzip > namd_lmi.tar.gz
+          
+      - name: Upload binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_name: namd_lmi-${{ github.event.release.tag_name }}-linux-x86_64-mkl-static.tar.gz
+          asset_path: target/x86_64-unknown-linux-gnu/release/namd_lmi.tar.gz
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_content_type: application/zip
+
 
   macos-x86_64:
     runs-on: macos-13
@@ -87,7 +108,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target x86_64-apple-darwin
+          args: --verbose --release --target x86_64-apple-darwin --no-default-features --features openblas-static
           use-cross: true
           
       - name: Optimize and package binary
@@ -101,10 +122,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          asset_name: namd_lmi-${{ github.event.release.tag_name }}-macos-x86_64.tar.gz
+          asset_name: namd_lmi-${{ github.event.release.tag_name }}-macos-x86_64-openblas-static.tar.gz
           asset_path: target/x86_64-apple-darwin/release/namd_lmi.tar.gz
           upload_url: ${{ github.event.release.upload_url }}
           asset_content_type: application/zip
+
 
   macos-aarch64:
     runs-on: macos-latest
@@ -121,7 +143,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target aarch64-apple-darwin
+          args: --verbose --release --target aarch64-apple-darwin --no-default-features --features openblas-static
           use-cross: true
           
       - name: Optimize and package binary
@@ -135,10 +157,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          asset_name: namd_lmi-${{ github.event.release.tag_name }}-macos-aarch64.tar.gz
+          asset_name: namd_lmi-${{ github.event.release.tag_name }}-macos-aarch64-openblas-static.tar.gz
           asset_path: target/aarch64-apple-darwin/release/namd_lmi.tar.gz
           upload_url: ${{ github.event.release.upload_url }}
           asset_content_type: application/zip
+
 
   windows-x86_64:
     runs-on: windows-latest
@@ -151,11 +174,11 @@ jobs:
           toolchain: stable
           default: true
 
-      - name: Build binary
+      - name: Build binary with static MKL
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target x86_64-pc-windows-msvc
+          args: --verbose --release --target x86_64-pc-windows-msvc --no-default-features --features intel-mkl-static
           use-cross: true
 
       - name: Optimize and package binary
@@ -168,7 +191,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          asset_name: namd_lmi-${{ github.event.release.tag_name }}-windows-x86_64.zip
+          asset_name: namd_lmi-${{ github.event.release.tag_name }}-windows-x86_64-mkl-static.zip
+          asset_path: target/x86_64-pc-windows-msvc/release/namd_lmi.zip
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_content_type: application/zip
+
+
+      - name: Build binary with static OpenBLAS
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose --release --target x86_64-pc-windows-msvc --no-default-features --features openblas-static
+          use-cross: true
+
+      - name: Optimize and package binary
+        run: |
+          cd target/x86_64-pc-windows-msvc/release
+          7z a namd_lmi.zip namd_lmi.exe
+
+      - name: Upload binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_name: namd_lmi-${{ github.event.release.tag_name }}-windows-x86_64-openblas-static.zip
           asset_path: target/x86_64-pc-windows-msvc/release/namd_lmi.zip
           upload_url: ${{ github.event.release.upload_url }}
           asset_content_type: application/zip
