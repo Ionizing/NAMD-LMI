@@ -104,7 +104,30 @@ jobs:
           toolchain: stable
           default: true
 
-      - name: Build binary
+      - name: Build binary with static MKL
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose --release --target x86_64-apple-darwin --no-default-features --features intel-mkl-static
+          use-cross: true
+          
+      - name: Optimize and package binary
+        run: |
+          cd target/x86_64-apple-darwin/release
+          chmod +x namd_lmi
+          tar -c namd_lmi | gzip > namd_lmi.tar.gz
+
+      - name: Upload binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_name: namd_lmi-${{ github.event.release.tag_name }}-macos-x86_64-mkl-static.tar.gz
+          asset_path: target/x86_64-apple-darwin/release/namd_lmi.tar.gz
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_content_type: application/zip
+
+      - name: Build binary with static OpenBLAS
         uses: actions-rs/cargo@v1
         with:
           command: build
@@ -197,24 +220,24 @@ jobs:
           asset_content_type: application/zip
 
 
-      - name: Build binary with static OpenBLAS
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --verbose --release --target x86_64-pc-windows-msvc --no-default-features --features openblas-static
-          use-cross: true
+#      - name: Build binary with static OpenBLAS
+#        uses: actions-rs/cargo@v1
+#        with:
+#          command: build
+#          args: --verbose --release --target x86_64-pc-windows-msvc --no-default-features --features openblas-static
+#          use-cross: true
 
-      - name: Optimize and package binary
-        run: |
-          cd target/x86_64-pc-windows-msvc/release
-          7z a namd_lmi.zip namd_lmi.exe
+#      - name: Optimize and package binary
+#        run: |
+#          cd target/x86_64-pc-windows-msvc/release
+#          7z a namd_lmi.zip namd_lmi.exe
 
-      - name: Upload binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_name: namd_lmi-${{ github.event.release.tag_name }}-windows-x86_64-openblas-static.zip
-          asset_path: target/x86_64-pc-windows-msvc/release/namd_lmi.zip
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_content_type: application/zip
+#      - name: Upload binary
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          asset_name: namd_lmi-${{ github.event.release.tag_name }}-windows-x86_64-openblas-static.zip
+#          asset_path: target/x86_64-pc-windows-msvc/release/namd_lmi.zip
+#          upload_url: ${{ github.event.release.upload_url }}
+#          asset_content_type: application/zip
