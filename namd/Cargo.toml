@@ -24,7 +24,7 @@ rayon        = "1.7.0"
 regex = "1.10.6"
 rhai = { version = "1.16.3", features = ["sync"] }
 serde        = { version = "1.0.163", features = ["derive"] }
-shared       = { path    = "../shared" }
+shared       = { path    = "../shared", default-features = false }
 toml         = "0.7.4"
 vasp_parsers = { path    = "../vasp_parsers" }
 #specialfunctions = { git = "ssh://git@github.com/Ionizing/SpecialFunctions-rs.git" }

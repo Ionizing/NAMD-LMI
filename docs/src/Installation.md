@@ -8,14 +8,15 @@ building from scratch.
 
 We provide the pre-built binaries at [Github Release](https://github.com/Ionizing/NAMD-LMI/releases).
 
-There are three platforms we support with pre-built binaries:
+There are four platforms we support with pre-built binaries:
 
 - `namd_lmi-<VERSION>-linux-x86_64.tar.gz`: Dynamically linked against `glibc`
   and other fundamental system libraries. This version can run on most Linux
-  distros (e.g. CentOS 7, Ubuntu 18.04, etc).
-- `rsgrad-<VERSION>-macos-x86_64.tar.gz`: Binary for macOS (Intel Chip).
-- `rsgrad-<VERSION>-macos-aarch64.tar.gz`: Binary for macOS (Apple Silicon).
-- `rsgrad-<VERSION>-windows-x86_64.zip`: Binary for Windows system. Windows 7
+  distros (e.g. CentOS 7, Ubuntu 18.04, etc). **NOTE: This version requires
+  Intel-MKL installed on system**.
+- `namd_lmi-<VERSION>-macos-x86_64.tar.gz`: Binary for macOS (Intel Chip).
+- `namd_lmi-<VERSION>-macos-aarch64.tar.gz`: Binary for macOS (Apple Silicon).
+- `namd_lmi-<VERSION>-windows-x86_64.zip`: Binary for Windows system. Windows 7
   and upper 64-bit versions are supported.
 
 

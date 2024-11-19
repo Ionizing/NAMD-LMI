@@ -12,7 +12,7 @@ flate2    = "1.0.26"
 itertools = "0.13.0"
 ndrustfft = "0.4.0"
 rayon     = "1.7.0"
-shared    = { path = "../shared" }
+shared    = { path = "../shared", default-features = false }
 
 [dev-dependencies]
 tempdir = "0.3.7"

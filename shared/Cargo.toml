@@ -10,20 +10,20 @@ anyhow  = "1.0.71"
 log     = "0.4.17"
 ndarray = "0.15.6"
 #ndarray-linalg = { version = "0.16.0", features = ["intel-mkl-system"] }
-#ndarray-linalg = { git = "https://github.com/matthagan15/ndarray-linalg", rev = "b4dd1c7e7762d59b47dc75964533be0bdd278a9f", features = ["intel-mkl-system"] }
 ndrustfft = "0.4.0"
 num-traits = "0.2.19"
 rayon   = "1.7.0"
 regex   = "1.10.6"
 
-[target.'cfg(all(target_arch = "x86_64", any(windows, target_os = "macos")))'.dependencies]
-ndarray-linalg = { git = "https://github.com/matthagan15/ndarray-linalg", rev = "b4dd1c7e7762d59b47dc75964533be0bdd278a9f", features = ["intel-mkl-static"] }
+[dependencies.ndarray-linalg]
+git = "https://github.com/matthagan15/ndarray-linalg"
+rev = "b4dd1c7e7762d59b47dc75964533be0bdd278a9f"
+optional = true
+default-features = false
 
-[target.'cfg(all(target_arch = "x86_64", not(any(windows, target_os = "macos"))))'.dependencies]
-ndarray-linalg = { git = "https://github.com/matthagan15/ndarray-linalg", rev = "b4dd1c7e7762d59b47dc75964533be0bdd278a9f", features = ["intel-mkl-system"] }
-
-[target.'cfg(all(not(target_arch = "x86_64"), any(windows, target_os = "macos")))'.dependencies]
-ndarray-linalg = { git = "https://github.com/matthagan15/ndarray-linalg", rev = "b4dd1c7e7762d59b47dc75964533be0bdd278a9f", features = ["openblas-static"] }
-
-[target.'cfg(all(not(target_arch = "x86_64"), not(any(windows, target_os = "macos"))))'.dependencies]
-ndarray-linalg = { git = "https://github.com/matthagan15/ndarray-linalg", rev = "b4dd1c7e7762d59b47dc75964533be0bdd278a9f", features = ["openblas-system"] }
+[features]
+default = ["intel-mkl-system"]
+intel-mkl-system = ["ndarray-linalg/intel-mkl-system"]
+intel-mkl-static = ["ndarray-linalg/intel-mkl-static"]
+openblas-system = ["ndarray-linalg/openblas-system"]
+openblas-static = ["ndarray-linalg/openblas-static"]

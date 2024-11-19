@@ -38,7 +38,7 @@ pub type Matrix<T> = Array2<T>;
 pub type Cube<T>   = Array3<T>;
 pub type MatX3<T> = Vec<[T;3]>;  // Nx3 matrix
 pub type Mat33<T> = [[T;3];3];   // 3x3 matrix
-                                 //
+
 
 /// Index array containing negative indices => Index array full of positive indices.
 /// `-1` means the last index,
