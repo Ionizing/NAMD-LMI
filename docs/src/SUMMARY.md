@@ -1,6 +1,6 @@
 # NAMD-LMI Manual
 
-[Intruduction](./Introduction.md)
+[Introduction](./Introduction.md)
 [Installation](./Installation.md)
 
 ---

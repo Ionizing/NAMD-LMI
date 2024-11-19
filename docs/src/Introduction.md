@@ -15,4 +15,11 @@ Now NAMD-LMI is capable to
   dynamics in the laser field at zero temperature;
 - Study carrier dynamics both under the perturbation of phonon and LMI.
 
+**You may need watch the former tutorials to learn the basic concept and
+procedures of Hefei-NAMD** in the following pages:
+
+- [Basic Hefei-NAMD](https://www.bilibili.com/video/BV1p5411c7RS/)
+- [Hefei-NAMD with CA-NAC](https://www.bilibili.com/video/BV1eo4y1m7yb/)
+- [Hefei-NAMD with excitonic effects](https://www.bilibili.com/video/BV1iV411E7TF/)
+
 ![](./Introduction-schematics.svg)
