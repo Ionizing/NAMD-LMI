@@ -119,10 +119,5 @@ if "__main__" == __name__:
     hamil = Hamil(args.hamil)
     hamil.plot_bands()
     hamil.plot_nac()
-    hamil.plot_nac_entry([
-        (0, 1, "211-212 K'u-Kd"),
-        (2, 3, "213-214 Gu-Gd"),
-        (4, 5, "215-216 Ku-K'd"),
-        ])
     hamil.plot_pij()
     pass

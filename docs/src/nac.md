@@ -71,7 +71,7 @@ Options:
     2024-11-19 20:26:10 [ INFO] Time used: 1.351249ms
     ```
     where the `01_nac_config_template.toml` reads
-    ```shell
+    ```toml
 			 rundir = "../run"
 			ikpoint = 1
 			 brange = [0, 0]
