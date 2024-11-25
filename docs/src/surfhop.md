@@ -141,7 +141,7 @@ Options:
        with `nac` and `hamil`.
         
         For example, if `basis_list = [215..220]`, and we want the electron on band 220 initially,
-        this field should be `iniband = 200`.
+        this field should be `iniband = 220`.
 
     - `inisteps` _list of integer_: Initial step index for each NAMD sample trajectory.
 
