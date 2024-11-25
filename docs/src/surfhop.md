@@ -145,7 +145,7 @@ Options:
 
     - `inisteps` _list of integer_: Initial step index for each NAMD sample trajectory.
 
-        There are only 3 samples as shown in `inisteps` field, which is far from enough. Run `python3 inisteps
+        There are only 3 samples as shown in `inisteps` field, which is far from enough. Run `python3 inisteps.py
         03_surfhop_config_template.toml 1999 100` to generate 100 random initial configurations for the surface
         hopping method. Then delete the original `inisteps` and it finally reads
 
