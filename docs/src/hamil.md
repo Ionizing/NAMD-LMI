@@ -282,7 +282,59 @@ Options:
         }
         ```
 
-3. Visualize the Hamiltonian
+3. Generate Hamiltonian
+
+    ```shell
+    $ namd_lmi hamil -c 02_hamil_config_template.toml
+    2024-11-25 11:15:53 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+    2024-11-25 11:15:53 [ INFO]
+    +----------------------------------------------------------------------+
+    |                                                                      |
+    |    _   _            __  __  _____           _       __  __  _____    |
+    |   | \ | |    /\    |  \/  ||  __ \         | |     |  \/  ||_   _|   |
+    |   |  \| |   /  \   | \  / || |  | | ______ | |     | \  / |  | |     |
+    |   | . ` |  / /\ \  | |\/| || |  | ||______|| |     | |\/| |  | |     |
+    |   | |\  | / ____ \ | |  | || |__| |        | |____ | |  | | _| |_    |
+    |   |_| \_|/_/    \_\|_|  |_||_____/         |______||_|  |_||_____|   |
+    |                                                                      |
+    +----------------------------------------------------------------------+
+
+    Welcome to use namd!
+        current version:    0.1.0
+        git hash:           NO GIT INFO
+        author(s):          Ionizing
+        host:               x86_64-unknown-linux-gnu
+        built time:         2024-11-21 11:27:32 +08:00
+
+    2024-11-25 11:15:53 [ WARN] Field 'hamil_fname' points to an existing file and it will be overwritten.
+    2024-11-25 11:15:53 [ INFO] Got Hamiltonnian config:
+    # NAMD-lmi config for Hamiltonian generation
+
+                  ikpoint = 1
+               basis_list = [215, 216, 217, 218, 219, 220]
+             basis_labels = ["VBM-1", "VBM", "CBM", "CBM+1", "CBM+2", "CBM+3"]
+                nac_fname = "NAC.h5"
+             efield_fname = "./efield.rhai"
+              hamil_fname = "HAMIL.h5"
+               propmethod = "Expm"
+                  scissor = 1.5
+
+    2024-11-25 11:15:53 [ INFO] Got electric field from file "./efield.rhai" with content of:
+    //
+    // Example rhai script for ELECTRIC FIELD input
+    //
+    ...
+    ...
+        return [x, y, z];               // this statement is required.
+    }
+
+    2024-11-25 11:15:53 [ INFO] Found Efermi = -2.824 eV, shift band eigvals to align with it ...
+    2024-11-25 11:15:53 [ INFO] Found scissor opeartor of 1.5000 eV. current system has gap of 1.5156 .. 1.5303 .. 1.5457 (min .. avg .. max) (eV).
+                         Now the gap is set to 1.4853 .. 1.5000 .. 1.5155 (min .. avg .. max) (eV). min(CBM_t) - max(VBM_t) =   1.4579
+    2024-11-25 11:15:53 [ INFO] Time used: 156.235792ms
+    ```
+
+4. Visualize the Hamiltonian
     
     Run `namd_lmi hamil --generate pp` to get `hamil_plot.py`, and then run it to get `.png`s
 
@@ -302,7 +354,7 @@ Options:
     ![NAC inside Hamiltonian](./hamil_nac.png)
     ![Momentum matrix elements Hamiltonian](./hamil_pij.png)
 
-4. Data fields of `HAMIL.h5`
+5. Data fields of `HAMIL.h5`
 
 ```
 HDF5 "HAMIL.h5" {
