@@ -96,6 +96,17 @@ impl WavesliceConfig {
 
         ret
     }
+
+
+    pub fn get_brange(&self) -> &[usize; 2] { &self.brange }
+    pub fn get_ikpoints(&self) -> &[usize] { &self.ikpoints }
+    pub fn get_ndigit(&self) -> usize { self.ndigit }
+    pub fn get_nsw(&self) -> usize { self.nsw }
+    pub fn get_phasecorrection(&self) -> bool { self.phasecorrection }
+    pub fn get_rearrangement(&self) -> bool { self.rearrangement }
+    pub fn get_unitary_transform(&self) -> bool { self.unitary_transform }
+    pub fn get_rundir(&self) -> &Path { &self.rundir }
+    pub fn get_waveslicefname(&self) -> &Path { &self.waveslicefname }
 }
 
 
