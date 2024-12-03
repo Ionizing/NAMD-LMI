@@ -44,6 +44,7 @@ pub trait OptProcess : Parser {
           author = "@Ionizing github.com/Ionizing/NAMD-LMI",
           styles = get_style())]
 enum Opt {
+    Waveslice(crate::waveslice::WavesliceCommand),
     Nac(crate::nac::NacCommand),
     Hamil(crate::hamil::HamilCommand),
     Surfhop(crate::surfhop::SurfhopCommand),
@@ -58,6 +59,7 @@ impl OptProcess for Opt {
         log::info!("Global logger initialized with targets being stderr and \"./globalrun.log\"");
 
         match self {
+            Waveslice(cmd) => cmd.process(),
             Nac(cmd) => cmd.process(),
             Hamil(cmd) => cmd.process(),
             Surfhop(cmd) => cmd.process(),
