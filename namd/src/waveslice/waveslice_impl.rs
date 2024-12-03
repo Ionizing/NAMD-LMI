@@ -140,7 +140,6 @@ impl Waveslice {
                 cfg.get_waveslicefname());
             let waveslice = Self::from_h5(cfg.get_waveslicefname())?;
 
-            // TODO: add checkings
             let ikpoints = cfg.get_ikpoints();
             if ikpoints != &[0] {
                 anyhow::ensure!(ikpoints == waveslice.ikpoints);
@@ -339,16 +338,16 @@ impl Waveslice {
             kvecs
         };
         let num_plws = ikpoints.iter().map(|ik| w1.nplws[*ik] as usize).collect::<Vec<usize>>();
+        let lncl = w1.wavecar_type == WavecarType::NonCollinear;
 
-        let gvecs = ikpoints.iter().map(|ik| {
-            w1.generate_fft_grid((*ik) as u64)
+        let gvecs = ikpoints.iter().enumerate().map(|(i, &ik)| {
+            let nspinor = if lncl { 2usize } else { 1 };
+            w1.generate_fft_grid((ik) as u64)
                 .into_iter().flatten()
                 .collect::<nd::Array1::<i64>>()
-                .into_shape((3, 3))
+                .into_shape((num_plws[i]/nspinor, 3))
                 .unwrap()
         }).collect::<Vec<nd::Array2<i64>>>();
-
-        let lncl = w1.wavecar_type == WavecarType::NonCollinear;
 
         let procar_1 = rundir.join(format!("{:0ndigit$}", 1)).join("PROCAR");
         let p1 = Procar::from_file(&procar_1)
@@ -448,7 +447,6 @@ impl Waveslice {
             ret_projs.lock().unwrap().slice_mut(nd::s![isw, .., .., .., .., ..]).assign(&projs_i);
             ret_efermis.lock().unwrap()[isw] = efermi;
         });
-        //let SliceIRet { eigs_i, fweights_i, coeffs_i, projs_i } = Self::slice_i()
 
 
         Ok( SliceTotRet {
@@ -478,7 +476,7 @@ impl Waveslice {
         let mut coeffs_i = nd::Array4::<c64>::zeros((nspin, nkpoints, nbrange, nplws_max));
         let mut projs_i = nd::Array5::<f64>::zeros((nkpoints, nspinors, nbrange, nions, nspd));
 
-        for &ik in ikpoints {
+        for (ii, &ik) in ikpoints.iter().enumerate() {
             eigs_i.slice_mut(nd::s![.., ik, ..])
                 .assign(&wav.band_eigs.slice(nd::s![.., ik, brange.clone()]));
             fweights_i.slice_mut(nd::s![.., ik, ..])
@@ -489,11 +487,11 @@ impl Waveslice {
             let nplw = wav.nplws[ik] as usize;
             let nspinor = if lncl { 2 } else { 1usize };
             for ispin in 0 .. nspin {
-                for iband in brange.clone().into_iter() {
+                for (jj, iband) in brange.clone().into_iter().enumerate() {
                     let coeff = wav._wav_kspace(ispin as u64, ik as u64, iband as u64, nplw / nspinor)
                         .into_shape((nplw,))
                         .context("Wavefunction reshape failed.")?;
-                    coeffs_i.slice_mut(nd::s![ispin, ik, iband, 0..nplw])
+                    coeffs_i.slice_mut(nd::s![ispin, ii, jj, 0..nplw])
                         .assign(&coeff);
                 }
             }

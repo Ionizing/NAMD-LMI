@@ -61,8 +61,8 @@ impl OptProcess for WavesliceCommand {
         if let Some(g) = self.generate {
             return match g {
                 ConfigTemplate => {
-                    log::info!("Writing `waveslice_config_template.toml` ...");
-                    waveslice::WavesliceConfig::default().to_file("waveslice_config_template.toml")
+                    log::info!("Writing `00_waveslice_config_template.toml` ...");
+                    waveslice::WavesliceConfig::default().to_file("00_waveslice_config_template.toml")
                 },
             }
         }
@@ -80,6 +80,8 @@ impl OptProcess for WavesliceCommand {
         }
 
         let ws = waveslice::Waveslice::from_config(&cfg)?;
+
+        log::info!("Saving to {:?}.", cfg.get_waveslicefname());
         ws.save_to_h5(cfg.get_waveslicefname())
     }
 }
