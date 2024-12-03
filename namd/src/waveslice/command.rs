@@ -3,6 +3,14 @@ use std::path::PathBuf;
 use rayon;
 
 use clap::{Parser, ValueEnum};
+use shared::{
+    log,
+    Result,
+};
+use crate::OptProcess;
+use crate::version::Version;
+use crate::waveslice;
+use crate::core::NamdConfig;
 
 
 #[derive(Debug, Parser)]
@@ -43,4 +51,35 @@ enum TemplateGenerator {
     #[value(aliases=["config", "cfg", "conf"])]
     /// Generate config template for Waveslice calculation. Aliases: "config", "cfg", "conf".
     ConfigTemplate,
+}
+
+
+impl OptProcess for WavesliceCommand {
+    fn process(&self) -> Result<()> {
+        use TemplateGenerator::*;
+
+        if let Some(g) = self.generate {
+            return match g {
+                ConfigTemplate => {
+                    log::info!("Writing `waveslice_config_template.toml` ...");
+                    waveslice::WavesliceConfig::default().to_file("waveslice_config_template.toml")
+                },
+            }
+        }
+
+        log::info!("\n{}", Version::new());
+
+        log::info!("Running with {} threads.", self.nthreads);
+        rayon::ThreadPoolBuilder::new().num_threads(self.nthreads).build_global().unwrap();
+
+        let cfg = waveslice::WavesliceConfig::from_file(&self.config)?;
+        log::info!("Got WaveSlice config:\n{}", &cfg);
+        if cfg.get_waveslicefname().is_file() {
+            log::info!("Found existing NAC: {:?}, exiting.", cfg.get_waveslicefname());
+            return Ok(());
+        }
+
+        let ws = waveslice::Waveslice::from_config(&cfg)?;
+        ws.save_to_h5(cfg.get_waveslicefname())
+    }
 }

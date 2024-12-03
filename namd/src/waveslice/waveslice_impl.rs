@@ -109,6 +109,31 @@ pub struct Waveslice {
 
 
 impl Waveslice {
+    pub fn get_ikpoints(&self) -> &[usize] { &self.ikpoints }
+    pub fn get_nspin(&self) -> usize { self.nspin }
+    pub fn get_nbands(&self) -> usize { self.nbands }
+    pub fn get_brange(&self) -> [usize;2] { self.brange }
+    pub fn get_nbrange(&self) -> usize { self.nbrange }
+    pub fn get_ndigit(&self) -> usize { self.ndigit }
+    pub fn get_nsw(&self) -> usize { self.nsw }
+    pub fn get_encut(&self) -> f64 { self.encut }
+    pub fn get_phasecorrection(&self) -> bool { self.phasecorrection }
+    pub fn get_unitary_transform(&self) -> bool { self.unitary_transform }
+    pub fn get_rearrangement(&self) -> bool { self.rearrangement }
+    pub fn get_wavetype(&self) -> &str { &self.wavetype }
+    pub fn get_real_cell(&self) -> nd::ArrayView2<f64> { self.real_cell.view() }
+    pub fn get_reci_cell(&self) -> nd::ArrayView2<f64> { self.reci_cell.view() }
+    pub fn get_ngrid(&self) -> [usize; 3] { self.ngrid }
+    pub fn get_efermis(&self) -> nd::ArrayView1<f64> { self.efermis.view() }
+    pub fn get_kvecs(&self) -> nd::ArrayView2<f64> { self.kvecs.view() }
+    pub fn get_num_plws(&self) -> &[usize] { &self.num_plws }
+    pub fn get_gvecs(&self) -> &[nd::Array2<i64>] { &self.gvecs }
+    pub fn get_eigs(&self) -> nd::ArrayView4<f64> { self.eigs.view() }
+    pub fn get_fweights(&self) -> nd::ArrayView4<f64> { self.fweights.view() }
+    pub fn get_coeffs(&self) -> nd::ArrayView5<c64> { self.coeffs.view() }
+    pub fn get_projs(&self) -> nd::ArrayView6<f64> { self.projs.view() }
+
+
     pub fn from_config(cfg: &WavesliceConfig) -> Result<Self> {
         if cfg.get_waveslicefname().is_file() {
             log::info!("Found pre-calculated NAC available in {:?}, reading WaveSlice from it ...",
@@ -116,6 +141,19 @@ impl Waveslice {
             let waveslice = Self::from_h5(cfg.get_waveslicefname())?;
 
             // TODO: add checkings
+            let ikpoints = cfg.get_ikpoints();
+            if ikpoints != &[0] {
+                anyhow::ensure!(ikpoints == waveslice.ikpoints);
+            } else {
+                anyhow::ensure!(ikpoints.iter().last().unwrap() + 1 == ikpoints.len());
+            }
+
+            anyhow::ensure!(cfg.get_nsw() == waveslice.nsw, "Incompatible nsw.");
+            anyhow::ensure!(cfg.get_ndigit() == waveslice.ndigit, "Incompatible ndigit.");
+            anyhow::ensure!(cfg.get_brange() == &waveslice.brange, "Incompatible brange.");
+            anyhow::ensure!(cfg.get_phasecorrection() == waveslice.phasecorrection, "Incompatible phasecorrection.");
+            anyhow::ensure!(cfg.get_unitary_transform() == waveslice.unitary_transform, "Incompatible unitary_transform.");
+            anyhow::ensure!(cfg.get_rearrangement() == waveslice.rearrangement, "Incompatible rearrangement.");
 
             return Ok(waveslice);
         }
