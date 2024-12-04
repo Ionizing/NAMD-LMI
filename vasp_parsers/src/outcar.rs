@@ -910,7 +910,7 @@ impl Trajectory {
         if !fname.is_dir() {
             fs::create_dir_all(&fname)?;
         }
-        fname.push("XDATCAR");
+        fname.push("XDATCAR.vasp");
 
         let mut f = fs::OpenOptions::new()
             .create(true)
@@ -1025,6 +1025,15 @@ impl From<Outcar> for Trajectory {
                 })
                 .collect()
         )
+    }
+}
+
+#[derive(Clone)]
+pub struct XdatcarBuilder(pub Vec<Structure>);
+
+impl From<Trajectory> for XdatcarBuilder {
+    fn from(t: Trajectory) -> Self {
+        Self ( t.0 )
     }
 }
 

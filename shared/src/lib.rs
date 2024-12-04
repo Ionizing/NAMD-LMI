@@ -27,6 +27,9 @@ pub use ndrustfft;
 mod numeric_methods;
 pub use numeric_methods::*;
 
+mod trajectory;
+pub use trajectory::*;
+
 #[allow(non_camel_case_types)]
 pub type c64 = ndrustfft::Complex<f64>;
 #[allow(non_camel_case_types)]

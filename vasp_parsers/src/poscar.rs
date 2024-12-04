@@ -6,6 +6,7 @@ use std::{
         BufReader, 
         BufRead,
     },
+    str::Lines as StrLines,
     fmt::{
         self,
         Write as _,
@@ -31,6 +32,21 @@ pub struct Poscar {  // I have no plan to support vasp4 format
     pub pos_cart: MatX3<f64>,
     pub pos_frac: MatX3<f64>,
     pub constraints: Option<MatX3<bool>>,
+}
+
+
+struct Header {
+    comment: String,
+    scale: f64,
+    cell: Mat33<f64>,
+    ion_types: Vec<String>,
+    ions_per_type: Vec<i32>,
+}
+
+struct AtomCoordinates {
+    pos_cart: MatX3<f64>,
+    pos_frac: MatX3<f64>,
+    constraints: Option<MatX3<bool>>,
 }
 
 
@@ -184,6 +200,17 @@ impl Poscar {
             pos_frac,
             constraints
         })
+    }
+
+
+    // TODO, split from_txt into parse_header and parse_coordinates
+    fn parse_poscar_header<'a>(mut lines: StrLines<'a>) -> Result<(Header, StrLines<'a>)> {
+        todo!()
+    }
+
+
+    fn parse_atom_coordinates<'a>(mut lines: StrLines<'a>) -> Result<(AtomCoordinates, StrLines<'a>)> {
+        todo!()
     }
 
 

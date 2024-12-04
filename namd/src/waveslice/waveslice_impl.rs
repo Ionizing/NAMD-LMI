@@ -11,12 +11,15 @@ use shared::{
     Result,
     anyhow,
     log,
+    Structure,
 };
 
 use vasp_parsers::{
     procar::Procar,
     Wavecar,
     WavecarType,
+    outcar::Trajectory,
+    Poscar,
 };
 use crate::waveslice::WavesliceConfig;
 
@@ -105,6 +108,11 @@ pub struct Waveslice {
 
     /// Slice of PROCAR for each WAVECAR, [nsw, nkpoints, nspinor, nbrange, nions, nspd]
     projs:    nd::Array6<f64>,
+
+    /// Atomic trajectory of each step, [nsw]
+    ///
+    /// In .h5 , it will be converted to string with XDATCAR format.
+    traj:     Trajectory,
 }
 
 
