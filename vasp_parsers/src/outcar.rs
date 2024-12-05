@@ -910,7 +910,7 @@ impl Trajectory {
         if !fname.is_dir() {
             fs::create_dir_all(&fname)?;
         }
-        fname.push("XDATCAR.vasp");
+        fname.push("XDATCAR_rsgrad.vasp");
 
         let mut f = fs::OpenOptions::new()
             .create(true)

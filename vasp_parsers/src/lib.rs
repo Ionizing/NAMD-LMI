@@ -6,6 +6,7 @@ pub mod chg;
 pub mod wavecar;
 
 pub use poscar::Poscar;
+pub use poscar::Xdatcar;
 pub use outcar::Outcar;
 pub use wavecar::{
     Wavecar,

@@ -311,7 +311,7 @@ fn test_save_as_xdatcar() -> Result<()> {
 
     let xdatcar_ref = fs::read_to_string(
         get_fpath_in_current_dir!("XDATCAR_another_rlx"))?;
-    let xdatcar_content = fs::read_to_string(path.join("XDATCAR"))?;
+    let xdatcar_content = fs::read_to_string(path.join("XDATCAR_rsgrad.vasp"))?;
     assert_eq!(xdatcar_content, xdatcar_ref);
     Ok(())
 }

@@ -11,6 +11,7 @@ use std::{
         self,
         Write as _,
     },
+    iter::Peekable,
 };
 use shared::{
     anyhow::anyhow,
@@ -20,6 +21,7 @@ use shared::{
     Structure,
     Mat33,
     MatX3,
+    Trajectory,
 };
 
 #[derive(Clone, Debug)]
@@ -32,21 +34,6 @@ pub struct Poscar {  // I have no plan to support vasp4 format
     pub pos_cart: MatX3<f64>,
     pub pos_frac: MatX3<f64>,
     pub constraints: Option<MatX3<bool>>,
-}
-
-
-struct Header {
-    comment: String,
-    scale: f64,
-    cell: Mat33<f64>,
-    ion_types: Vec<String>,
-    ions_per_type: Vec<i32>,
-}
-
-struct AtomCoordinates {
-    pos_cart: MatX3<f64>,
-    pos_frac: MatX3<f64>,
-    constraints: Option<MatX3<bool>>,
 }
 
 
@@ -200,17 +187,6 @@ impl Poscar {
             pos_frac,
             constraints
         })
-    }
-
-
-    // TODO, split from_txt into parse_header and parse_coordinates
-    fn parse_poscar_header<'a>(mut lines: StrLines<'a>) -> Result<(Header, StrLines<'a>)> {
-        todo!()
-    }
-
-
-    fn parse_atom_coordinates<'a>(mut lines: StrLines<'a>) -> Result<(AtomCoordinates, StrLines<'a>)> {
-        todo!()
     }
 
 
@@ -500,6 +476,216 @@ impl fmt::Display for PoscarFormatter<'_> {
         }
 
         Ok(())
+    }
+}
+
+
+#[derive(Clone)]
+pub struct Xdatcar {
+    pub dat: Vec<Poscar>,
+}
+
+
+#[derive(Clone)]
+struct XdatcarHeader {
+    comment: String,
+    scale: f64,
+    cell: Mat33<f64>,
+    ion_types: Vec<String>,
+    ions_per_type: Vec<i32>,
+}
+
+#[derive(Clone)]
+struct XdatcarAtomCoordinates {
+    pos_cart: MatX3<f64>,
+    pos_frac: MatX3<f64>,
+}
+
+
+impl Xdatcar {
+    pub fn from_file<P>(fname: P) -> Result<Self>
+    where P: AsRef<Path> {
+        let f: String = fs::read_to_string(fname)?;
+        Self::from_txt(&f)
+    }
+
+
+    pub fn from_txt(txt: &str) -> Result<Self> {
+        let mut lines = txt.lines().peekable();
+
+        let header_0 = Self::parse_header(&mut lines)?;
+        let nions = header_0.ions_per_type.iter().sum::<i32>();
+        let coords_0 = Self::parse_atom_coordinates(&mut lines, &header_0.cell, nions)?;
+
+        let header_initial = header_0.clone();
+        let poscar_0 = Poscar {
+            comment: header_0.comment,
+            scale: header_0.scale,
+            cell: header_0.cell,
+            ion_types: header_0.ion_types.clone(),
+            ions_per_type: header_0.ions_per_type.clone(),
+            pos_cart: coords_0.pos_cart,
+            pos_frac: coords_0.pos_frac,
+            constraints: None,
+        }.normalize();
+
+        let mut ret = Vec::<Poscar>::new();
+        ret.push(poscar_0.clone());
+
+        let is_single_cells = match lines.peek() {
+            None => {
+                return Ok( Self { dat: ret } );
+            },
+            Some(line) => {
+                line.starts_with("Direct configuration=")
+            }
+        };
+
+        while lines.peek().is_some() {
+            let header_i = if is_single_cells {
+                header_initial.clone()
+            } else {
+                Self::parse_header(&mut lines)?
+            };
+
+            let coords_i = Self::parse_atom_coordinates(&mut lines, &header_i.cell, nions)?;
+            let poscar_i = Poscar {
+                comment: header_i.comment,
+                scale: header_i.scale,
+                cell: header_i.cell,
+                ion_types: header_i.ion_types,
+                ions_per_type: header_i.ions_per_type,
+                pos_cart: coords_i.pos_cart,
+                pos_frac: coords_i.pos_frac,
+                constraints: None,
+            }.normalize();
+
+            ret.push(poscar_i)
+        }
+
+        Ok( Self { dat: ret })
+    }
+
+
+    fn parse_header<'a>(lines: &mut Peekable<StrLines<'a>>) -> Result<XdatcarHeader> {
+        let comment: String = lines.next().context("[XDATCAR]: File may be blank.")?.trim().to_string();
+        let scale: f64 = lines.next().context("[XDATCAR]: Cannot parse scale constant.")?
+            .split_whitespace()
+            .next().context("[XDATCAR]: Scale line may be empty.")?
+            .parse::<f64>()
+            .context("[XDATCAR]: Scale constant cannot be converted to float number.")?;
+        
+        let scale = match scale.partial_cmp(&0.0) {
+            Some(Ordering::Greater) => scale,
+            Some(Ordering::Less) | Some(Ordering::Equal) => 
+                return Err(anyhow!("[XDATCAR]: Scale constant should be greater than 0.0.")),
+            None => return Err(anyhow!("[XDATCAR]: Scale constant cannot be NaN.")),
+        };
+        
+        let cell: Mat33<f64> = {
+            let mut v = [[0.0f64; 3]; 3];
+            for it in &mut v {
+                let line = lines.next().context("[XDATCAR]: Incomplete lines for cell info.")?;
+                let row = line.split_whitespace().take(3).collect::<Vec<_>>();
+                if row.len() < 3 {
+                    return Err(anyhow!("[XDATCAR]: Cell lines incomplete."));
+                }
+                for (j, x) in row.into_iter().enumerate() {
+                    let val = x.parse::<f64>().context(format!("[XDATCAR]: Cell lines contain invalid value: `{}` .", x))?;
+                    if val.is_nan() {
+                        return Err(anyhow!("[XDATCAR]: Cell lines contain NaN value."));
+                    }
+                    it[j] = val;
+                }
+            }
+            v
+        };
+        
+        let ion_types = {
+            let words = lines.next()
+                .context("[XDATCAR]: Element tags line not found, rsgrad has no plan to support vasp4 format.")?
+                .split_whitespace()
+                .take_while(|x| !x.contains('!'))
+                .map(|x| x.to_string())
+                .collect::<Vec<_>>();
+            if words.is_empty() {
+                return Err(anyhow!("[XDATCAR]: At lease one element is needed."));
+            }
+            words
+        };
+
+        let ions_per_type = {
+            let numbers = lines.next()
+                .context("[XDATCAR]: Count of each element not found.")?
+                .split_whitespace()
+                .take_while(|x| !x.contains('!'))
+                .map(|x| x.parse::<i32>().context("[XDATCAR]: Invalid atom count of element."))
+                .collect::<Result<Vec<_>>>()?;
+            if numbers.len() != ion_types.len() {
+                return Err(anyhow!("[XDATCAR]: Inconsistent element types and atom counts."));
+            }
+            if numbers.iter().any(|x| x <= &0) {
+                return Err(anyhow!("[XDATCAR]: Atom counts cannot be zero or negative."));
+            }
+            numbers
+        };
+
+        let header = XdatcarHeader {
+            comment,
+            scale,
+            cell,
+            ion_types,
+            ions_per_type,
+        };
+
+        Ok(header)
+    }
+
+
+    fn parse_atom_coordinates<'a>(lines: &mut Peekable<StrLines<'a>>, cell: &Mat33<f64>, nions: i32) -> Result<XdatcarAtomCoordinates> {
+        let is_direct = {
+            let line = lines.next().context("[XDATCAR]: Coordinate type not found.")?;
+            match line.trim_start().chars().next() {
+                Some('d') | Some('D') => true,
+                Some('c') | Some('C') | Some('k') | Some('K') => false,
+                _ => return Err(anyhow!("[XDATCAR]: Coordination type line missing."))
+            }
+        };
+
+        let mut coords: MatX3<f64> = vec![];
+        for _ in 0 .. nions {
+            let line = lines.next().expect("[XDATCAR]: Incomplete XDATCAR coordinates.");
+            let v = line.split_whitespace().collect::<Vec<_>>();
+            coords.push( [ v[0].parse::<f64>().context(format!("[XDATCAR]: Coordinates value invalid: `{}` .", v[0]))?,
+                           v[1].parse::<f64>().context(format!("[XDATCAR]: Coordinates value invalid: `{}` .", v[1]))?,
+                           v[2].parse::<f64>().context(format!("[XDATCAR]: Coordinates value invalid: `{}` .", v[2]))?, ]);
+        }
+
+        let (pos_cart, pos_frac): (MatX3<f64>, MatX3<f64>) = {
+            if is_direct {
+                let cart = Poscar::convert_frac_to_cart(&coords, &cell);
+                (cart, coords)
+            } else {
+                let frac = Poscar::convert_cart_to_frac(&coords, &cell)
+                    .context("[XDATCAR]: Cell matrix is singular.")?;
+                (coords, frac)
+            }
+        };
+
+        let coordinates = XdatcarAtomCoordinates {
+            pos_cart,
+            pos_frac,
+        };
+
+        Ok(coordinates)
+    }
+
+
+    pub fn into_trajectory(self) -> Trajectory {
+        self.dat.into_iter()
+            .map(Poscar::into_structure)
+            .collect::<Vec<Structure>>()
+            .into()
     }
 }
 

@@ -1,7 +1,11 @@
 use std::path::PathBuf;
 
-use shared::Result;
+use shared::{
+    Result,
+    Context,
+};
 use vasp_parsers::Poscar;
+use vasp_parsers::Xdatcar;
 use tempdir::TempDir;
 
 
@@ -92,4 +96,23 @@ fn test_read_failed() {
         println!("testing {}", f);
         Poscar::from_file(&get_fpath_in_current_dir!(f)).unwrap();
     }
+}
+
+
+#[test]
+fn test_parse_xdatcar() -> Result<()> {
+    let cases = [("XDATCAR_another_rlx", 0.198404344),
+                 ("XDATCAR_oneheader.vasp", 0.61506018),
+                 ("XDATCAR_multiheader.vasp", 0.45161346)];
+
+    for (f, val) in cases {
+        let fname = &get_fpath_in_current_dir!(f);
+        let xdat = Xdatcar::from_file(fname)
+            .with_context(|| format!("Test {} failed", fname.display()))?;
+
+        // Last coordinate
+        assert!((xdat.dat.last().unwrap().pos_frac.last().unwrap()[2] - val).abs() < 1E-7);
+    }
+
+    Ok(())
 }
