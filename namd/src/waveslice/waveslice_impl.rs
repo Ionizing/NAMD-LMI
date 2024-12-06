@@ -11,14 +11,13 @@ use shared::{
     Result,
     anyhow,
     log,
-    Structure,
 };
 
 use vasp_parsers::{
     procar::Procar,
     Wavecar,
     WavecarType,
-    outcar::Trajectory,
+    Xdatcar,
     Poscar,
 };
 use crate::waveslice::WavesliceConfig;
@@ -29,6 +28,7 @@ struct SliceIRet {
     fweights_i: nd::Array3<f64>, // [nspin, nkpoints, nbrange]
     coeffs_i:  nd::Array4<c64>, // [nspin, nkpoints, nbrange, nplwmax]
     projs_i:   nd::Array5<f64>, // [nsw, nkpoints, nions, nspinor, nbrange]
+    poscar:    Poscar,          // parsed from CONTCAR
     efermi:    f64,
 }
 
@@ -39,6 +39,7 @@ struct SliceTotRet {
     coeffs:   nd::Array5<c64>,  // [nsw, nspin, nkpoints, nbrange, nplwmax]
     projs:    nd::Array6<f64>,  // [nsw, nkpoints, nspinor, nbrange, nions, nspd]
     efermis:  nd::Array1<f64>,  // [nsw,]
+    xdatcar:  Xdatcar,          // [nsw,]
 }
 
 
@@ -112,7 +113,7 @@ pub struct Waveslice {
     /// Atomic trajectory of each step, [nsw]
     ///
     /// In .h5 , it will be converted to string with XDATCAR format.
-    traj:     Trajectory,
+    xdatcar:  Xdatcar,
 }
 
 
@@ -221,6 +222,11 @@ impl Waveslice {
         };
 
         let projs: nd::Array6<f64> = f.dataset("projs")?.read()?;
+        let xdatcar = {
+            let bytes = f.dataset("xdatcar")?.read_raw::<u8>()?;
+            let xdatcar_str = String::from_utf8(bytes)?;
+            Xdatcar::from_txt(&xdatcar_str)?
+        };
 
         Ok(Self {
             ikpoints,
@@ -246,6 +252,7 @@ impl Waveslice {
             fweights,
             coeffs,
             projs,
+            xdatcar,
         })
     }
 
@@ -291,6 +298,9 @@ impl Waveslice {
         f.new_dataset_builder().with_data(&self.coeffs.mapv(|x| x.im)).create("coeffs_i")?;
 
         f.new_dataset_builder().with_data(&self.projs).create("projs")?;
+
+        let xdatcar_str = format!("{}", self.xdatcar);
+        f.new_dataset_builder().with_data(&xdatcar_str.as_bytes()).create("xdatcar")?;
 
         Ok(())
     }
@@ -371,7 +381,7 @@ impl Waveslice {
 
 
         let SliceTotRet {
-            eigs, fweights, coeffs, projs, efermis
+            eigs, fweights, coeffs, projs, efermis, xdatcar
         } = Self::from_wavecars(&rundir, nsw, &ikpoints, brange.clone(), ndigit,
             nspin, &num_plws, lncl, nions, nspd)?;
 
@@ -403,6 +413,7 @@ impl Waveslice {
             fweights,
             coeffs,
             projs,
+            xdatcar,
         })
     }
 
@@ -431,6 +442,7 @@ impl Waveslice {
         let ret_efermis = Arc::new(Mutex::new(
                 nd::Array1::<f64>::zeros((nsw,))
                 ));
+        let ret_xdatcar = Arc::new(Mutex::new(vec![Poscar::default(); nsw]));
 
         
         let remain_count = Arc::new(Mutex::new(nsw - 1));
@@ -443,7 +455,7 @@ impl Waveslice {
                 *remain_now -= 1;
             }
 
-            let SliceIRet { eigs_i, fweights_i, coeffs_i, projs_i, efermi } =
+            let SliceIRet { eigs_i, fweights_i, coeffs_i, projs_i, poscar, efermi } =
                 Self::slice_i(
                     &path_i, ikpoints, brange.clone(), nspin, lncl, nplws_max, nions, nspd
                 ).with_context(|| format!("Failed to slicing WAVECAR or PROCAR from {:?}.", &path_i))
@@ -454,6 +466,7 @@ impl Waveslice {
             ret_coeffs.lock().unwrap().slice_mut(nd::s![isw, .., .., .., ..]).assign(&coeffs_i);
             ret_projs.lock().unwrap().slice_mut(nd::s![isw, .., .., .., .., ..]).assign(&projs_i);
             ret_efermis.lock().unwrap()[isw] = efermi;
+            ret_xdatcar.lock().unwrap()[isw] = poscar;
         });
 
 
@@ -462,6 +475,7 @@ impl Waveslice {
             fweights: Arc::try_unwrap(ret_fweights).unwrap().into_inner()?,
             coeffs: Arc::try_unwrap(ret_coeffs).unwrap().into_inner()?,
             projs: Arc::try_unwrap(ret_projs).unwrap().into_inner()?,
+            xdatcar: Xdatcar::from(Arc::try_unwrap(ret_xdatcar).unwrap().into_inner()?),
             efermis: Arc::try_unwrap(ret_efermis).unwrap().into_inner()?,
         })
     }
@@ -471,6 +485,7 @@ impl Waveslice {
         nplws_max: usize, nions: usize, nspd: usize) -> Result<SliceIRet> {
         let wav = Wavecar::from_file(&path_i.join("WAVECAR"))?;
         let proj = Procar::from_file(&path_i.join("PROCAR"))?;
+        let poscar = Poscar::from_file(&path_i.join("CONTCAR"))?;
 
         let nbrange = brange.clone().count();
         let nkpoints = ikpoints.len();
@@ -512,6 +527,7 @@ impl Waveslice {
             fweights_i,
             coeffs_i,
             projs_i,
+            poscar,
             efermi,
         })
     }
