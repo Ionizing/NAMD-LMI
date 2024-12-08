@@ -11,6 +11,7 @@ pub trait Hamiltonian {
     type ConfigType: NamdConfig;
     type CouplingType: Couplings;
 
+    fn get_lncl(&self) -> bool;
     fn get_nbasis(&self) -> usize;
     fn get_nsw(&self) -> usize;
     fn get_potim(&self) -> f64;

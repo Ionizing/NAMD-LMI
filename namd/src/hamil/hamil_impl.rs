@@ -31,6 +31,8 @@ use crate::core::constants::*;
 #[derive(Clone)]
 pub struct SPHamiltonian {
     ikpoint:     usize,
+    nspin:       usize,
+    lncl:        bool,
     basis_list:  Vec<i32>,
     basis_labels: Option<Vec<String>>,
     nbasis:      usize,
@@ -47,6 +49,9 @@ pub struct SPHamiltonian {
     pij_t:     nd::Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     rij_t:     nd::Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     proj_t:    nd::Array4<f64>,     // [nsw-1, nbasis, nions, nproj]
+    proj_x:    Option<nd::Array4<f64>>,
+    proj_y:    Option<nd::Array4<f64>>,
+    proj_z:    Option<nd::Array4<f64>>,
     efield:    Option<String>,
 
     // pre-calculated hamiltonian = eig_t in diag + nac_t in off-diag
@@ -61,6 +66,7 @@ impl Hamiltonian for SPHamiltonian {
     type ConfigType   = HamilConfig;
     type CouplingType = Nac;
 
+    fn get_lncl(&self) -> bool { self.lncl }
     fn get_nbasis(&self) -> usize { self.nbasis }
     fn get_potim(&self) -> f64 { self.potim }
     fn get_nsw(&self) -> usize { self.nsw }
@@ -81,6 +87,8 @@ impl Hamiltonian for SPHamiltonian {
         let f = H5File::open(fname)?;
 
         let ikpoint  = f.dataset("ikpoint")?.read_scalar::<usize>()?;
+        let nspin    = f.dataset("nspin")?.read_scalar::<usize>()?;
+        let lncl     = f.dataset("lncl")?.read_scalar::<bool>()?;
         let nbasis   = f.dataset("nbasis")?.read_scalar::<usize>()?;
         let potim    = f.dataset("potim")?.read_scalar::<f64>()?;
         let nsw      = f.dataset("nsw")?.read_scalar::<usize>()?;
@@ -115,6 +123,15 @@ impl Hamiltonian for SPHamiltonian {
         };
         let proj_t: nd::Array4<f64> = f.dataset("proj_t")?.read()?;
 
+        let (proj_x, proj_y, proj_z) = if lncl {
+            let px: nd::Array4<f64> = f.dataset("proj_x")?.read()?;
+            let py: nd::Array4<f64> = f.dataset("proj_y")?.read()?;
+            let pz: nd::Array4<f64> = f.dataset("proj_z")?.read()?;
+            (Some(px), Some(py), Some(pz))
+        } else {
+            (None, None, None)
+        };
+
         let basis_labels = {
             if f.dataset("basis_labels").is_err() {
                 None
@@ -142,6 +159,8 @@ impl Hamiltonian for SPHamiltonian {
 
         Ok(Self {
             ikpoint,
+            nspin,
+            lncl,
             basis_list,
             basis_labels,
             nbasis,
@@ -158,6 +177,9 @@ impl Hamiltonian for SPHamiltonian {
             pij_t,
             rij_t,
             proj_t,
+            proj_x,
+            proj_y,
+            proj_z,
             efield,
 
             hamil0,
@@ -170,6 +192,8 @@ impl Hamiltonian for SPHamiltonian {
         let f = H5File::create(fname)?;
 
         f.new_dataset::<usize>().create("ikpoint")?.write_scalar(&self.ikpoint)?;
+        f.new_dataset::<usize>().create("nspin")?.write_scalar(&self.nspin)?;
+        f.new_dataset::<bool>().create("lncl")?.write_scalar(&self.lncl)?;
         f.new_dataset::<usize>().create("nbasis")?.write_scalar(&self.nbasis)?;
         f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
         f.new_dataset::<usize>().create("nsw")?.write_scalar(&self.nsw)?;
@@ -199,6 +223,11 @@ impl Hamiltonian for SPHamiltonian {
         f.new_dataset_builder().with_data(&self.rij_t.mapv(|v| v.im)).create("rij_t_i")?;
 
         f.new_dataset_builder().with_data(&self.proj_t).create("proj_t")?;
+        if self.lncl {
+            f.new_dataset_builder().with_data(self.proj_x.as_ref().unwrap()).create("proj_x")?;
+            f.new_dataset_builder().with_data(self.proj_y.as_ref().unwrap()).create("proj_y")?;
+            f.new_dataset_builder().with_data(self.proj_z.as_ref().unwrap()).create("proj_z")?;
+        }
 
         if let Some(efield) = self.efield.as_ref() {        // this is the source code of efield,
                                                             // not the instance itself.
@@ -229,6 +258,7 @@ impl SPHamiltonian {
         let reorder              = cfg.get_reorder();
         let ndigit               = coup.get_ndigit();
         let nspin                = coup.get_nspin();
+        let lncl                 = coup.get_lncl();
         let efermi               = coup.get_efermi();
 
         let nbasis = basis_list.len();
@@ -237,7 +267,7 @@ impl SPHamiltonian {
         }
 
         if basis_list.iter().any(|x| *x < 0) {
-            ensure!(nspin == 2,
+            ensure!(nspin == 2 && lncl == false,
                 "You selected spin down band as basis while current NAC has only one spin channel."
             );
         }
@@ -251,13 +281,31 @@ impl SPHamiltonian {
         let mut rij_t = nd::Array4::<c64>::zeros((nsw-1, 3, nbasis, nbasis));
         let mut proj_t = nd::Array4::<f64>::zeros((nsw-1, nbasis, nions, nproj));
 
+        let (mut proj_x, mut proj_y, mut proj_z) = if lncl {
+            (Some(nd::Array4::<f64>::zeros((nsw-1, nbasis, nions, nproj))),
+             Some(nd::Array4::<f64>::zeros((nsw-1, nbasis, nions, nproj))),
+             Some(nd::Array4::<f64>::zeros((nsw-1, nbasis, nions, nproj))),)
+        } else {
+            (None, None, None)
+        };
+
         for (i, &iband) in basis_list.iter().enumerate() {
             let nac_ii = iband_to_nac_index(&brange, iband.abs() as _)?;
             let ispin: usize = if iband > 0 { 0 } else { 1 };
             eig_t.slice_mut(nd::s![.., i])
                 .assign(&coup.get_tdeigs().slice(nd::s![.., ispin, nac_ii]));
+
             proj_t.slice_mut(nd::s![.., i, .., ..])
                 .assign(&coup.get_tdproj().slice(nd::s![.., ispin, nac_ii, .., ..]));
+
+            if lncl {
+                proj_x.as_mut().unwrap().slice_mut(nd::s![.., i, .., ..])
+                    .assign(&coup.get_tdproj().slice(nd::s![..,     1, nac_ii, .., ..]));
+                proj_y.as_mut().unwrap().slice_mut(nd::s![.., i, .., ..])
+                    .assign(&coup.get_tdproj().slice(nd::s![..,     2, nac_ii, .., ..]));
+                proj_z.as_mut().unwrap().slice_mut(nd::s![.., i, .., ..])
+                    .assign(&coup.get_tdproj().slice(nd::s![..,     3, nac_ii, .., ..]));
+            }
             
             // This basis_list should be not very large, a duplicated conversion will not affect
             // too much performance.
@@ -308,6 +356,8 @@ impl SPHamiltonian {
 
         Ok(Self {
             ikpoint,
+            nspin,
+            lncl,
             basis_list,
             basis_labels,
             nbasis,
@@ -324,6 +374,9 @@ impl SPHamiltonian {
             pij_t,
             rij_t,
             proj_t,
+            proj_x,
+            proj_y,
+            proj_z,
             efield,
 
             hamil0,

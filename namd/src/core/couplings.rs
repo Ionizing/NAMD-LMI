@@ -12,6 +12,7 @@ pub trait Couplings {
     type ConfigType: NamdConfig;
 
     fn get_nspin(&self) -> usize;
+    fn get_lncl(&self) -> bool;
     fn get_nbands(&self) -> usize;
     fn get_ikpoint(&self) -> usize;
     fn get_brange(&self) -> [usize; 2];

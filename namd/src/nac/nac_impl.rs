@@ -28,6 +28,7 @@ use crate::nac::config::NacConfig;
 pub struct Nac {
     ikpoint: usize,         // In this struct, ikpoint starts from 1.
     nspin: usize,
+    lncl: bool,             // Is ncl or not
     nbands: usize,
     ndigit: usize,
 
@@ -72,6 +73,7 @@ impl Couplings for Nac {
     type ConfigType = NacConfig;
 
     fn get_nspin(&self) -> usize { self.nspin }
+    fn get_lncl(&self) -> bool { self.lncl }
     fn get_nbands(&self) -> usize { self.nbands }
     fn get_ikpoint(&self) -> usize { self.ikpoint }
     fn get_brange(&self) -> [usize; 2] { self.brange }
@@ -107,6 +109,7 @@ impl Couplings for Nac {
         // ikpoint counts from 1
         let ikpoint = f.dataset("ikpoint")?.read_scalar::<usize>()?;
         let nspin   = f.dataset("nspin")?.read_scalar::<usize>()?;
+        let lncl    = f.dataset("lncl")?.read_scalar::<bool>()?;
         let nbands  = f.dataset("nbands")?.read_scalar::<usize>()?;
         let ndigit  = f.dataset("ndigit")?.read_scalar::<usize>()?;
         let brange  = f.dataset("brange")?.read_scalar::<[usize;2]>()?;
@@ -136,6 +139,7 @@ impl Couplings for Nac {
         Ok(Self {
             ikpoint,
             nspin,
+            lncl,
             nbands,
             ndigit,
             brange,
@@ -159,6 +163,7 @@ impl Couplings for Nac {
         // In NAC.h5, ikpoint counts from 1, but in struct, ikpoint starts from 0.
         f.new_dataset::<usize>().create("ikpoint")?.write_scalar(&self.ikpoint)?;
         f.new_dataset::<usize>().create("nspin")?.write_scalar(&self.nspin)?;
+        f.new_dataset::<bool>().create("lncl")?.write_scalar(&self.lncl)?;
         f.new_dataset::<usize>().create("nbands")?.write_scalar(&self.nbands)?;
         f.new_dataset::<usize>().create("ndigit")?.write_scalar(&self.ndigit)?;
         f.new_dataset::<[usize;2]>().create("brange")?.write_scalar(&self.brange)?;
@@ -253,6 +258,8 @@ impl Nac {
             _ => false,
         };
 
+        ensure!(lncl == p1.pdos.lsorbit, "Inconsistent type of WAVECAR and PROCAR");
+
         let CoupTotRet {olaps, eigs, pij, proj, efermi} = Self::from_wavecars(
             &phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, lncl, nions, nproj, &gvecs, phasecorrection
         )?;
@@ -260,6 +267,7 @@ impl Nac {
         Ok(Self {
             ikpoint: ikpoint + 1,
             nspin,
+            lncl,
             nbands,
             ndigit,
             brange: cfg.get_brange(),

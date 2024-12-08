@@ -217,6 +217,7 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
 
     let hamil_fname = cfg.get_hamil_fname();
     let hamil    = hamil::SPHamiltonian::from_h5(hamil_fname)?;
+    let lncl     = hamil.get_lncl();
     let ndigit   = hamil.get_ndigit();
     let potim    = hamil.get_potim();
     let namdtime = cfg.get_namdtime();
