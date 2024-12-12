@@ -3,8 +3,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::f64::consts::PI;
 
-use serde::Deserialize;
+use serde::{de::Error, Deserialize, Deserializer};
 use toml;
+use regex::Regex;
+use itertools::Itertools;
 use shared::{
     log,
     Result,
@@ -204,7 +206,8 @@ pub struct SurfhopConfig {
             default = "SurfhopConfig::default_smearing_npoints_per_ev")]
     smearing_npoints_per_ev: usize,
 
-    iniband: i32,
+    #[serde(deserialize_with="SurfhopConfig::parse_iniband")]
+    iniband: Vec<i32>,
     inisteps: Vec<usize>,
 }
 
@@ -214,6 +217,67 @@ impl SurfhopConfig {
     fn default_smearing_method() -> SmearingMethod { SmearingMethod::LorentzianSmearing }
     fn default_smearing_sigma() -> f64 { 0.01 }
     fn default_smearing_npoints_per_ev() -> usize { 500 }
+
+    fn parse_iniband<'de, D>(deserializer: D) -> std::result::Result<Vec<i32>, D::Error>
+    where D: Deserializer<'de> {
+        let input = String::deserialize(deserializer)?;
+        let mut ret = vec![];
+
+        let re_range = Regex::new(r"^(-?\d+)\.\.(-?\d+)$").unwrap();
+        let re_digit = Regex::new(r"^-?\d+$").unwrap();
+
+        for s in input.split_ascii_whitespace() {
+            if re_digit.is_match(s) {
+                let num = s.parse::<i32>().unwrap();
+                if num == 0 {
+                    return Err(D::Error::custom(
+                        format!("Invalid integer '{}' from `iniband`, 0 is not allowed.", s)
+                    ));
+                }
+                ret.push(s.parse().unwrap())
+            } else if re_range.is_match(s) {
+                let m = re_range.captures(s).unwrap();
+                let start = m.get(1).unwrap().as_str().parse::<i32>().unwrap();
+                let end   = m.get(2).unwrap().as_str().parse::<i32>().unwrap();
+
+                if start * end <= 0 {
+                    return Err(D::Error::custom(
+                        format!("Invalid range '{}' from `iniband`, start and end must have save sign.", s)
+                    ));
+                }
+
+                let sign = start.signum();
+                let to_be_extend = (start.abs() ..= end.abs()).map(|x| x*sign).collect::<Vec<_>>();
+                ret.extend(to_be_extend);
+            } else {
+                return Err(D::Error::custom(
+                    format!("Invalid token '{}' from `iniband`, it should be either range (start..end) or integer.", s)
+                ));
+            }
+        }
+
+        // check band occupations, if any larger than 2, return error
+        let mut err = "Invalid inibands, some bands have more than 2 electrons: ".to_string();
+        let mut ret_dedup = ret.clone();
+        ret_dedup.sort();
+        let mut fail = false;
+        for cnt in ret_dedup.into_iter().dedup_with_count() {
+            if cnt.0 > 2 {
+                fail = true;
+                err.push_str(&format!(" occ({})={}", cnt.1, cnt.0));
+            }
+        }
+        if fail {
+            err.push_str(&format!(", please check."));
+            return Err(D::Error::custom(err));
+        }
+
+        if ret.is_empty() {
+            return Err(D::Error::custom("Empty `inibands` is not allowed."));
+        }
+
+        return Ok(ret)
+    }
 
     pub fn get_hamil_fname(&self) -> &PathBuf { &self.hamil_fname }
     pub fn get_namdtime(&self) -> usize { self.namdtime }
@@ -227,7 +291,7 @@ impl SurfhopConfig {
     pub fn get_smearing_sigma(&self) -> f64 { self.smearing_sigma }
     pub fn get_npoints_per_ev(&self) -> usize { self.smearing_npoints_per_ev }
 
-    pub fn get_iniband(&self) -> i32 { self.iniband }
+    pub fn get_iniband(&self) -> &[i32] { &self.iniband }
     pub fn get_inisteps(&self) -> &[usize] { &self.inisteps }
 
     pub fn print_to_log(&self) {
@@ -257,7 +321,7 @@ impl Default for SurfhopConfig {
             smearing_sigma: 0.01,
             smearing_npoints_per_ev: 500,
 
-            iniband: 0,
+            iniband: vec![0],
             inisteps: vec![1, 2, 3],
         }
     }
@@ -333,7 +397,7 @@ mod tests {
         smearing_sigma = 0.05
         smearing_npoints_per_eV = 1000
 
-        iniband = -3
+        iniband = "-1..-4 1..4"
         inisteps = [
             114,
             514,
@@ -353,7 +417,7 @@ mod tests {
             smearing_sigma: 0.05,
             smearing_npoints_per_ev: 1000,
 
-            iniband: -3,
+            iniband: vec![-1, -2, -3, -4, 1, 2, 3, 4],
             inisteps: vec![114, 514],
         };
 

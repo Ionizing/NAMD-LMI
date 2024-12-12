@@ -71,6 +71,7 @@ impl Hamiltonian for SPHamiltonian {
     fn get_potim(&self) -> f64 { self.potim }
     fn get_nsw(&self) -> usize { self.nsw }
     fn get_temperature(&self) -> f64 { self.temperature }
+    fn get_nspin(&self) -> usize { self.nspin }
 
     /// Get the hamiltonian without electron-photon interaction.
     fn get_hamil(&self, iion: usize) -> nd::ArrayView2<c64> {

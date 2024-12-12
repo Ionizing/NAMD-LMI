@@ -206,50 +206,75 @@ impl Surfhop {
         let lmi_normsqr = lmi_normsqr;
         let td_eigs = td_eigs;
 
+        let maxocc = self.wfn.get_max_occupation();
+
+        let curstate_init = self.wfn.get_basisini();
+        let occ_all_init  = {
+            let mut occ_all = nd::Array1::<usize>::zeros(self.wfn.get_nbasis());
+            for &ib in curstate_init.iter() {
+                occ_all[ib] += 1;
+            }
+            occ_all
+        };
 
         let mut rng = thread_rng();
         self.tdpops.fill(0.0);
+        let mut curstate_all = self.wfn.get_basisini().to_owned();
+        let mut occ_all      = nd::Array1::<usize>::zeros(self.wfn.get_nbasis());
         for _ in 0 .. self.ntraj {
-            let mut curstate: usize = self.wfn.get_basisini();
-            let mut nxtstate: usize;
-            for iion in 0 .. namdtime {
-                let randnum: f64 = rng.gen();
-                let hop_dest = cumprob.slice(nd::s![iion, curstate, ..])
-                    .as_slice().unwrap()
-                    .partition_point(|v| v < &randnum);
-                nxtstate = if hop_dest < nbasis { hop_dest } else { curstate };
+            curstate_all.assign(&curstate_init);
+            occ_all.assign(&occ_all_init);
 
-                // when hopping happens
-                if curstate != nxtstate {
-                    let mut epc: f64 = epc_normsqr[(iion, curstate, nxtstate)];
-                    let     lmi: f64 = lmi_normsqr[(iion, curstate, nxtstate)];
+            for j in 0 .. self.wfn.get_basisini().len() {
+                let mut curstate: usize = curstate_all[j];
+                let mut nxtstate: usize;
+                for iion in 0 .. namdtime {
+                    let randnum: f64 = rng.gen();
+                    let hop_dest = cumprob.slice(nd::s![iion, curstate, ..])
+                        .as_slice().unwrap()
+                        .partition_point(|v| v < &randnum);
 
-                    // normalize
-                    let scale = 1.0 / (epc + lmi);
-                    epc *= scale;
-                    //lmi *= scale;
+                    // hopping destination by probability
+                    nxtstate = if hop_dest < nbasis { hop_dest } else { curstate };
+                    // pauli exclusion principle
+                    // if destination band is not full, hopping happens
+                    nxtstate = if occ_all[nxtstate] < maxocc { nxtstate } else { curstate };
 
-                    let randnum2: f64 = rng.gen();
+                    // when hopping happens
+                    if curstate != nxtstate {
+                        let mut epc: f64 = epc_normsqr[(iion, curstate, nxtstate)];
+                        let     lmi: f64 = lmi_normsqr[(iion, curstate, nxtstate)];
 
-                    // downward hop: cur > nxt => tdxxx[cur, nxt] +1
-                    if td_eigs[(iion, curstate)] > td_eigs[(iion, nxtstate)] {
-                        if randnum2 < epc {     // phonon emitted
-                            self.tdphonons[(iion, curstate, nxtstate)] += 1.0;
-                        } else {                // photon emitted
-                            self.tdphotons[(iion, curstate, nxtstate)] += 1.0;
-                        }
-                    // upward hop: cur < nxt => tdxxx[cur, nxt] -1
-                    } else {
-                        if randnum2 < epc {     // phonon absorbed
-                            self.tdphonons[(iion, curstate, nxtstate)] -= 1.0;
-                        } else {                // photon absorbed
-                            self.tdphotons[(iion, curstate, nxtstate)] -= 1.0;
+                        // normalize
+                        let scale = 1.0 / (epc + lmi);
+                        epc *= scale;
+                        //lmi *= scale;
+
+                        let randnum2: f64 = rng.gen();
+
+                        // downward hop: cur > nxt => tdxxx[cur, nxt] +1
+                        if td_eigs[(iion, curstate)] > td_eigs[(iion, nxtstate)] {
+                            if randnum2 < epc {     // phonon emitted
+                                self.tdphonons[(iion, curstate, nxtstate)] += 1.0;
+                            } else {                // photon emitted
+                                self.tdphotons[(iion, curstate, nxtstate)] += 1.0;
+                            }
+                            // upward hop: cur < nxt => tdxxx[cur, nxt] -1
+                        } else {
+                            if randnum2 < epc {     // phonon absorbed
+                                self.tdphonons[(iion, curstate, nxtstate)] -= 1.0;
+                            } else {                // photon absorbed
+                                self.tdphotons[(iion, curstate, nxtstate)] -= 1.0;
+                            }
                         }
                     }
-                }
 
-                curstate = nxtstate;
-                self.tdpops[(iion, curstate)] += 1.0;
+                    occ_all[curstate] -= 1;
+                    occ_all[nxtstate] += 1;
+                    self.tdpops[(iion, nxtstate)] += 1.0;
+
+                    curstate = nxtstate;
+                }
             }
         }
 

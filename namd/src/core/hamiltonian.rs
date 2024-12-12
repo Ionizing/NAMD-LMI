@@ -16,6 +16,7 @@ pub trait Hamiltonian {
     fn get_nsw(&self) -> usize;
     fn get_potim(&self) -> f64;
     fn get_temperature(&self) -> f64;
+    fn get_nspin(&self) -> usize;
 
     fn get_hamil(&self, iion: usize) -> nd::ArrayView2<c64>;
 

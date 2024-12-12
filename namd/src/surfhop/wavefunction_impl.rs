@@ -1,4 +1,7 @@
+use std::fmt::Write;
+
 use shared::Result;
+use shared::anyhow;
 use shared::c64;
 use shared::ndarray as nd;
 use shared::MatX3;
@@ -15,14 +18,19 @@ use crate::hamil::{
     PropagateMethod,
     SPHamiltonian,
 };
+use itertools::Itertools;
 
 pub struct SPWavefunction {
     nbasis: usize,
-    basisini: usize,
+    basisini: nd::Array1<usize>,
+    nbasisini: usize,
     namdinit: usize,
     namdtime: usize,
     potim: f64,
     nelm: usize,
+    nspin: usize,
+    lncl: bool,
+    maxocc: usize,
 
     psi0: nd::Array1<c64>,  // [nbasis]
     psi_t: nd::Array2<c64>, // [namdtime, nbasis]
@@ -40,14 +48,17 @@ impl Wavefunction for SPWavefunction {
     type PopArraryType<'a> = nd::ArrayView1<'a, f64>;
     type TdPopArrayType<'a> = nd::ArrayView2<'a, f64>;
     type TdEigArrayType<'a> = nd::ArrayView1<'a, f64>;
+    type BasisIni<'a> = nd::ArrayView1<'a, usize>;
     type HamiltonianType = SPHamiltonian;
 
     fn get_nbasis(&self) -> usize { self.nbasis }
-    fn get_basisini(&self) -> usize { self.basisini }
+    fn get_basisini(&self) -> Self::BasisIni<'_> { self.basisini.view() }
     fn get_namdinit(&self) -> usize { self.namdinit }
     fn get_namdtime(&self) -> usize { self.namdtime }
     fn get_potim(&self) -> f64 { self.potim }
     fn get_nelm(&self) -> usize { self.nelm }
+    fn get_nspin(&self) -> usize { self.nspin }
+    fn get_lncl(&self) -> bool { self.lncl }
 
     fn propagate_full(&mut self, hamil: &SPHamiltonian) {
         let edt = self.potim / self.nelm as f64;
@@ -108,6 +119,11 @@ impl Wavefunction for SPWavefunction {
 impl SPWavefunction {
     pub fn get_eafield_array(&self) -> Option<&[MatX3<f64>; 2]> {
         self.eafield_array.as_ref()
+    }
+
+
+    fn get_nbasisini(&self) -> usize {
+        self.basisini.len()
     }
 
 
@@ -182,19 +198,48 @@ impl SPWavefunction {
 impl SPWavefunction {
     pub fn from_hamil_and_params(
         hamil: &SPHamiltonian,
-        iniband: i32,
+        iniband: &[i32],
         namdtime: usize, nelm: usize, namdinit: usize,
         eafield_array: Option<[MatX3<f64>; 2]>,
     ) -> Result<Self> {
+        let nspin = hamil.get_nspin();
+        let lncl  = hamil.get_lncl();
+        let max_occupation = if lncl || nspin == 2 { 1usize } else { 2 };
+
+        // check occupation of initial state
+        let mut err = format!("Invalid inibands, some bands have more than {} electrons: ", max_occupation);
+        let mut iniband_dedup = iniband.to_owned();
+        iniband_dedup.sort();
+        let mut fail = false;
+        for cnt in iniband_dedup.into_iter().dedup_with_count() {
+            if cnt.0 > max_occupation {
+                fail = true;
+                write!(&mut err, " occ({})={}", cnt.1, cnt.0)?;
+            }
+        }
+        if fail {
+            write!(&mut err, ", please check.")?;
+            anyhow::bail!(err);
+        }
+        
+
         let nbasis = hamil.get_nbasis();
-        let basisini = hamil.get_converted_index(iniband)?;
-        // namdinit
-        // namdtime
+        let basisini = iniband.iter()
+            .map(|&ib| -> Result<usize> {
+                hamil.get_converted_index(ib)
+            })
+            .collect::<Result<nd::Array1<usize>>>()?;
+
+        let nbasisini = basisini.len();
+        anyhow::ensure!(nbasisini > 0);
+
         let potim = hamil.get_potim();
-        // nelm
 
         let mut psi0 = nd::Array1::<c64>::zeros(nbasis);
-        psi0[basisini] = c64::new(1.0, 0.0);
+        for &ib in basisini.iter() {
+            psi0[ib] += c64::new(1.0, 0.0);
+        }
+        psi0.mapv(|x| x / (nbasisini as f64).sqrt());       // normalize
 
         let psi_t = nd::Array2::<c64>::zeros((namdtime, nbasis));
         let pop_t = nd::Array2::<f64>::zeros((namdtime, nbasis));
@@ -203,10 +248,14 @@ impl SPWavefunction {
         Ok(Self {
             nbasis,
             basisini,
+            nbasisini,
             namdinit,
             namdtime,
             potim,
             nelm,
+            nspin,
+            lncl,
+            maxocc: max_occupation,
 
             psi0,
             psi_t,
@@ -214,5 +263,9 @@ impl SPWavefunction {
             eig_t,
             eafield_array,
         })
+    }
+
+    pub fn get_max_occupation(&self) -> usize {
+        self.maxocc
     }
 }
