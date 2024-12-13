@@ -225,10 +225,10 @@ impl Surfhop {
             curstate_all.assign(&curstate_init);
             occ_all.assign(&occ_all_init);
 
-            for j in 0 .. self.wfn.get_basisini().len() {
+            for iion in 0 .. namdtime {
+                for j in 0 .. self.wfn.get_basisini().len() {
                 let mut curstate: usize = curstate_all[j];
                 let mut nxtstate: usize;
-                for iion in 0 .. namdtime {
                     let randnum: f64 = rng.gen();
                     let hop_dest = cumprob.slice(nd::s![iion, curstate, ..])
                         .as_slice().unwrap()
