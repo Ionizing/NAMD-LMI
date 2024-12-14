@@ -1,5 +1,10 @@
 FROM centos:centos7.9.2009
 
+RUN sed -i.bak \
+            -e 's|^mirrorlist=|#mirrorlist=|g' \
+            -e 's|^#baseurl=http://mirror.centos.org/centos|baseurl=https://vault.centos.org/centos|g' \
+            /etc/yum.repos.d/CentOS-Base.repo
+RUN yum makecache
 RUN yum update -y && yum group install -y 'Development Tools'
 
 # install rust
@@ -7,7 +12,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y --
 ENV PATH="${HOME}/.cargo/bin:${PATH}"
 
 # install blas
-RUN yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+RUN yum install -y epel-release
 RUN yum update -y && yum install -y \
     lapack-devel \
     openblas-devel \
