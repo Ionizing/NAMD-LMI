@@ -122,7 +122,7 @@ impl SPWavefunction {
     }
 
 
-    fn get_nbasisini(&self) -> usize {
+    pub fn get_nbasisini(&self) -> usize {
         self.basisini.len()
     }
 
