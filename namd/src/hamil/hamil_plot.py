@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import h5py
 
 
+HBAR = 0.6582119281559802
+
+
 def parseArgs():
     parser = argparse.ArgumentParser(description="Plot NAC and Pij from Hamiltonian.")
     parser.add_argument("hamil", metavar="HAMIL", type=str, default="HAMIL.h5",
@@ -48,7 +51,7 @@ class Hamil:
         pass
 
     def plot_nac(self, pngfname="hamil_nac.png"):
-        nac = np.mean(np.abs(self.nac_t), axis=(0,)) * 1000
+        nac = np.mean(np.abs(self.nac_t), axis=(0,)) * 1000 * HBAR / self.potim / 2
         np.fill_diagonal(nac, 0)
 
         fig = plt.figure(figsize=(6,5))

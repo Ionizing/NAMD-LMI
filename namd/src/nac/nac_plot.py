@@ -53,7 +53,7 @@ class Nac:
     def plot_nac(self, pngfname="nac_nac.png"):
         ispin = 0
 
-        nac = np.mean(np.abs(self.olaps)[ispin,...], axis=(0,)) * 1000 * HBAR / self.potim / 2
+        nac = np.mean(np.abs(self.olaps)[:, ispin,...], axis=(0,)) * 1000 * HBAR / self.potim / 2
         np.fill_diagonal(nac, 0)
 
         fig = plt.figure(figsize=(6,5))
