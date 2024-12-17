@@ -97,7 +97,7 @@ Options:
            smearing_sigma = 0.01
      smearing_npoints_per_eV = 500
 
-                  iniband = 0
+                  iniband = "0"
                  inisteps = [
              1 ,
              2 ,
@@ -137,11 +137,12 @@ Options:
 
     - `smearing_sigma` _float_: Literal smearing width of smearing functions.
     - `smearing_npoints_per_eV` _integer_: Point density for spectra data.
-    - `iniband` _integer_: Initial band where the electron lies on. The index is consistent
-       with `nac` and `hamil`.
+    - `iniband` _string_: Bands where the electrons initially lie on. The indices is consistent
+       with `nac` and `hamil`. Format is same as `basis_list`.
         
-        For example, if `basis_list = [215..220]`, and we want the electron on band 220 initially,
-        this field should be `iniband = 220`.
+        For example, if `basis_list = "215..220"`, and we want the electron on band 220 initially,
+        this field should be `iniband = "220"`; if we want three electrons on band 215, 216 and 217
+        respectively, the this field should be `iniband = "215..217"`.
 
     - `inisteps` _list of integer_: Initial step index for each NAMD sample trajectory.
 
