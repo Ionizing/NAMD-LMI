@@ -1,0 +1,1513 @@
+<!DOCTYPE HTML>
+<html lang="en" class="rust" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>NAMD-LMI Manual</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+        <!-- MathJax -->
+        <script>
+        window.MathJax = {
+            loader: {
+                load: ['[tex]/physics']
+            },
+            tex: { 
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                tags: 'ams',
+                packages: {'[+]': ['physics']}
+            } 
+        };
+        </script>
+        <script type="text/javascript" id="MathJax-script" async
+          src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js">
+        </script>
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "rust";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('rust')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="Introduction.html">Introduction</a></li><li class="chapter-item expanded affix "><a href="Installation.html">Installation</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded "><a href="overall.html"><strong aria-hidden="true">1.</strong> Overall process</a></li><li class="chapter-item expanded "><a href="nac.html"><strong aria-hidden="true">2.</strong> Non-adiabatic Coupling</a></li><li class="chapter-item expanded "><a href="hamil.html"><strong aria-hidden="true">3.</strong> Hamiltonian</a></li><li class="chapter-item expanded "><a href="surfhop.html"><strong aria-hidden="true">4.</strong> Surface Hopping</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><a href="Feedback.html">Feedback</a></li><li class="chapter-item expanded affix "><a href="Acknowledgements.html">Acknowledgements</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">NAMD-LMI Manual</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p>NAMD-LMI is a subset of <a href="https://hefei-namd.org/code/">Hefei-NAMD</a> with
+light-matter interaction (LMI) support.</p>
+<blockquote>
+<p>Hefei-NAMD is an <em>ab initio</em> non-adiabatic molecular dynamics program to
+investigate the ultrafast excited carrier dynamics in real and momentum
+space, energy and time scale.</p>
+</blockquote>
+<p>Now NAMD-LMI is capable to</p>
+<ul>
+<li>Study carrier dynamics in real space and energy relaxation without laser
+field at finite temperture;</li>
+<li>Study photo-excitaion process and stimulated emission process and carrier
+dynamics in the laser field at zero temperature;</li>
+<li>Study carrier dynamics both under the perturbation of phonon and LMI.</li>
+</ul>
+<p><strong>You may need watch the former tutorials to learn the basic concept and
+procedures of Hefei-NAMD</strong> in the following pages:</p>
+<ul>
+<li><a href="https://www.bilibili.com/video/BV1p5411c7RS/">Basic Hefei-NAMD</a></li>
+<li><a href="https://www.bilibili.com/video/BV1eo4y1m7yb/">Hefei-NAMD with CA-NAC</a></li>
+<li><a href="https://www.bilibili.com/video/BV1iV411E7TF/">Hefei-NAMD with excitonic effects</a></li>
+</ul>
+<p><img src="./Introduction-schematics.svg" alt="" /></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
+<p>There are two ways to install <code>NAMD-LMI</code>, downloading the pre-built binaries or
+building from scratch.</p>
+<h2 id="download-the-binary-from-github-release"><a class="header" href="#download-the-binary-from-github-release">Download the binary from Github Release</a></h2>
+<p>We provide the pre-built binaries at <a href="https://github.com/Ionizing/NAMD-LMI/releases">Github Release</a>.</p>
+<p>There are several platforms we support with pre-built binaries, in which we
+can identify them by their file names parts:</p>
+<ul>
+<li><strong>namd_lmi-<VERSION></strong>: the version of NAMD-LMI;</li>
+<li><strong>linux/macos/windows</strong>: which operating system it runs on;</li>
+<li><strong>x86_64/aarch64</strong>: which CPU architecture it runs on;</li>
+<li><strong>mkl-system/mkl-static/openblas-system/openblas-static</strong>: which BLAS
+implementation and which link scheme, where <code>xxx-system</code> <strong>requires you
+install corresponding BLAS implementation on system</strong>, while <code>xxx-static</code>
+statically link against to BLAS (which means you needn't install anything
+else) but come with larger binary sizes.</li>
+<li><strong>.tar.gz/zip</strong>: which compressor format it uses. You need to decompress
+the binary first.</li>
+</ul>
+<p>Example:</p>
+<ul>
+<li><code>namd_lmi-1.0.0-linux-x86_64-mkl-system.tar.gz</code> should run on an x86
+machine with 64-bit Linux installed, where the Intel-MKL should be installed.</li>
+<li><code>namd_lmi-1.0.0-macos-x86_64-mkl-system.tar.gz</code> should run on macOS with Intel
+chip.</li>
+<li><code>namd_lmi-1.0.0-macos-aarch64-mkl-system.tar.gz</code> should run on macOS with Apple
+Silicon.</li>
+<li><code>namd_lmi-1.0.0-windows-x86_64-mkl-static.zip</code> should run on Windows 7 or
+upper with Intel/AMD or other x86 chips.</li>
+</ul>
+<h2 id="build-from-scratch"><a class="header" href="#build-from-scratch">Build from scratch</a></h2>
+<p>The build requires Internet accessibility and Rust toolchain, Intel-MKL libraries.</p>
+<ul>
+<li>If you haven't installed Rust toolchain, run <code>curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh</code> and follow the instructions to configure it. When you finished
+the toolchain installation, you should be able to run <code>cargo</code> in command-line. Detailed
+instructions can be found <a href="https://rustup.rs">here</a>.</li>
+<li>If you have installed Rust toolchain and Intel-MKL already, just run <code>cargo install --git https://github.com/Ionizing/NAMD-LMI</code>. Several minutes later, the
+<code>namd_lmi</code> binary should be installed to <code>~/.cargo/bin</code>, no need to modify the
+<code>$PATH</code> (or <code>%PATH%</code> on Windows).</li>
+</ul>
+<p>There are four features to link BLAS implementations:</p>
+<ul>
+<li><code>intel-mkl-system</code>: dynamically link against pre-installed Intel-MKL library. You need
+to install Intel-MKL first.</li>
+<li><code>intel-mkl-static</code>: statically link against Intel-MKL library. If no pre-installed
+MKL is found, it will download Intel-MKL 2020 from web by itself.</li>
+<li><code>openblas-system</code>: dynamically link against pre-installed OpenBLAS. You need to install
+OpenBLAS first.</li>
+<li><code>openblas-static</code>: statically link against OpenBLAS library. If no pre-installed OpenBLAS
+is found, it will download OpenBLAS source code and build it from scratch.</li>
+</ul>
+<h2 id="test-the-installation"><a class="header" href="#test-the-installation">Test the installation</a></h2>
+<p>Once you obtain the <code>namd_lmi</code> binary, just put it in your <code>PATH</code>, and then you
+should be able to run it with the output like</p>
+<pre><code class="language-shell">$ namd_lmi
++----------------------------------------------------------------------+
+|                                                                      |
+|    _   _            __  __  _____           _       __  __  _____    |
+|   | \ | |    /\    |  \/  ||  __ \         | |     |  \/  ||_   _|   |
+|   |  \| |   /  \   | \  / || |  | | ______ | |     | \  / |  | |     |
+|   | . ` |  / /\ \  | |\/| || |  | ||______|| |     | |\/| |  | |     |
+|   | |\  | / ____ \ | |  | || |__| |        | |____ | |  | | _| |_    |
+|   |_| \_|/_/    \_\|_|  |_||_____/         |______||_|  |_||_____|   |
+|                                                                      |
++----------------------------------------------------------------------+
+
+Welcome to use namd!
+    current version:    0.1.0
+    git hash:           d659586
+    author(s):          Ionizing
+    host:               x86_64-unknown-linux-gnu
+    built time:         2024-11-19 15:34:05 +08:00
+
+
+Usage: namd_lmi &lt;COMMAND&gt;
+
+Commands:
+  nac      Calculate non-adiabatic coupling (NAC) including `&lt;j| d/dt |k&gt;` and momentum matrix `&lt;i| p |j&gt;`
+  hamil    Generate the Hamiltonian from NAC according to config file
+  surfhop  Perform the surface-hopping process with given Hamiltonian file and config file
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help (see more with '--help')
+  -V, --version  Print version
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="overall-process"><a class="header" href="#overall-process">Overall process</a></h1>
+<p>NAMD-LMI is divided into three parts: <code>nac</code>, <code>hamil</code> and <code>surfhop</code>, corresponding
+to the calculation of non-adiabatic coupling, Hamiltonian and surface hopping.</p>
+<ol>
+<li>Run VASP like traditional Hefei-NAMD;</li>
+<li>Run <code>namd_lmi nac -c config</code> to calculate non-adiabatic coupling.
+A visualization script <code>nac_plot.py</code> is also available via <code>namd_lmi nac --generate pp</code>.</li>
+<li>Run <code>namd_lmi hamil -c config</code> to generate Hamiltonian plus external field.
+The external field is described in a rhai script, which can be generated via
+<code>namd_lmi hamil --generate efield</code>.
+A visualization script <code>hamil_plot.py</code> is also available via <code>namd_lmi hamil --generate pp</code>.</li>
+<li>Run <code>namd_lmi surfhop -c config</code> to run surface hopping and get the real time
+evolution of the population.
+A visualization script <code>surfhop_plot.py</code> is also available via <code>namd_lmi surfhop --generate pp</code>.</li>
+</ol>
+<p><img src="./Flowchart.svg" alt="Flowchart of NAMD-LMI" /></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="non-adiabatic-coupling"><a class="header" href="#non-adiabatic-coupling">Non-adiabatic Coupling</a></h1>
+<p>In Hefei-NAMD non-adiabatic coupling (NAC) is defined as the derivative of
+wavefunctions</p>
+<p>\begin{equation}
+\mathbf{D}_{jk} = \mel{\phi_j}{\dv{t}}{\phi_k}
+\end{equation}</p>
+<p>where $\phi$ is the Kohn-Sham (KS) orbitals calculated by VASP.</p>
+<p>To simulate photo-excitations process, momentum matrix element \(\mathbf{P}_{jk}
+= \mel{j}{\mathbf{p}}{k}\) is needed to calculate the light-matter interaction
+(LMI) term</p>
+<p>\begin{equation}
+\mathcal{H}_{jk}^{\mathrm{LMI}} = -e \frac{\mathbf{A}}{m_e} \mel{j}{\mathbf{p}}{k}
+\end{equation}</p>
+<p>in which $\mathbf{p}$ is the momentum opeartor, and \(\mathbf{A}\) is the vector potential
+of external field.</p>
+<p><strong>NOTE:</strong> <code>namd_lmi</code> is capable of calculating both \(\mathbf{D}_{jk}\) and \(\mathbf{P}_{jk}\).</p>
+<h2 id="help-message"><a class="header" href="#help-message">Help message</a></h2>
+<pre><code class="language-shell">$ namd_lmi nac
+Calculate non-adiabatic coupling (NAC) including `&lt;j| d/dt |k&gt;` and momentum matrix `&lt;i| p |j&gt;`
+
+Usage: namd_lmi nac [OPTIONS]
+
+Options:
+  -n, --nthreads &lt;NTHREADS&gt;
+          Number of threads for parallel calculation.
+
+          If 0 is set, it will fall back to the number of logic CPU cores of you machine.
+
+          [default: 0]
+
+  -c, --config &lt;CONFIG&gt;
+          Config file name.
+
+          Aliases: "cfg", "conf".
+
+          [default: nac_config.toml]
+
+      --generate &lt;GENERATE&gt;
+          Generate auxiliary files for the calculation and analysis.
+
+          The calculation will not run if this flag is set.
+
+          Alias: "gen"
+
+          Possible values:
+          - config-template:      Generate config template for NAC calculation. Aliases: "config", "cfg", "conf"
+          - postprocess-template: Generate post-process scripts for NAC analysis. Aliases: "post-process", "postprocess", "pp"
+
+  -h, --help
+          Print help (see a summary with '-h')
+</code></pre>
+<h2 id="procedures"><a class="header" href="#procedures">Procedures</a></h2>
+<ol>
+<li>
+<p>Generate a configuration template.</p>
+<pre><code class="language-shell">$ namd_lmi nac --generate conf
+2024-11-19 20:26:10 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-19 20:26:10 [ INFO] Writing `01_nac_config_template.toml ...`
+2024-11-19 20:26:10 [ INFO] Time used: 1.351249ms
+</code></pre>
+<p>where the <code>01_nac_config_template.toml</code> reads</p>
+<pre><code class="language-toml">		 rundir = "../run"
+		ikpoint = 1
+		 brange = [0, 0]
+			nsw = 2000
+		 ndigit = 4
+		  potim = 1
+	temperature = 0
+phasecorrection = true
+	   nacfname = "NAC.h5"
+</code></pre>
+</li>
+<li>
+<p>Modify the configuration according to your AIMD parameters.</p>
+<p>If you are familiar with the original Hefei-NAMD procedure, the parameters in
+<code>01_nac_config_template.toml</code> is not hard to understand:</p>
+<ul>
+<li><code>rundir</code> <em>string</em>: AIMD directory where thousands of SCF with WAVECARs lies within.</li>
+<li><code>ikpoint</code> <em>integer</em>: Which K point to choose, the index counts from <code>1</code>. For now, you
+can only choose one K point is selectable to calculate NAC and momentum
+matrix elements.</li>
+<li><code>brange</code> <em>[integer, integer]</em>: Selected band range for calculation. <code>[100, 120]</code> will select
+band from 100 to 120 to do the calculation, 21 bands in total.</li>
+<li><code>nsw</code> <em>integer</em>: Number of steps in AIMD. If there are <code>2000</code> steps in your <code>run/</code>,
+this field should be <code>2000</code>.</li>
+<li><code>ndigit</code> <em>integer</em>: Number of digits for the index of each step. If the directories in your
+<code>run/</code> are <code>00001</code> ... <code>02000</code>, this field should be 5.</li>
+<li><code>potim</code> <em>float</em>: Time step of the AIMD, consistent with the <code>POTIM</code> in INCAR during NVE.</li>
+<li><code>temperature</code> <em>float</em>: Temperature of the MD, consistent with the <code>TEEND</code> in INCAR during NVT.</li>
+<li><code>phasecorrection</code> <em>bool</em>: Do phase correction for the KS orbitals or not. Should be either
+<code>true</code> or <code>false</code>. Usually this term is essential for the photo-excitation process.</li>
+<li><code>nacfname</code> <em>string</em>: Output file name.</li>
+</ul>
+<p><strong>NOTE:</strong> The <em>string</em> fields must be surrounded with quotation mark <code>""</code>.</p>
+</li>
+<li>
+<p>Do the coupling calculation.</p>
+<p>This process is quite simple</p>
+<pre><code class="language-shell">$ namd_lmi nac -c 01_nac_config_template.toml
+2024-11-19 21:06:20 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-19 21:06:20 [ INFO]
++----------------------------------------------------------------------+
+|                                                                      |
+|    _   _            __  __  _____           _       __  __  _____    |
+|   | \ | |    /\    |  \/  ||  __ \         | |     |  \/  ||_   _|   |
+|   |  \| |   /  \   | \  / || |  | | ______ | |     | \  / |  | |     |
+|   | . ` |  / /\ \  | |\/| || |  | ||______|| |     | |\/| |  | |     |
+|   | |\  | / ____ \ | |  | || |__| |        | |____ | |  | | _| |_    |
+|   |_| \_|/_/    \_\|_|  |_||_____/         |______||_|  |_||_____|   |
+|                                                                      |
++----------------------------------------------------------------------+
+
+Welcome to use namd!
+    current version:    0.1.0
+    git hash:           d659586
+    author(s):          Ionizing
+    host:               x86_64-unknown-linux-gnu
+    built time:         2024-11-19 15:34:05 +08:00
+
+2024-11-19 21:06:20 [ INFO] Running with 0 threads.
+2024-11-19 21:06:20 [ INFO] Got NAC config:
+####         NAMD-lmi config for Non-Adiabatic Coupling (NAC) calculation       ####
+####    YOU NEED TO CHANGE THE PARAMETERS IN THE FOLLOWING TO FIT YOU SYSTEM    ####
+
+               rundir = "../../aimd/static_ncl_40/run/"
+              ikpoint = 1
+               brange = [213, 220]
+                  nsw = 2000
+               ndigit = 4
+                potim = 1
+          temperature = 300
+      phasecorrection = true
+             nacfname = "NAC.h5"
+
+2024-11-19 21:06:20 [ INFO] No pre-calculated NAC available, start calculating from scratch in "../../aimd/static_ncl_40/run/"/.../WAVECARs ...
+2024-11-19 21:06:20 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/0001" and "../../aimd/static_ncl_40/run/0002" ..., remains:   1999
+2024-11-19 21:06:20 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/0312" and "../../aimd/static_ncl_40/run/0313" ..., remains:   1998
+2024-11-19 21:06:20 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/1000" and "../../aimd/static_ncl_40/run/1001" ..., remains:   1997
+2024-11-19 21:06:20 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/0218" and "../../aimd/static_ncl_40/run/0219" ..., remains:   1996
+2024-11-19 21:06:20 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/0078" and "../../aimd/static_ncl_40/run/0079" ..., remains:   1995
+2024-11-19 21:06:20 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/0132" and "../../aimd/static_ncl_40/run/0133" ..., remains:   1994
+...
+2024-11-19 21:08:31 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/1370" and "../../aimd/static_ncl_40/run/1371" ..., remains:      5
+2024-11-19 21:08:31 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/1358" and "../../aimd/static_ncl_40/run/1359" ..., remains:      4
+2024-11-19 21:08:31 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/1216" and "../../aimd/static_ncl_40/run/1217" ..., remains:      3
+2024-11-19 21:08:31 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/1217" and "../../aimd/static_ncl_40/run/1218" ..., remains:      2
+2024-11-19 21:08:31 [ INFO]  Calculating couplings between "../../aimd/static_ncl_40/run/1215" and "../../aimd/static_ncl_40/run/1216" ..., remains:      1
+2024-11-19 21:08:32 [ INFO] Time used: 72.490979406s
+</code></pre>
+<p><code>namd_lmi nac</code> uses <a href="https://github.com/rayon-rs/rayon"><code>rayon</code></a> to utilize
+multi-threaded parallelism and you can specify the number of threads used by
+this command via <code>-n/--nthreads</code>. For example
+<code>namd_lmi -c 01_nac_config_template.toml -n 32</code> uses 32 threads to calculate
+the couplings.</p>
+</li>
+<li>
+<p>Visualize couplings</p>
+<p>Run <code>namd_lmi nac --generate pp</code> to get a Python script to visualize the
+produced <code>NAC.h5</code></p>
+<pre><code class="language-shell">$ namd_lmi nac --generate pp
+2024-11-19 21:14:22 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-19 21:14:22 [ INFO] Writing `nac_plot.py` ...
+2024-11-19 21:14:22 [ INFO] Time used: 1.241002ms 
+
+$ python3 ./nac_plot.py
+Writing nac_bands.png
+Writing nac_nac.png
+</code></pre>
+<p>And the produced <code>.pngs</code> should look like</p>
+<p><img src="./nac_bands.png" alt="nac_bands.png" />
+<img src="./nac_nac.png" alt="nac_nac.png" /></p>
+<p>You can modify <code>nac_plot.py</code> to visualize whatever you want.</p>
+</li>
+</ol>
+<h2 id="data-fields-of-nach5"><a class="header" href="#data-fields-of-nach5">Data fields of <code>NAC.h5</code></a></h2>
+<pre><code>$ h5dump -H NAC.h5
+HDF5 "NAC.h5" {
+GROUP "/" {
+   DATASET "brange" {
+      DATATYPE  H5T_ARRAY { [2] H5T_STD_U64LE }
+      DATASPACE  SCALAR
+   }
+   DATASET "efermi" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "eigs" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 1, 8 ) / ( 1999, 1, 8 ) }
+   }
+   DATASET "ikpoint" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "nbands" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "nbrange" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "ndigit" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "nspin" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "nsw" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "olaps_i" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 1, 8, 8 ) / ( 1999, 1, 8, 8 ) }
+   }
+   DATASET "olaps_r" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 1, 8, 8 ) / ( 1999, 1, 8, 8 ) }
+   }
+   DATASET "phasecorrection" {
+      DATATYPE  H5T_ENUM {
+         H5T_STD_I8LE;
+         "FALSE"            0;
+         "TRUE"             1;
+      }
+      DATASPACE  SCALAR
+   }
+   DATASET "pij_i" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 1, 3, 8, 8 ) / ( 1999, 1, 3, 8, 8 ) }
+   }
+   DATASET "pij_r" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 1, 3, 8, 8 ) / ( 1999, 1, 3, 8, 8 ) }
+   }
+   DATASET "potim" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "proj" {             // This part is cropped from PROCARs
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 4, 8, 36, 9 ) / ( 1999, 4, 8, 36, 9 ) }
+   }
+   DATASET "temperature" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SCALAR
+   }
+}
+}
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="hamiltonian"><a class="header" href="#hamiltonian">Hamiltonian</a></h1>
+<p>The Hamiltonian here is simply a cropped coupling of the Non-adiabatic
+couplings plus the external field.</p>
+<p>The total Hamiltonian of <code>namd_lmi</code> consists of three parts:
+\begin{equation}
+\mathcal{H} = \mathcal{H}^0 + \mathcal{H}^{NAC} + \mathcal{H}^{LMI}
+\end{equation}
+where \(\mathcal{H}^0\) is just eigenvalues of KS orbitals and
+\(\mathcal{H}^{NAC}_{jk} = -i\hbar \mathbf{D}_{jk}\) models the <em>e-ph</em> and
+spin-orbit coupling (if <code>LSORBIT=.TRUE.</code> is used). The LMI term reads
+\(\mathcal{H}_{jk}^{\mathrm{LMI}} = -e \frac{\mathbf{A}}{m_e} \mel{j}{\mathbf{p}}{k}\).
+The vector potential term \(\mathbf{A}\) is calculated by integrating the external
+electric field
+\begin{equation}
+\mathbf{A}(t) = - \int_0^t \mathbf{E}(t') \dd t'
+\end{equation}</p>
+<h2 id="help-message-1"><a class="header" href="#help-message-1">Help message</a></h2>
+<pre><code class="language-shell">$ namd_lmi hamil --help
+Generate the Hamiltonian from NAC according to config file
+
+Usage: namd_lmi hamil [OPTIONS]
+
+Options:
+  -c, --config &lt;CONFIG&gt;
+          Config file name.
+
+          Aliases: "cfg", "conf".
+
+          [default: hamil_config.toml]
+
+      --generate &lt;GENERATE&gt;
+          Generate auxiliary files for the calculation and analysis.
+
+          The generation of Hamiltonian will not run if this flag is set.
+
+          Alias: "gen".
+
+          Possible values:
+          - config-template:      Generate config template for Hamiltonian generation. Aliases: "config", "cfg" and "conf"
+          - efield-template:      Generate script template for external electric field. Aliases: "efield", "ef"
+          - postprocess-template: Generate post-process scripts for Hamiltonian analysis. Aliases: "post-process", "postprocess", "pp"
+
+  -h, --help
+          Print help (see a summary with '-h')
+</code></pre>
+<h2 id="procedures-1"><a class="header" href="#procedures-1">Procedures</a></h2>
+<ol>
+<li>
+<p>Generate a configuration template, and an optical field description file</p>
+<pre><code class="language-shell">$ namd_lmi hamil --generate conf
+2024-11-19 21:49:48 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-19 21:49:48 [ INFO] Writing `02_hamil_config_template.toml` ...
+2024-11-19 21:49:48 [ INFO] Writing config to file "02_hamil_config_template.toml"
+2024-11-19 21:49:48 [ INFO] Time used: 1.624654ms
+
+$ namd_lmi hamil --generate efield
+2024-11-20 11:34:14 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-20 11:34:14 [ INFO] Writing `efield_template.rhai` ...
+2024-11-20 11:34:14 [ INFO] Time used: 977.069µs
+</code></pre>
+</li>
+<li>
+<p>Modify the Hamiltonian configuration file and optical description file</p>
+<ul>
+<li>
+<p><strong>Hamiltonian configuration</strong></p>
+<p>The file <code>02_hamil_config.toml</code> should read</p>
+<pre><code class="language-toml"># NAMD-lmi config for Hamiltonian generation
+
+      ikpoint = 1
+   basis_list = "215..220"
+ basis_labels = ["VBM-1", "VBM", "CBM", "CBM+1", "CBM+2", "CBM+3"]
+    nac_fname = "NAC.h5"
+ efield_fname = "./efield.rhai"
+  hamil_fname = "HAMIL.h5"
+   propmethod = "Expm"
+      scissor = 1.5 # unit: eV
+</code></pre>
+<p>Explanation of each field:</p>
+<ul>
+<li>
+<p><code>ikpoint</code> <em>integer</em>: K point index, consistent with NAC's configuration.</p>
+</li>
+<li>
+<p><code>basis_list</code> <em>string</em>: <strong>THIS FIELD SHOULD BE A STRING.</strong>, list of bands to form the basis.</p>
+<ul>
+<li>Positive one indicates the spin-up band;</li>
+<li>Negative one indicates the spin-down band.</li>
+<li>Zeros are not allowed</li>
+</ul>
+<p>You can specify a consecutive bands with multiple <code>range</code>s or singletons:</p>
+<p>A <code>range</code> is a pattern of <code>start..end</code> where</p>
+<pre><code>- start and end are integers with same sign (both + or both -)
+- |start| &lt;= |end|
+- no other characters (whitespace or any other thinds) around `..`
+</code></pre>
+<p>And multiple ranges and singletons are separated with one or more whitespaces.</p>
+<p>EXAMPLE:</p>
+<pre><code>- `1..4` expands to `[1, 2, 3, 4]`;
+- `1..1` expands to `[1]`;
+- `4..1` expands to empty list `[]`;
+
+- `-1..-4` expands to `[-1, -2, -3, -4]`.
+- `-4..-4` expands to `[-4]`
+- `-4..-1` expands to empty list `[]`;
+
+- Tokens like `-4..4` `1 ..3`, `0`, `-3..0`, `-3..3` are not allowed.
+</code></pre>
+<p><code>"-1..-4 1..4"</code> expands to <code>[-1, -2, -3, -4, 1, ,2 , 3, 4]</code>, and meaning that band
+1 to 4 with spin down and band 1 to 4 with spin up form the total basis.</p>
+</li>
+<li>
+<p><code>basis_labels</code> <em>list of strings</em>: Labels of each band in the basis. This field is optional,
+or it must have the same length with expanded <code>basis_list</code>.</p>
+</li>
+<li>
+<p><code>nac_fname</code> <em>string</em>: File name of the pre-calculated NAC by last procedure (<code>namd_lmi nac -c config</code>).</p>
+</li>
+<li>
+<p><code>efield_fname</code> <em>string</em>: Name of the optical field description file. If no optical field
+is applied, this field can be commented out.</p>
+</li>
+<li>
+<p><code>hamil_fname</code> <em>string</em>: File name of output Hamiltonian.</p>
+</li>
+<li>
+<p><code>propmethod</code> <em>string</em>: Numerical method to solve of time-dependent Schrodinger equation (TDSE).
+Here are supported methods:</p>
+<ul>
+<li><code>Expm</code>: Matrix exponentiation by <a href="https://en.wikipedia.org/wiki/Pad%C3%A9_approximant">Padé approximant</a>.</li>
+<li><code>Exact</code>: Matrix power by <a href="https://en.wikipedia.org/wiki/Diagonalizable_matrix">diagonalization</a>.</li>
+<li><code>FiniteDifference/FD</code>: Solve TDSE using finite difference method. <strong>This method usually requires fine
+time steps in the next step</strong>.</li>
+<li><code>LiouvilleTrotter/LT</code>: Using Trotter formula to solve TDSE, proposed by
+<em>Akimov, A. V., &amp; Prezhdo, O. V. J. Chem. Theory Comput. 2014, 10, 2, 789–804</em></li>
+</ul>
+<p>It should be noted that <code>Expm</code>, <code>Exact</code> are usually slow while they have large tolerance of time step,
+resulting in much higher performance beyond <code>FiniteDifference</code>. Large time step also can be used with
+<code>LiouvilleTrotter</code> method, while it requires the off-diagonal elements of Hamiltonian to be real, which
+are usually not viable for photo-excitation processes.</p>
+</li>
+<li>
+<p><code>scissor</code> <em>float</em>: Scissor opeartor for the gap correction. The photo-excitation process
+requires a high-precision time-averaged band gap over AIMD, and this parameter can modify
+the gap to target value.</p>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>Optical field description</strong></p>
+<p>The <code>efield_template.rhai</code> should read like</p>
+<pre><code class="language-rhai">//
+// Example rhai script for ELECTRIC FIELD input
+//
+// This script uses `rhai` as the scripting language.
+//
+// For detailed usage of `rhai`, please see https://rhai.rs/book and turn to
+// chapter "Scripting Language".
+//
+//
+// Available operators:
+//      +   +=
+//      -   -=
+//      *   *=
+//      /   /=
+//      %   %=      (modulo operator)
+//      **  **=     (power operator, `a ** b` equals `a` raised to the `b` power)
+//      ==  !=
+//      &lt;   &lt;=
+//      &gt;   &gt;=
+//      ..  ..=     ( .. is exclusive range, ..= is inclusive range )
+//                  example: (1 .. 9) == (1 ..= 8)
+//
+//      Detailed help: https://rhai.rs/book/language/num-op.html
+//
+// Pre-defined constants:
+//
+//      - e: Euler's number, aka the base of natural logarithms
+//      - pi: π
+//
+// Pre-defined mathematical functions:
+//
+//      - trigonometric:
+//          sin     cos     tan
+//          sinh    cosh    tanh
+//          asin    acos    atan
+//          asinh   acosh   atanh
+//
+//      - numerical:
+//          sqrt(x)
+//          exp(x) (base of E)
+//          ln(x) (base of E)
+//          log(x) (base of 10), or log(x, base)
+//
+//      - rounding:
+//          floor
+//          ceiling
+//          round
+//          int
+//          fraction
+//
+//      - conversion:
+//          to_degrees
+//          to_radians
+//
+//      - comparison:
+//          min
+//          max
+//
+//
+// You must define a function named `efield` with only one parameter typed with float64.
+//
+// And this function must return an array with exactly 3 float64 elements.
+//
+// This function will be evaluated from `t=0.0` to `t=namdtime*potim` (exclusive)
+//
+fn efield(t) {
+    let hbar  = 0.658212;           // reduced planck constant (eV/fs)
+    let amp   = 0.005;              // amplitude = 0.005 (Volt/Angstrom)
+    let hnu   = 1.4;                // photon energy = h * nu = 1.4 (eV)
+    let omega = hnu / hbar;         // omega = hnu / hbar (rad/fs)
+
+    let x = amp * cos(omega * t);   // electric field at `x` direction at time `t`
+    let y = amp * sin(omega * t);   // electric field at `y` direction at time `t`
+    let z = 0.0;                    // no electric field at `z` direction
+
+    return [x, y, z];               // this statement is required.
+} 
+</code></pre>
+<p>where the contents after with <code>//</code> are just comments for rhai syntax illustration.</p>
+<p>This file describes an persistent uniform \(\sigma^+\) optical field, with
+\(h\nu = 1.4 \mathrm{eV}\), amplitude \(A_0 = 0.005 \mathrm{V/Angstrom}\).</p>
+<p>If you want to impose an optical pulse, an envelop function should be used
+before <code>return [x, y, z]</code>.</p>
+<p>For example, a Gaussian pulse:</p>
+<pre><code>fn efield(t) {
+    let hbar  = 0.658212;           // reduced planck constant (eV/fs)
+    let amp   = 0.005;              // amplitude = 0.005 (Volt/Angstrom)
+    let hnu   = 1.4;                // photon energy = h * nu = 1.4 (eV)
+    let omega = hnu / hbar;         // omega = hnu / hbar (rad/fs)
+
+    let x = amp * cos(omega * t);   // electric field at `x` direction at time `t`
+    let y = amp * sin(omega * t);   // electric field at `y` direction at time `t`
+    let z = 0.0;                    // no electric field at `z` direction
+
+    let sigma = 1000.0;             // sigma of gaussian function, in femto second
+    let mu    = 1000.0;             // center of the pulse, in femto second
+    let envelop = exp(-(t-mu)**2 / sigma**2 / 2.0);
+
+    return [x * envelop, y * envelop, z * envelop];
+} 
+</code></pre>
+<p>a sine pulse:</p>
+<pre><code>fn efield(t) {
+    let hbar  = 0.658212;           // reduced planck constant (eV/fs)
+    let amp   = 0.005;              // amplitude = 0.005 (Volt/Angstrom)
+    let hnu   = 1.4;                // photon energy = h * nu = 1.4 (eV)
+    let omega = hnu / hbar;         // omega = hnu / hbar (rad/fs)
+
+    let x = amp * cos(omega * t);   // electric field at `x` direction at time `t`
+    let y = amp * sin(omega * t);   // electric field at `y` direction at time `t`
+    let z = 0.0;                    // no electric field at `z` direction
+
+    let duration = 1000.0;          // Pulse duration, 1000 fs
+    let omega_envelop = 2.0 / duration * pi;    // Envelop angular frequency
+
+    let envelop = if t &lt;= duration {
+        sin(omega_envelop*t - 0.5*pi) * 0.5 + 0.5;
+    } else {
+        0.0
+    };
+
+    return [x*envelop, y*envelop, z*envelop];   // this statement is required.
+}
+</code></pre>
+</li>
+</ul>
+</li>
+<li>
+<p>Generate Hamiltonian</p>
+<pre><code class="language-shell">$ namd_lmi hamil -c 02_hamil_config_template.toml
+2024-11-25 11:15:53 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-25 11:15:53 [ INFO]
++----------------------------------------------------------------------+
+|                                                                      |
+|    _   _            __  __  _____           _       __  __  _____    |
+|   | \ | |    /\    |  \/  ||  __ \         | |     |  \/  ||_   _|   |
+|   |  \| |   /  \   | \  / || |  | | ______ | |     | \  / |  | |     |
+|   | . ` |  / /\ \  | |\/| || |  | ||______|| |     | |\/| |  | |     |
+|   | |\  | / ____ \ | |  | || |__| |        | |____ | |  | | _| |_    |
+|   |_| \_|/_/    \_\|_|  |_||_____/         |______||_|  |_||_____|   |
+|                                                                      |
++----------------------------------------------------------------------+
+
+Welcome to use namd!
+    current version:    0.1.0
+    git hash:           NO GIT INFO
+    author(s):          Ionizing
+    host:               x86_64-unknown-linux-gnu
+    built time:         2024-11-21 11:27:32 +08:00
+
+2024-11-25 11:15:53 [ WARN] Field 'hamil_fname' points to an existing file and it will be overwritten.
+2024-11-25 11:15:53 [ INFO] Got Hamiltonnian config:
+# NAMD-lmi config for Hamiltonian generation
+
+              ikpoint = 1
+           basis_list = [215, 216, 217, 218, 219, 220]
+         basis_labels = ["VBM-1", "VBM", "CBM", "CBM+1", "CBM+2", "CBM+3"]
+            nac_fname = "NAC.h5"
+         efield_fname = "./efield.rhai"
+          hamil_fname = "HAMIL.h5"
+           propmethod = "Expm"
+              scissor = 1.5
+
+2024-11-25 11:15:53 [ INFO] Got electric field from file "./efield.rhai" with content of:
+//
+// Example rhai script for ELECTRIC FIELD input
+//
+...
+...
+    return [x, y, z];               // this statement is required.
+}
+
+2024-11-25 11:15:53 [ INFO] Found Efermi = -2.824 eV, shift band eigvals to align with it ...
+2024-11-25 11:15:53 [ INFO] Found scissor opeartor of 1.5000 eV. current system has gap of 1.5156 .. 1.5303 .. 1.5457 (min .. avg .. max) (eV).
+                     Now the gap is set to 1.4853 .. 1.5000 .. 1.5155 (min .. avg .. max) (eV). min(CBM_t) - max(VBM_t) =   1.4579
+2024-11-25 11:15:53 [ INFO] Time used: 156.235792ms
+</code></pre>
+</li>
+<li>
+<p>Visualize the Hamiltonian</p>
+<p>Run <code>namd_lmi hamil --generate pp</code> to get <code>hamil_plot.py</code>, and then run it to get <code>.png</code>s</p>
+<pre><code class="language-shell">$ namd_lmi hamil --generate pp
+2024-11-20 16:07:04 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-20 16:07:04 [ INFO] Writing `hamil_plot.py` ...
+2024-11-20 16:07:04 [ INFO] Time used: 1.868109ms
+
+$ python3 hamil_plot.py HAMIL.h5
+
+Writing hamil_nac.png
+Writing hamil_pij.png
+</code></pre>
+<p><img src="./hamil_bands.png" alt="Bands inside Hamiltonian" />
+<img src="./hamil_nac.png" alt="NAC inside Hamiltonian" />
+<img src="./hamil_pij.png" alt="Momentum matrix elements Hamiltonian" /></p>
+</li>
+<li>
+<p>Data fields of <code>HAMIL.h5</code></p>
+</li>
+</ol>
+<pre><code>HDF5 "HAMIL.h5" {
+GROUP "/" {
+   DATASET "basis_labels" {
+      DATATYPE  H5T_STD_U8LE
+      DATASPACE  SIMPLE { ( 31 ) / ( 31 ) }
+   }
+   DATASET "basis_list" {
+      DATATYPE  H5T_STD_I32LE
+      DATASPACE  SIMPLE { ( 6 ) / ( 6 ) }
+   }
+   DATASET "efield" {
+      DATATYPE  H5T_STD_U8LE
+      DATASPACE  SIMPLE { ( 2263 ) / ( 2263 ) }
+   }
+   DATASET "eig_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 6 ) / ( 1999, 6 ) }
+   }
+   DATASET "ikpoint" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "nac_t_i" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 6, 6 ) / ( 1999, 6, 6 ) }
+   }
+   DATASET "nac_t_r" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 6, 6 ) / ( 1999, 6, 6 ) }
+   }
+   DATASET "nbasis" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "ndigit" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "nsw" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "pij_t_i" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 3, 6, 6 ) / ( 1999, 3, 6, 6 ) }
+   }
+   DATASET "pij_t_r" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 3, 6, 6 ) / ( 1999, 3, 6, 6 ) }
+   }
+   DATASET "potim" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "proj_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1999, 6, 36, 9 ) / ( 1999, 6, 36, 9 ) }
+   }
+   DATASET "propmethod" {
+      DATATYPE  H5T_STD_U8LE
+      DATASPACE  SIMPLE { ( 4 ) / ( 4 ) }
+   }
+   DATASET "scissor" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "temperature" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SCALAR
+   }
+}
+}
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="surface-hopping"><a class="header" href="#surface-hopping">Surface Hopping</a></h1>
+<p>This is the "literal" running process to simulate the dynamics of carriers. It ultilizes
+the Fewest switches surface hopping (FSSH) algorithm under the classical path approximation
+(CPA) to estimate the real-time population of each state. The hopping probability reads</p>
+<p>\begin{equation}
+P_{j\to k}(t, t+\Delta t) = \max \qty{-2 \Delta t \qty(
+-\frac{\Re(\rho_{jk} D_{jk})}{\rho_{jj}} + \frac{ \Re(\rho_{jk} H_{jk}^{LMI} / i\hbar)}{\rho_{jj}}
+), 0}
+\end{equation}</p>
+<p>The formalism of FSSH is consistent with
+previous studies:</p>
+<ul>
+<li>J. Chem. Theory Comput. 2013, 9, 11, 4959–4972</li>
+<li>J. Chem. Theory Comput. 2014, 10, 2, 789–804</li>
+<li>WIREs Comput Mol Sci. 2019;9:e1411.</li>
+</ul>
+<h2 id="help-message-2"><a class="header" href="#help-message-2">Help message</a></h2>
+<pre><code class="language-shell">$ namd_lmi surfhop --help
+Perform the surface-hopping process with given Hamiltonian file and config file
+
+Usage: namd_lmi surfhop [OPTIONS]
+
+Options:
+  -n, --nthreads &lt;NTHREADS&gt;
+          Number of threads for parallel calculation.
+
+          If 0 is set, it will fall back to the number of logic CPU cores of you machine.
+
+          [default: 0]
+
+  -c, --config &lt;CONFIG&gt;
+          Config file name.
+
+          Aliases: "cfg", "conf".
+
+      --generate &lt;GENERATE&gt;
+          Generate auxiliary files for the calculation and analysis.
+
+          The surface-hopping will not run if this flag is set.
+
+          Alias: "gen".
+
+          Possible values:
+          - config-template:      Generate config template for Hamiltonian generation. Aliases: "config", "cfg" and "conf"
+          - inistep.py:           Generate Python script to help append `inistep` field. Aliases: "inistep" and "ini"
+          - postprocess-template: Generate post-process scripts for surface-hopping analysis. Aliases: "post-process", "postprocess", "pp"
+
+      --collect-results &lt;COLLECT_RESULTS&gt;
+          Collect results produced by the surface-hopping.
+
+          The surface-hopping will not run if this flag is set.
+
+          Aliases: "collect", "cr"
+
+  -h, --help
+          Print help (see a summary with '-h')
+</code></pre>
+<h2 id="procedures-2"><a class="header" href="#procedures-2">Procedures</a></h2>
+<ol>
+<li>
+<p>Generate configuration file, and auxiliary Python script.</p>
+<pre><code class="language-shell">$ namd_lmi surfhop --generate conf
+2024-11-20 20:59:21 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-20 20:59:21 [ INFO] writing `03_surfhop_config_template.toml` ...
+2024-11-20 20:59:21 [ INFO] Writing `inisteps.py` ...
+2024-11-20 20:59:21 [ INFO] Time used: 13.977617ms
+
+$ namd_lmi surfhop --generate pp
+2024-11-20 20:59:30 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-20 20:59:30 [ INFO] Writing `surfhop_plot.py` ...
+2024-11-20 20:59:30 [ INFO] Time used: 1.534094ms
+</code></pre>
+</li>
+<li>
+<p>Modify the Surface Hopping configuration file</p>
+<pre><code class="language-toml">####             NAMD-lmi config for surface-hopping calculation            ####
+#### YOUT NEED TO CHANGE THE PARAMETERS IN THE FOLLOWING TO FIT YOUR SYSTEM ####
+
+          hamil_fname = "HAMIL.h5"
+             namdtime = 1000
+                 nelm = 10
+                ntraj = 10000
+             shmethod = "FSSH"
+
+               outdir = "outdir"
+     detailed_balance = "DependsOnEField"
+      smearing_method = "LorentzianSmearing"
+       smearing_sigma = 0.01
+ smearing_npoints_per_eV = 500
+
+              iniband = "0"
+             inisteps = [
+         1 ,
+         2 ,
+         3 ,
+]
+</code></pre>
+<p>Explanation of each field:</p>
+<ul>
+<li>
+<p><code>hamil_fname</code> <em>string</em>: Hamiltonian file name.</p>
+</li>
+<li>
+<p><code>namdtime</code> <em>integer</em>: Total NAMD simulate steps.</p>
+</li>
+<li>
+<p><code>nelm</code> <em>integer</em>: How many electronic steps within each ionic step.</p>
+<p>For <code>propmethod = "FiniteDifference"</code> in Hamiltonian, this field
+is required to be large, i.e. <code>nelm = 1000</code>. Otherwise, <code>nelm = 10</code> is enough.</p>
+</li>
+<li>
+<p><code>ntraj</code> <em>integer</em>: How many times to hop for each MD trajectory.</p>
+</li>
+<li>
+<p><code>shmethod</code> <em>string</em>: Which surface hopping method to use. Only "FSSH" is available for now.</p>
+</li>
+<li>
+<p><code>outdir</code> <em>string</em>: Output directory where the results will be written in. <strong>This field
+cannot be current dir ".".</strong></p>
+</li>
+<li>
+<p><code>detailed_balance</code> <em>string</em>: When the "detailed balance" factor \(B = e^{\Delta E / k_B T}\)
+applied on the upward hopping (hopping from lower energy to higher energy) probability.</p>
+<p>Available options:</p>
+<ul>
+<li>"Always": Always apply factor \(B\).</li>
+<li>"DependsOnEfield": Apply factor \(B\) only when external field is present, to allow upward
+hoppings.</li>
+<li>"NacOnly": Apply factor \(B\) only for NAC driven upward hoppings, meaning that only phonon
+(plus SOC) induced upward hoppings are restricted.</li>
+<li>"Never": Never apply this factor, no limitation on all upward hoppings.</li>
+</ul>
+</li>
+<li>
+<p><code>smearing_method</code> <em>string</em>: Smearing function for phonon spectra calculation.</p>
+<p>Available options:</p>
+<ul>
+<li>"LorentzianSmearing"/"Lorentzian"/"lorentzian"</li>
+<li>"GaussianSmearing"/"Gaussian"/"gaussian"</li>
+</ul>
+</li>
+<li>
+<p><code>smearing_sigma</code> <em>float</em>: Literal smearing width of smearing functions.</p>
+</li>
+<li>
+<p><code>smearing_npoints_per_eV</code> <em>integer</em>: Point density for spectra data.</p>
+</li>
+<li>
+<p><code>iniband</code> <em>string</em>: Bands where the electrons initially lie on. The indices is consistent
+with <code>nac</code> and <code>hamil</code>. Format is same as <code>basis_list</code>.</p>
+<p>For example, if <code>basis_list = "215..220"</code>, and we want the electron on band 220 initially,
+this field should be <code>iniband = "220"</code>; if we want three electrons on band 215, 216 and 217
+respectively, the this field should be <code>iniband = "215..217"</code>.</p>
+</li>
+<li>
+<p><code>inisteps</code> <em>list of integer</em>: Initial step index for each NAMD sample trajectory.</p>
+<p>There are only 3 samples as shown in <code>inisteps</code> field, which is far from enough. Run <code>python3 inisteps.py   03_surfhop_config_template.toml 1999 100</code> to generate 100 random initial configurations for the surface
+hopping method. Then delete the original <code>inisteps</code> and it finally reads</p>
+<pre><code class="language-toml">...
+...
+ smearing_npoints_per_eV = 500
+
+              iniband = 0
+## Appended by inisteps.py @ 2024-11-20 22:42:28
+            inisteps = [
+        13 ,
+        64 ,
+        78 ,
+...
+...
+      1965 ,
+      1982 ,
+      1993
+]
+</code></pre>
+</li>
+</ul>
+</li>
+<li>
+<p>Run the surface hopping.</p>
+</li>
+</ol>
+<pre><code class="language-shell">$ namd_lmi surfhop -c 03_surfhop_config_template.toml
+2024-11-21 10:08:20 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-21 10:08:20 [ INFO]
++----------------------------------------------------------------------+
+|                                                                      |
+|    _   _            __  __  _____           _       __  __  _____    |
+|   | \ | |    /\    |  \/  ||  __ \         | |     |  \/  ||_   _|   |
+|   |  \| |   /  \   | \  / || |  | | ______ | |     | \  / |  | |     |
+|   | . ` |  / /\ \  | |\/| || |  | ||______|| |     | |\/| |  | |     |
+|   | |\  | / ____ \ | |  | || |__| |        | |____ | |  | | _| |_    |
+|   |_| \_|/_/    \_\|_|  |_||_____/         |______||_|  |_||_____|   |
+|                                                                      |
++----------------------------------------------------------------------+
+
+Welcome to use namd!
+    current version:    0.1.0
+    git hash:           a51d001
+    author(s):          Ionizing
+    host:               x86_64-unknown-linux-gnu
+    built time:         2024-11-20 16:02:14 +08:00
+
+2024-11-21 10:08:20 [ INFO] Prepare to run surface-hopping in 0 threads ...
+2024-11-21 10:08:20 [ INFO] Log and output files will be stored in "outdir" .
+2024-11-21 10:08:20 [ INFO] Got Surface Hopping config:
+####             NAMD-lmi config for surface-hopping calculation            ####
+#### YOUT NEED TO CHANGE THE PARAMETERS IN THE FOLLOWING TO FIT YOUR SYSTEM ####
+
+          hamil_fname = "HAMIL.h5"
+             namdtime = 1000
+                 nelm = 10
+                ntraj = 10000
+             shmethod = "FSSH"
+
+               outdir = "outdir"
+     detailed_balance = "DependsOnEField"
+      smearing_method = "LorentzianSmearing"
+       smearing_sigma = 0.01
+ smearing_npoints_per_eV = 500
+
+              iniband = 220
+             inisteps = [
+        13 ,
+        64 ,
+        78 ,
+...
+...
+      1965 ,
+      1982 ,
+      1993 ,
+]
+
+2024-11-21 10:08:20 [ INFO] Linking Hamiltonian file "HAMIL.h5" to "outdir"
+2024-11-21 10:08:20 [ INFO] Writing electric field source file to efield.rhai ...
+2024-11-21 10:08:20 [ INFO] Writing electric field to "outdir/EAFIELD.txt" ...
+2024-11-21 10:08:20 [ INFO] Running surface hopping with namdinit = 81 ...
+2024-11-21 10:08:20 [ INFO] Running surface hopping with namdinit = 625 ...
+2024-11-21 10:08:20 [ INFO] Running surface hopping with namdinit = 896 ...
+...
+...
+2024-11-21 10:08:22 [ INFO] Running surface hopping with namdinit = 457 ...
+2024-11-21 10:08:22 [ INFO] Running surface hopping with namdinit = 478 ...
+2024-11-21 10:08:22 [ INFO] Running surface hopping with namdinit = 430 ...
+2024-11-21 10:08:22 [ INFO] Collecting results ...
+2024-11-21 10:08:22 [ INFO] Processing "outdir/result_0013.h5" ...
+2024-11-21 10:08:22 [ INFO] Processing "outdir/result_0081.h5" ...
+2024-11-21 10:08:22 [ INFO] Processing "outdir/result_0925.h5" ...
+...
+...
+2024-11-21 10:08:23 [ INFO] Processing "outdir/result_1872.h5" ...
+2024-11-21 10:08:23 [ INFO] Processing "outdir/result_0689.h5" ...
+2024-11-21 10:08:23 [ INFO] Processing "outdir/result_1529.h5" ...
+2024-11-21 10:08:23 [ INFO] Collecting done. Writing to "outdir/averaged_results.h5" ...
+2024-11-21 10:08:23 [ INFO] Time used: 3.848758855s
+</code></pre>
+<ol start="4">
+<li>Visualize results</li>
+</ol>
+<p>Generate the visualization script and then run it.</p>
+<pre><code class="language-shell">$ namd_lmi surfhop --generate pp
+2024-11-21 10:12:03 [ INFO] Global logger initialized with targets being stderr and "./globalrun.log"
+2024-11-21 10:12:03 [ INFO] Writing `surfhop_plot.py` ...
+2024-11-21 10:12:03 [ INFO] Time used: 1.444398ms
+
+$ cd outdir &amp;&amp; python3 ../surfhop_plot.py
+03_surfhop_config_template.toml  result_0282.h5  result_0625.h5  result_0859.h5  result_1240.h5  result_1656.h5
+averaged_results.h5              result_0291.h5  result_0669.h5  result_0896.h5  result_1263.h5  result_1658.h5
+EAFIELD.txt                      result_0293.h5  result_0680.h5  result_0925.h5  result_1297.h5  result_1715.h5
+efield.rhai                      result_0301.h5  result_0685.h5  result_0947.h5  result_1309.h5  result_1733.h5
+HAMIL.h5                         result_0302.h5  result_0686.h5  result_0949.h5  result_1310.h5  result_1745.h5
+result_0013.h5                   result_0311.h5  result_0689.h5  result_0979.h5  result_1326.h5  result_1764.h5
+result_0064.h5                   result_0336.h5  result_0725.h5  result_1014.h5  result_1336.h5  result_1834.h5
+result_0078.h5                   result_0365.h5  result_0726.h5  result_1019.h5  result_1376.h5  result_1872.h5
+result_0081.h5                   result_0429.h5  result_0749.h5  result_1020.h5  result_1382.h5  result_1886.h5
+result_0087.h5                   result_0430.h5  result_0758.h5  result_1023.h5  result_1416.h5  result_1923.h5
+result_0099.h5                   result_0457.h5  result_0759.h5  result_1049.h5  result_1432.h5  result_1950.h5
+result_0153.h5                   result_0478.h5  result_0760.h5  result_1064.h5  result_1435.h5  result_1957.h5
+result_0154.h5                   result_0508.h5  result_0789.h5  result_1072.h5  result_1522.h5  result_1965.h5
+result_0183.h5                   result_0524.h5  result_0790.h5  result_1078.h5  result_1529.h5  result_1982.h5
+result_0207.h5                   result_0541.h5  result_0792.h5  result_1091.h5  result_1532.h5  result_1993.h5
+result_0214.h5                   result_0546.h5  result_0817.h5  result_1119.h5  result_1572.h5  run.log
+result_0238.h5                   result_0549.h5  result_0818.h5  result_1133.h5  result_1587.h5  surfhop.png
+result_0244.h5                   result_0618.h5  result_0837.h5  result_1159.h5  result_1616.h5  wfn_propagation.png
+</code></pre>
+<p>The coefficient propagation should looks like <img src="./wfn_propagation.png" alt="" /></p>
+<p>And the surface hopping result looks like <img src="./surfhop.png" alt="" /></p>
+<h2 id="data-fields-of-result_xxxxh5-and-averaged_resultsh5"><a class="header" href="#data-fields-of-result_xxxxh5-and-averaged_resultsh5">Data fields of <code>result_xxxx.h5</code> and <code>averaged_results.h5</code></a></h2>
+<pre><code class="language-shell">$ h5dump -H result_0013.h5
+HDF5 "result_0013.h5" {
+GROUP "/" {
+   DATASET "basis_labels" {
+      DATATYPE  H5T_STD_U8LE
+      DATASPACE  SIMPLE { ( 31 ) / ( 31 ) }
+   }
+   DATASET "basis_list" {
+      DATATYPE  H5T_STD_I32LE
+      DATASPACE  SIMPLE { ( 6 ) / ( 6 ) }
+   }
+   DATASET "detailed_balance" {
+      DATATYPE  H5T_STD_U8LE
+      DATASPACE  SIMPLE { ( 15 ) / ( 15 ) }
+   }
+   DATASET "namdinit" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "namdtime" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "ntraj" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "prop_energy" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000 ) / ( 1000 ) }
+   }
+   DATASET "psi_t_i" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6 ) / ( 1000, 6 ) }
+   }
+   DATASET "psi_t_r" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6 ) / ( 1000, 6 ) }
+   }
+   DATASET "sh_energy" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000 ) / ( 1000 ) }
+   }
+   DATASET "sh_phonons_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6, 6 ) / ( 1000, 6, 6 ) }
+   }
+   DATASET "sh_photons_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6, 6 ) / ( 1000, 6, 6 ) }
+   }
+   DATASET "sh_pops" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6 ) / ( 1000, 6 ) }
+   }
+   DATASET "shmethod" {
+      DATATYPE  H5T_STD_U8LE
+      DATASPACE  SIMPLE { ( 5 ) / ( 5 ) }
+   }
+   DATASET "time" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000 ) / ( 1000 ) }
+   }
+}
+}
+
+$ h5dump -H averaged_results.h5
+HDF5 "averaged_results.h5" {
+GROUP "/" {
+   DATASET "basis_labels" {
+      DATATYPE  H5T_STD_U8LE
+      DATASPACE  SIMPLE { ( 31 ) / ( 31 ) }
+   }
+   DATASET "basis_list" {
+      DATATYPE  H5T_STD_I32LE
+      DATASPACE  SIMPLE { ( 6 ) / ( 6 ) }
+   }
+   DATASET "delta_et" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 21, 1999 ) / ( 21, 1999 ) }
+   }
+   DATASET "eigs_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6 ) / ( 1000, 6 ) }
+   }
+   DATASET "ndigit" {
+      DATATYPE  H5T_STD_U64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "phonon_spectra_frequencies" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000 ) / ( 1000 ) }
+   }
+   DATASET "phonons_absp_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 1000 ) / ( 1000, 1000 ) }
+   }
+   DATASET "phonons_emit_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 1000 ) / ( 1000, 1000 ) }
+   }
+   DATASET "phonons_spectra" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 21, 1000 ) / ( 21, 1000 ) }
+   }
+   DATASET "photon_spectra_xvals" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1400 ) / ( 1400 ) }
+   }
+   DATASET "photons_absp_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 1400 ) / ( 1000, 1400 ) }
+   }
+   DATASET "photons_emit_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 1400 ) / ( 1000, 1400 ) }
+   }
+   DATASET "potim" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SCALAR
+   }
+   DATASET "proj_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6, 36, 9 ) / ( 1000, 6, 36, 9 ) }
+   }
+   DATASET "prop_energy" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000 ) / ( 1000 ) }
+   }
+   DATASET "psi_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6 ) / ( 1000, 6 ) }
+   }
+   DATASET "sh_energy" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000 ) / ( 1000 ) }
+   }
+   DATASET "sh_phonons_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6, 6 ) / ( 1000, 6, 6 ) }
+   }
+   DATASET "sh_photons_t" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6, 6 ) / ( 1000, 6, 6 ) }
+   }
+   DATASET "sh_pops" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000, 6 ) / ( 1000, 6 ) }
+   }
+   DATASET "time" {
+      DATATYPE  H5T_IEEE_F64LE
+      DATASPACE  SIMPLE { ( 1000 ) / ( 1000 ) }
+   }
+}
+}
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="feedback"><a class="header" href="#feedback">Feedback</a></h1>
+<p>We are happy that you reach here. As an open-source project, <code>NAMD-LMI</code> welcomes feedback.</p>
+<ul>
+<li>
+<p>If you want to add features to <code>NAMD-LMI</code>, just open an issue at
+<a href="https://github.com/Ionizing/NAMD-LMI/issues">GitHub Issues</a>. We also created a feature-requests list,
+you can follow it at <a href="https://github.com/users/Ionizing/projects/3">this page</a>.</p>
+</li>
+<li>
+<p>If <code>namd_lmi</code> complains something or produces wrong result, just open an issue at
+<a href="https://github.com/Ionizing/NAMD-LMI/issues">GitHub Issues</a>. We are grateful if you can provide
+the input files in order that we can reproduce the issue conveniently,
+thus solve the issue as soon as possible.</p>
+</li>
+<li>
+<p>If you are interested in <code>NAMD-LMI</code> and want to contribute to the source code, just fork <code>NAMD-LMI</code> and create pull requests at
+<a href="https://github.com/Ionizing/NAMD-LMI/pulls">Pull Requests</a>. We are super grateful if you can contribute
+to <code>NAMD-LMI</code>.</p>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="acknowledgements"><a class="header" href="#acknowledgements">Acknowledgements</a></h1>
+<ul>
+<li>Prof. <a href="https://staff.ustc.edu.cn/~zhaojin">Jin Zhao</a></li>
+<li>Prof. <a href="https://staff.ustc.edu.cn/~zqj/">Qijing Zheng</a></li>
+<li><a href="https://hefei-namd.org">Hefei-NAMD</a></li>
+<li>Dr. <a href="https://hefei-namd.org/author/li-zhi/">Zhi Li</a></li>
+<li><a href="https://t.me/rust_zh">CN Rust User Group</a></li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            MathJax.Hub.Register.StartupHook('End', function() {
+                window.setTimeout(window.print, 100);
+            });
+        });
+        </script>
+
+    </div>
+    </body>
+</html>
