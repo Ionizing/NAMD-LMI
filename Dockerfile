@@ -1,6 +1,12 @@
-FROM centos:centos7.9.2009
+FROM ghcr.io/cross-rs/x86_64-unknown-linux-gnu:main-centos
 
 RUN sed -i.bak \
+<<<<<<< HEAD
+    -e 's|^mirrorlist=|#mirrorlist=|g' \
+    -e 's|^#baseurl=http://mirror.centos.org/centos|baseurl=https://vault.centos.org/centos|g' \
+    /etc/yum.repos.d/CentOS-Base.repo
+RUN yum makecache
+=======
             -e 's|^mirrorlist=|#mirrorlist=|g' \
             -e 's|^#baseurl=http://mirror.centos.org/centos|baseurl=https://vault.centos.org/centos|g' \
             /etc/yum.repos.d/CentOS-Base.repo
@@ -29,6 +35,7 @@ RUN alternatives --install /usr/local/bin/cmake cmake /usr/bin/cmake3 20 \
 --slave /usr/local/bin/cpack cpack /usr/bin/cpack3 \
 --slave /usr/local/bin/ccmake ccmake /usr/bin/ccmake3 \
 --family cmake
+>>>>>>> 0e2e146b9b61ca3a1351d824b2db7d3a9fbb9d3d
 
 # install mkl
 RUN yum-config-manager --add-repo https://yum.repos.intel.com/mkl/setup/intel-mkl.repo
