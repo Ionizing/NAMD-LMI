@@ -13,48 +13,18 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
-      - name: Install Rust
-        run: |
-          sed -i.bak \
-            -e 's|^mirrorlist=|#mirrorlist=|g' \
-            -e 's|^#baseurl=http://mirror.centos.org/centos|baseurl=https://vault.centos.org/centos|g' \
-            /etc/yum.repos.d/CentOS-Base.repo
-          yum makecache
-          yum group install -y 'Development Tools'
-          yum install -y which
-          yum install -y epel-release
-          yum install -y cmake3
-          alternatives --install /usr/local/bin/cmake cmake /usr/bin/cmake 10 \
-            --slave /usr/local/bin/ctest ctest /usr/bin/ctest \
-            --slave /usr/local/bin/cpack cpack /usr/bin/cpack \
-            --slave /usr/local/bin/ccmake ccmake /usr/bin/ccmake \
-            --family cmake
-          alternatives --install /usr/local/bin/cmake cmake /usr/bin/cmake3 20 \
-            --slave /usr/local/bin/ctest ctest /usr/bin/ctest3 \
-            --slave /usr/local/bin/cpack cpack /usr/bin/cpack3 \
-            --slave /usr/local/bin/ccmake ccmake /usr/bin/ccmake3 \
-            --family cmake
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y --target x86_64-unknown-linux-gnu
-          echo $HOME/.cargo/bin >> $GITHUB_PATH
-          source $HOME/.cargo/env
-          which rustup
-          which cargo
-
-      - name: Install MKL
-        run: |
-          yum-config-manager --add-repo https://yum.repos.intel.com/mkl/setup/intel-mkl.repo
-          rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
-          yum update -y && yum install -y intel-mkl-64bit-2020.0-088
-          echo 'MKLROOT="/opt/intel/mkl"' >> $GITHUB_ENV
-          echo 'LIBRARY_PATH="/opt/intel/tbb/lib/intel64/gcc4.8:/opt/intel/compiler/lib/intel64:/opt/intel/mkl/lib/intel64"' >> $GITHUB_ENV
-          echo 'LD_LIBRARY_PATH="/opt/intel/lib/intel64:/opt/intel/mkl/lib/intel64:/opt/intel/tbb/lib/intel64"' >> $GITHUB_ENV
-          echo 'CPATH="/opt/intel/mkl/include"' >> $GITHUB_ENV
-          echo 'NLSPATH="/opt/intel/compilers_and_libraries/linux/compiler/lib/intel64/locale/%l_%t/%N:/opt/intel/compilers_and_libraries/linux/mkl/lib/intel64_lin/locale/%l_%t/%N"' >> $GITHUB_ENV
-          echo 'PKG_CONFIG_PATH="/opt/intel/mkl/bin/pkgconfig"' >> $GITHUB_ENV
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
 
       - name: Build with system MKL
-        run: |
-          cargo build --verbose --release --target x86_64-unknown-linux-gnu --no-default-features --features intel-mkl-system
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose --release --target x86_64-unknown-linux-gnu --no-default-features --features intel-mkl-system
+          use-cross: true
 
       - name: Optimize and package binary
         run: |
@@ -73,8 +43,11 @@ jobs:
           asset_content_type: application/zip
 
       - name: Build with static MKL
-        run: |
-          cargo build --verbose --release --target x86_64-unknown-linux-gnu --no-default-features --features intel-mkl-static
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --verbose --release --target x86_64-unknown-linux-gnu --no-default-features --features intel-mkl-static
+          use-cross: true
 
       - name: Optimize and package binary
         run: |
