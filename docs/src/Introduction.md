@@ -22,4 +22,10 @@ procedures of Hefei-NAMD** in the following pages:
 - [Hefei-NAMD with CA-NAC](https://www.bilibili.com/video/BV1eo4y1m7yb/)
 - [Hefei-NAMD with excitonic effects](https://www.bilibili.com/video/BV1iV411E7TF/)
 
+---
+
+Related paper: https://onlinelibrary.wiley.com/doi/10.1002/adom.202403069
+
+Related repository: https://github.com/Ionizing/adom.202403069
+
 ![](./Introduction-schematics.svg)
