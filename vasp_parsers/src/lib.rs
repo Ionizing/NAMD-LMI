@@ -4,6 +4,7 @@ pub mod kpoints;
 pub mod procar;
 pub mod chg;
 pub mod wavecar;
+pub mod soc;
 
 pub use poscar::Poscar;
 pub use poscar::Xdatcar;
@@ -14,3 +15,4 @@ pub use wavecar::{
     WavecarType,
     Wavefunction,
 };
+pub use soc::calc_hmm;
