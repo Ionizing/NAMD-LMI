@@ -106,11 +106,9 @@ where P: AsRef<Path> {
 ///
 /// ikpoint counts from 1
 ///
-/// Hmm layout:
-///   uu | ud
-///   -------
-///   du | dd
-pub fn calc_hmm<P>(runpath: P, nbands: usize, nkpoints: usize, ikpoint: usize) -> Result<na::Array2<c64> /* Hmm */>
+/// Hmm layout: [uu, ud, du, dd]
+#[allow(non_snake_case)]
+pub fn calc_hmm<P>(runpath: P, nbands: usize, nkpoints: usize, ikpoint: usize) -> Result<na::Array3<c64> /* Hmm */>
 where P: AsRef<Path> {
     let normalcar_fname = runpath.as_ref().join("NormalCAR");
     let soccar_fname = runpath.as_ref().join("SocCar");
@@ -118,29 +116,28 @@ where P: AsRef<Path> {
     let (cproj, nproj) = read_normalcar(normalcar_fname, nbands, nkpoints, ikpoint)?;
     let soccar = read_soccar(soccar_fname, nproj)?;
 
-    #[allow(non_snake_case)]
-    let mut Hmm = na::Array2::<c64>::zeros((nbands * 2, nbands * 2));
+    let mut Hmm = na::Array3::<c64>::zeros((4, nbands, nbands));
 
     // CPROJ[0, .., ..]^H * SOCCAR * CPROJ[0, .., ..]
-    Hmm.slice_mut(na::s![0..nbands, 0..nbands]).assign(
+    Hmm.index_axis_mut(na::Axis(0), 0).assign(
         &cproj.index_axis(na::Axis(0), 0).mapv(|v| v.conj())
             .dot(&soccar.index_axis(na::Axis(0), 0))
             .dot(&cproj.index_axis(na::Axis(0), 0).t())
     );
 
-    Hmm.slice_mut(na::s![nbands.., nbands..]).assign(
+    Hmm.index_axis_mut(na::Axis(0), 3).assign(
         &cproj.index_axis(na::Axis(0), 1).mapv(|v| v.conj())
             .dot(&soccar.index_axis(na::Axis(0), 3))
             .dot(&cproj.index_axis(na::Axis(0), 1).t())
     );
 
-    Hmm.slice_mut(na::s![nbands.., 0..nbands]).assign(
+    Hmm.index_axis_mut(na::Axis(0), 2).assign(
         &cproj.index_axis(na::Axis(0), 1).mapv(|v| v.conj())
             .dot(&soccar.index_axis(na::Axis(0), 2))
             .dot(&cproj.index_axis(na::Axis(0), 0).t())
     );
 
-    Hmm.slice_mut(na::s![0..nbands, nbands..]).assign(
+    Hmm.index_axis_mut(na::Axis(0), 1).assign(
         &cproj.index_axis(na::Axis(0), 0).mapv(|v| v.conj())
             .dot(&soccar.index_axis(na::Axis(0), 1))
             .dot(&cproj.index_axis(na::Axis(0), 1).t())
@@ -239,8 +236,8 @@ mod tests {
         let nkpoints = 14usize;
         let ikpoint = 1usize;
         let hmm = calc_hmm("tests", nbands, nkpoints, ikpoint).unwrap();
-        assert_eq!(hmm[(0, 0)], c64::new(-5.5624424817112524e-12, -7.940933880509066e-22));
-        assert_eq!(hmm[(207, 208)], c64::new(0.0002937153288168673, 3.179271745971495e-5));
-        assert_eq!(hmm[(207, 207)], c64::new(-3.608022704651101e-5, 2.1277467635028025e-18));
+        assert_eq!(hmm[(0, 0, 0)], c64::new(-5.5624424817112524e-12, -7.940933880509066e-22));
+        assert_eq!(hmm[(1, 207, 0)], c64::new(0.0002937153288168673, 3.179271745971495e-5));
+        assert_eq!(hmm[(0, 207, 207)], c64::new(-3.608022704651101e-5, 2.1277467635028025e-18));
     }
 }

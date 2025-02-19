@@ -44,6 +44,7 @@ pub struct Nac {
     olaps: nd::Array4<c64>, // istep, ispin, iband, iband
     eigs: nd::Array3<f64>,  // istep, ispin, iband
     pij: nd::Array5<c64>,   // istep, ispin, ixyz, iband, iband
+    soc: Option<nd::Array3<c64>>, // istep, iband, iband
 
     // projections in PROCAR
     proj: nd::Array5<f64>, // istep ispin, iband, iion, iorbit
@@ -53,6 +54,7 @@ struct CoupIjRet {
     c_ij: nd::Array3<c64>,
     e_ij: nd::Array2<f64>,
     p_ij: nd::Array4<c64>,
+    soc_ij: Option<nd::Array2<c64>>,
     proj: nd::Array4<f64>,
     efermi: f64,
 }
@@ -61,6 +63,7 @@ struct CoupTotRet {
     olaps: nd::Array4<c64>,
     eigs: nd::Array3<f64>,
     pij: nd::Array5<c64>,
+    soc: Option<nd::Array3<c64>>,
     proj: nd::Array5<f64>,
     efermi: f64,
 }
