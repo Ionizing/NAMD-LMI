@@ -23,6 +23,9 @@ pub struct NacConfig {
 
     nsw:      usize,
 
+    #[serde(default = "NacConfig::default_spin_diabatics")]
+    spin_diabatics: bool,
+
     #[serde(default = "NacConfig::default_ndigit")]
     ndigit:   usize,
 
@@ -40,6 +43,7 @@ pub struct NacConfig {
 
 impl NacConfig {
     fn default_ikpoint() -> usize { 1 }
+    fn default_spin_diabatics() -> bool { false }
     fn default_ndigit() -> usize { 4 }
     fn default_phasecorrection() -> bool { true }
     fn default_nacfname() -> PathBuf { PathBuf::from("NAC.h5") }
@@ -51,6 +55,7 @@ impl NacConfig {
     pub fn get_ikpoint(&self) -> usize { self.ikpoint }
     pub fn get_brange(&self) -> [usize;2] { self.brange }
     pub fn get_nsw(&self) -> usize { self.nsw }
+    pub fn get_spin_diabatics(&self) -> bool { self.spin_diabatics }
     pub fn get_ndigit(&self) -> usize { self.ndigit }
     pub fn get_potim(&self) -> f64 { self.potim }
     pub fn get_temperature(&self) -> f64 { self.temperature }
@@ -117,6 +122,7 @@ impl Default for NacConfig {
             ikpoint: 1,
             brange: [0, 0],
             nsw: 2000,
+            spin_diabatics: false,
             ndigit: 4,
             potim: 1.0,
             temperature: 0.0,
@@ -137,6 +143,7 @@ impl fmt::Display for NacConfig {
         writeln!(f, " {:>20} = {:?}", "ikpoint",  self.ikpoint)?;
         writeln!(f, " {:>20} = {:?}", "brange",   self.brange)?;
         writeln!(f, " {:>20} = {}",   "nsw",      self.nsw)?;
+        writeln!(f, " {:>20} = {}",   "spin_diabatics", self.spin_diabatics)?;
         writeln!(f, " {:>20} = {}",   "ndigit",   self.ndigit)?;
         writeln!(f, " {:>20} = {}",   "potim",    self.potim)?;
         writeln!(f, " {:>20} = {}",   "temperature", self.temperature)?;
@@ -180,6 +187,7 @@ mod tests {
         ikpoint = 2
         brange = [100, 200]
         nsw = 3000
+        spin_diabatics = true
         ndigit = 5
         potim = 1.5
         temperature = 150
@@ -193,6 +201,7 @@ mod tests {
             ikpoint: 2,
             brange: [100, 200],
             nsw: 3000,
+            spin_diabatics: true,
             ndigit: 5,
             potim: 1.5,
             temperature: 150.0,

@@ -86,6 +86,9 @@ pub struct HamilConfig {
     #[serde(deserialize_with="HamilConfig::parse_basis_list")]
     basis_list: Vec<i32>,
 
+    #[serde(default = "HamilConfig::default_spin_diabatics")]
+    spin_diabatics: bool,
+
     // Corresponding labels to the basis_list, must have same length
     // The labels must not contain newline related characters like CRLF.
     basis_labels: Option<Vec<String>>,
@@ -109,6 +112,7 @@ pub struct HamilConfig {
 
 impl HamilConfig {
     fn default_ikpoint() -> usize { 1 }
+    fn default_spin_diabatics() -> bool { false }
     fn default_hamil_fname() -> PathBuf { PathBuf::from("HAMIL.h5") }
     fn default_reorder() -> bool { false }
 
@@ -181,6 +185,7 @@ impl HamilConfig {
 
 
     pub fn get_ikpoint(&self) -> usize { self.ikpoint }
+    pub fn get_spin_diabatics(&self) -> bool { self.spin_diabatics }
     pub fn get_basis_list(&self) -> &[i32] { &self.basis_list }
 
     pub fn get_basis_labels(&self) -> Option<&Vec<String>> {
@@ -269,6 +274,7 @@ impl fmt::Display for HamilConfig {
         if let Some(labels) = self.basis_labels.as_ref() {
             writeln!(f, " {:>20} = {:?}", "basis_labels", labels)?;
         }
+        writeln!(f, " {:>20} = {}", "spin_diabatics", self.spin_diabatics)?;
         writeln!(f, " {:>20} = {:?}", "nac_fname", self.nac_fname)?;
         if let Some(efield) = self.efield_fname.as_ref() {
             writeln!(f, " {:>20} = {:?}", "efield_fname", efield)?;
@@ -296,6 +302,7 @@ impl Default for HamilConfig {
             ikpoint: 1,
             basis_list: vec![0],
             basis_labels: Some(vec!["0".into()]),
+            spin_diabatics: false,
             nac_fname: PathBuf::from("NAC.h5"),
             efield_fname: None,
             hamil_fname: PathBuf::from("HAMIL.h5"),
@@ -338,6 +345,7 @@ mod tests {
         let txt = r#"
         ikpoint = 2
         basis_list = "-1..-4 1..4"
+        spin_diabatics = true
         nac_fname = "NAC_test.h5"
         hamil_fname = "HAMIL_test.h5"
         propmethod = "fd"
@@ -349,6 +357,7 @@ mod tests {
             ikpoint: 2,
             basis_list: ((-4..=-1).rev().chain(1..=4)).collect(),
             basis_labels: None,
+            spin_diabatics: true,
             nac_fname: PathBuf::from("NAC_test.h5"),
             efield_fname: None,
             hamil_fname: PathBuf::from("HAMIL_test.h5"),

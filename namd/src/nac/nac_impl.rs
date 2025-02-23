@@ -6,7 +6,7 @@ use hdf5::File as H5File;
 use rayon::prelude::*;
 
 #[cfg(not(test))]
-use shared::{info, anyhow::ensure};
+use shared::{info, anyhow::ensure, anyhow::bail};
 use shared::{
     c64,
     ndarray as nd,
@@ -16,9 +16,9 @@ use shared::{
 };
 //use nl::Norm;
 #[cfg(test)]
-use std::{println as info, assert as ensure};
+use std::{println as info, assert as ensure, panic as bail};
 
-use vasp_parsers::{procar::Procar, Wavecar, WavecarType};
+use vasp_parsers::{procar::Procar, Wavecar, WavecarType, soc::calc_hmm};
 
 use crate::core::Couplings;
 use crate::nac::config::NacConfig;
@@ -44,7 +44,7 @@ pub struct Nac {
     olaps: nd::Array4<c64>, // istep, ispin, iband, iband
     eigs: nd::Array3<f64>,  // istep, ispin, iband
     pij: nd::Array5<c64>,   // istep, ispin, ixyz, iband, iband
-    soc: Option<nd::Array3<c64>>, // istep, iband, iband
+    soc: Option<nd::Array4<c64>>, // istep, 4, iband, iband
 
     // projections in PROCAR
     proj: nd::Array5<f64>, // istep ispin, iband, iion, iorbit
@@ -54,7 +54,7 @@ struct CoupIjRet {
     c_ij: nd::Array3<c64>,
     e_ij: nd::Array2<f64>,
     p_ij: nd::Array4<c64>,
-    soc_ij: Option<nd::Array2<c64>>,
+    soc_ij: Option<nd::Array3<c64>>,
     proj: nd::Array4<f64>,
     efermi: f64,
 }
@@ -63,9 +63,24 @@ struct CoupTotRet {
     olaps: nd::Array4<c64>,
     eigs: nd::Array3<f64>,
     pij: nd::Array5<c64>,
-    soc: Option<nd::Array3<c64>>,
+    soc: Option<nd::Array4<c64>>,
     proj: nd::Array5<f64>,
     efermi: f64,
+}
+
+#[derive(Copy, Clone)]
+struct Params {
+    nsw: usize,
+    ndigit: usize,
+    nspin: usize,
+    lncl: bool,
+    nkpoints: usize,
+    ikpoint: usize,
+    nbands: usize,
+    nions: usize,
+    nproj: usize,
+    phasecorrection: bool,
+    spin_diabatics: bool,
 }
 
 impl Couplings for Nac {
@@ -137,6 +152,14 @@ impl Couplings for Nac {
             pij_r.mapv(|v| c64::new(v, 0.0)) + pij_i.mapv(|v| c64::new(0.0, v))
         };
 
+        let soc = if f.dataset("soc_r").is_err() {
+            None
+        } else {
+            let soc_r: nd::Array4<f64> = f.dataset("soc_r")?.read()?;
+            let soc_i: nd::Array4<f64> = f.dataset("soc_i")?.read()?;
+            Some(soc_r.mapv(|v| c64::new(v, 0.0)) + soc_i.mapv(|v| c64::new(0.0, v)))
+        };
+
         let proj: nd::Array5<f64> = f.dataset("proj")?.read()?;
 
         Ok(Self {
@@ -155,6 +178,7 @@ impl Couplings for Nac {
             olaps,
             eigs,
             pij,
+            soc,
             proj,
         })
     }
@@ -185,6 +209,12 @@ impl Couplings for Nac {
         f.new_dataset_builder().with_data(&self.pij.mapv(|v| v.re)).create("pij_r")?;
         f.new_dataset_builder().with_data(&self.pij.mapv(|v| v.im)).create("pij_i")?;
 
+        if self.soc.is_some() {
+            let soc = &self.soc.as_ref().unwrap();
+            f.new_dataset_builder().with_data(&soc.mapv(|v| v.re)).create("soc_r")?;
+            f.new_dataset_builder().with_data(&soc.mapv(|v| v.im)).create("soc_i")?;
+        }
+
         f.new_dataset_builder().with_data(&self.proj).create("proj")?;
 
         Ok(())
@@ -201,6 +231,7 @@ impl Nac {
         let brange  = Range { start: cfg.get_brange()[0] - 1, end: cfg.get_brange()[1] };
         let nbrange = brange.len();
         let ndigit  = cfg.get_ndigit();
+        let spin_diabatics = cfg.get_spin_diabatics();
         let potim   = cfg.get_potim();
         let temperature = cfg.get_temperature();
         let phasecorrection = cfg.get_phasecorrection();
@@ -211,6 +242,7 @@ impl Nac {
             .unwrap();
 
         let nspin   = w1.nspin as usize;
+        let nkpoints = w1.nkpoints as usize;
         let nbands  = w1.nbands as usize;
         let nspinor = match w1.wavecar_type {
             WavecarType::NonCollinear => 2,
@@ -263,8 +295,32 @@ impl Nac {
 
         ensure!(lncl == p1.pdos.lsorbit, "Inconsistent type of WAVECAR and PROCAR");
 
-        let CoupTotRet {olaps, eigs, pij, proj, efermi} = Self::from_wavecars(
-            &phi_1s, &rundir, nsw, ikpoint, brange, ndigit, nspin, lncl, nions, nproj, &gvecs, phasecorrection
+        // soc matrix for spin diabatics
+        if spin_diabatics {
+            ensure!(nspin == 2, "Spin diabatics can only be used in ISPIN=2 systems.");
+
+            let runpath = rundir.join(format!("{:0ndigit$}", 1));
+            ensure!(runpath.join("NormalCAR").is_file(), "Cannot find NormalCAR.");
+            ensure!(runpath.join("SocCar").is_file(), "Cannot find SocCar.");
+            ensure!(calc_hmm(runpath, nbands, nkpoints, ikpoint+1).is_ok(), "Failed to calculate SOC matrix.");
+        }
+
+        let params = Params {
+            nsw,
+            ndigit,
+            nspin,
+            lncl,
+            nkpoints,
+            ikpoint,
+            nbands,
+            nions,
+            nproj,
+            phasecorrection,
+            spin_diabatics,
+        };
+
+        let CoupTotRet {olaps, eigs, pij, soc, proj, efermi} = Self::from_wavecars(
+            &phi_1s, &rundir, brange, &gvecs, params,
         )?;
 
         Ok(Self {
@@ -284,6 +340,7 @@ impl Nac {
             olaps,
             eigs,
             pij,
+            soc,
 
             proj,
         })
@@ -291,12 +348,22 @@ impl Nac {
 
     // This function calculates non-adiabatic coupling (NAC), and transition dipole moment (TDM)
     fn from_wavecars(
-        phi_1s: &nd::Array3<c64>,
-        rundir: &Path, nsw: usize, ikpoint: usize, brange: Range<usize>, ndigit: usize,
-        nspin: usize, lncl: bool, nions: usize, nproj: usize, gvecs: &nd::Array2<c64>, phasecorrection: bool,
+        phi_1s: &nd::Array3<c64>, rundir: &Path, brange: Range<usize>, gvecs: &nd::Array2<c64>,
+        params: Params,
         ) -> Result<CoupTotRet>
     {
         let nbrange = brange.clone().count();
+
+        let Params {
+            nsw,
+            ndigit,
+            nspin,
+            lncl,
+            nions,
+            nproj,
+            spin_diabatics,
+            ..
+        } = params;
 
         let ret_c_ij = Arc::new(Mutex::new(
                 nd::Array4::<c64>::zeros((nsw-1, nspin, nbrange, nbrange))
@@ -307,6 +374,11 @@ impl Nac {
         let ret_p_ij = Arc::new(Mutex::new(
                 nd::Array5::<c64>::zeros((nsw-1, nspin, 3, nbrange, nbrange))
                 ));
+        let ret_soc_ij = Arc::new(Mutex::new(
+                if spin_diabatics {
+                    Some(nd::Array4::<c64>::zeros((nsw-1, 4, nbrange, nbrange)))
+                } else { None }
+            ));
 
         let nspinors = if lncl { 4 } else { nspin };
         let ret_proj = Arc::new(Mutex::new(
@@ -327,8 +399,9 @@ impl Nac {
                 *remain_now -= 1;
             }
 
-            let CoupIjRet {c_ij, e_ij, p_ij, proj, efermi} = Self::coupling_ij(
-                phi_1s, path_i.as_path(), path_j.as_path(), ikpoint, brange.clone(), gvecs, phasecorrection
+            let CoupIjRet {c_ij, e_ij, p_ij, soc_ij, proj, efermi} = Self::coupling_ij(
+                    phi_1s, path_i.as_path(), path_j.as_path(), brange.clone(), gvecs,
+                    params,
                 )
                 .with_context(|| format!("Failed to calculate couplings between {:?} and {:?}.", &path_i, &path_j))
                 .unwrap();
@@ -345,6 +418,10 @@ impl Nac {
             ret_proj.lock().unwrap()
                 .slice_mut(nd::s![isw, .., .., .., ..]).assign(&proj);
 
+            if let Some(val) = ret_soc_ij.lock().unwrap().as_mut() {
+                val.slice_mut(nd::s![isw, .., .., ..]).assign(&soc_ij.unwrap());
+            }
+
             let mut sum = efermi_sum.lock().unwrap();
             *sum += efermi;
         });
@@ -353,6 +430,7 @@ impl Nac {
             olaps: Arc::try_unwrap(ret_c_ij).unwrap().into_inner()?,
             eigs: Arc::try_unwrap(ret_e_ij).unwrap().into_inner()?,
             pij: Arc::try_unwrap(ret_p_ij).unwrap().into_inner()?,
+            soc: Arc::try_unwrap(ret_soc_ij).unwrap().into_inner()?,
             proj: Arc::try_unwrap(ret_proj).unwrap().into_inner()?,
             efermi: Arc::try_unwrap(efermi_sum).unwrap().into_inner()? / (nsw - 1) as f64,
         })
@@ -360,11 +438,10 @@ impl Nac {
     }
 
 
-    fn coupling_ij(phi_1s: &nd::Array3<c64>,
-        path_i: &Path, path_j: &Path,
-        ikpoint: usize, brange: Range<usize>,
-        gvecs: &nd::Array2<c64>, phasecorrection: bool)
-        -> Result<CoupIjRet>
+    fn coupling_ij(
+        phi_1s: &nd::Array3<c64>, path_i: &Path, path_j: &Path, brange: Range<usize>,
+        gvecs: &nd::Array2<c64>, params: Params
+        ) -> Result<CoupIjRet>
     {
         let wi = Wavecar::from_file(&path_i.join("WAVECAR"))?;
         let wj = Wavecar::from_file(&path_j.join("WAVECAR"))?;
@@ -373,6 +450,15 @@ impl Nac {
             WavecarType::NonCollinear => 2,
             _ => 1usize,
         };
+
+        let Params {
+            nkpoints,
+            ikpoint,
+            nbands,
+            phasecorrection,
+            spin_diabatics,
+            ..
+        } = params;
 
         let nplw     = wi.nplws[ikpoint] as usize;
         let nbrange  = brange.clone().count();
@@ -461,14 +547,26 @@ impl Nac {
             ( eigs_i + eigs_j ) / 2.0
         ));
 
+
+        // soc matrix for spin diabatics
+        let soc_ij = if spin_diabatics {
+            let hmm = calc_hmm(&path_i, nbands, nkpoints, ikpoint+1)
+                .with_context(|| format!("Failed to calculate SOC matrix for {:?}", path_i))?;
+            Some(hmm.slice(nd::s![.., brange.clone(), brange.clone()]).to_owned())
+        } else { None };
+
         Ok( CoupIjRet {
             c_ij,
             e_ij, 
             p_ij, 
+            soc_ij,
             proj,
             efermi: wi.efermi,
         })
     }
 
     pub fn get_ndigit(&self) -> usize { self.ndigit }
+    pub fn get_soc(&self) -> Option<nd::ArrayView4<c64>> {
+        self.soc.as_ref().map(|x| x.view())
+    }
 }

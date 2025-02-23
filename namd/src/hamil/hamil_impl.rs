@@ -33,6 +33,7 @@ pub struct SPHamiltonian {
     ikpoint:     usize,
     nspin:       usize,
     lncl:        bool,
+    spin_diabatics: bool,
     basis_list:  Vec<i32>,
     basis_labels: Option<Vec<String>>,
     nbasis:      usize,
@@ -48,6 +49,7 @@ pub struct SPHamiltonian {
     nac_t:     nd::Array3<c64>,     // [nsw-1, nbasis, nbasis]
     pij_t:     nd::Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
     rij_t:     nd::Array4<c64>,     // [nsw-1, 3, nbasis, nbasis]
+    soc_t:     Option<nd::Array3<c64>>,
     proj_t:    nd::Array4<f64>,     // [nsw-1, nbasis, nions, nproj]
     proj_x:    Option<nd::Array4<f64>>,
     proj_y:    Option<nd::Array4<f64>>,
@@ -90,6 +92,7 @@ impl Hamiltonian for SPHamiltonian {
         let ikpoint  = f.dataset("ikpoint")?.read_scalar::<usize>()?;
         let nspin    = f.dataset("nspin")?.read_scalar::<usize>()?;
         let lncl     = f.dataset("lncl")?.read_scalar::<bool>()?;
+        let spin_diabatics = f.dataset("spin_diabatics")?.read_scalar::<bool>()?;
         let nbasis   = f.dataset("nbasis")?.read_scalar::<usize>()?;
         let potim    = f.dataset("potim")?.read_scalar::<f64>()?;
         let nsw      = f.dataset("nsw")?.read_scalar::<usize>()?;
@@ -122,8 +125,14 @@ impl Hamiltonian for SPHamiltonian {
             let rij_t_i: nd::Array4<f64> = f.dataset("rij_t_i")?.read()?;
             rij_t_r.mapv(|v| c64::new(v, 0.0)) + rij_t_i.mapv(|v| c64::new(0.0, v))
         };
-        let proj_t: nd::Array4<f64> = f.dataset("proj_t")?.read()?;
 
+        let soc_t = if spin_diabatics {
+            let soc_r: nd::Array3<f64> = f.dataset("soc_t_r")?.read()?;
+            let soc_i: nd::Array3<f64> = f.dataset("soc_t_i")?.read()?;
+            Some(soc_r.mapv(|v| c64::new(v, 0.0)) + soc_i.mapv(|v| c64::new(0.0, v)))
+        } else { None };
+
+        let proj_t: nd::Array4<f64> = f.dataset("proj_t")?.read()?;
         let (proj_x, proj_y, proj_z) = if lncl {
             let px: nd::Array4<f64> = f.dataset("proj_x")?.read()?;
             let py: nd::Array4<f64> = f.dataset("proj_y")?.read()?;
@@ -155,13 +164,14 @@ impl Hamiltonian for SPHamiltonian {
             }
         };
 
-        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t);
+        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t, soc_t.as_ref());
         let thermal_factor = Self::calculate_thermal_factor(&eig_t, temperature);
 
         Ok(Self {
             ikpoint,
             nspin,
             lncl,
+            spin_diabatics,
             basis_list,
             basis_labels,
             nbasis,
@@ -177,6 +187,7 @@ impl Hamiltonian for SPHamiltonian {
             nac_t,
             pij_t,
             rij_t,
+            soc_t,
             proj_t,
             proj_x,
             proj_y,
@@ -195,6 +206,7 @@ impl Hamiltonian for SPHamiltonian {
         f.new_dataset::<usize>().create("ikpoint")?.write_scalar(&self.ikpoint)?;
         f.new_dataset::<usize>().create("nspin")?.write_scalar(&self.nspin)?;
         f.new_dataset::<bool>().create("lncl")?.write_scalar(&self.lncl)?;
+        f.new_dataset::<bool>().create("spin_diabatics")?.write_scalar(&self.spin_diabatics)?;
         f.new_dataset::<usize>().create("nbasis")?.write_scalar(&self.nbasis)?;
         f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
         f.new_dataset::<usize>().create("nsw")?.write_scalar(&self.nsw)?;
@@ -223,6 +235,11 @@ impl Hamiltonian for SPHamiltonian {
         f.new_dataset_builder().with_data(&self.rij_t.mapv(|v| v.re)).create("rij_t_r")?;
         f.new_dataset_builder().with_data(&self.rij_t.mapv(|v| v.im)).create("rij_t_i")?;
 
+        if let Some(soc) = self.soc_t.as_ref() {
+            f.new_dataset_builder().with_data(&soc.mapv(|v| v.re)).create("soc_t_r")?;
+            f.new_dataset_builder().with_data(&soc.mapv(|v| v.im)).create("soc_t_i")?;
+        }
+
         f.new_dataset_builder().with_data(&self.proj_t).create("proj_t")?;
         if self.lncl {
             f.new_dataset_builder().with_data(self.proj_x.as_ref().unwrap()).create("proj_x")?;
@@ -243,6 +260,7 @@ impl Hamiltonian for SPHamiltonian {
 impl SPHamiltonian {
     pub fn get_basis_list(&self) -> &[i32] { &self.basis_list }
     pub fn get_basis_labels(&self) -> Option<&Vec<String>> { self.basis_labels.as_ref() }
+    pub fn get_spin_diabatics(&self) -> bool { self.spin_diabatics }
 
     fn with_config_and_coupling(cfg: &HamilConfig, coup: &Nac) -> Result<Self> {
         //cfg.check_config()?;      // I assume that you've checked the validity of config.
@@ -251,6 +269,7 @@ impl SPHamiltonian {
         let ikpoint: usize       = cfg.get_ikpoint();
         let basis_list           = cfg.get_basis_list().to_owned();
         let basis_labels         = cfg.get_basis_labels().map(|labels| labels.to_owned());
+        let spin_diabatics       = cfg.get_spin_diabatics();
         let potim: f64           = coup.get_potim();
         let nsw: usize           = coup.get_nsw();
         let temperature: f64     = coup.get_temperature();
@@ -261,6 +280,11 @@ impl SPHamiltonian {
         let nspin                = coup.get_nspin();
         let lncl                 = coup.get_lncl();
         let efermi               = coup.get_efermi();
+
+        if spin_diabatics {
+            ensure!(nspin == 2 && lncl == false,
+                "Spin diabatics requires two spin channels, i.e. ISPIN=2 and LSORBIT=.FALSE.");
+        }
 
         let nbasis = basis_list.len();
         if nbasis <= 1 {
@@ -290,6 +314,10 @@ impl SPHamiltonian {
             (None, None, None)
         };
 
+        let mut soc_t = if spin_diabatics {
+            Some(nd::Array3::<c64>::zeros((nsw-1, nbasis, nbasis)))
+        } else { None };
+
         for (i, &iband) in basis_list.iter().enumerate() {
             let nac_ii = iband_to_nac_index(&brange, iband.abs() as _)?;
             let ispin: usize = if iband > 0 { 0 } else { 1 };
@@ -311,17 +339,34 @@ impl SPHamiltonian {
             // This basis_list should be not very large, a duplicated conversion will not affect
             // too much performance.
             for (j, &jband) in basis_list.iter().enumerate() {
-                if iband * jband < 0 {  // There are no inter-spin coupling in NAC & Pij
+                let nac_jj = iband_to_nac_index(&brange, jband.abs() as _)?;
+
+                // There is only SOC for inter-spin coupling.
+                if iband * jband < 0 {
+                    if let Some(soc) = soc_t.as_mut() {
+                        // SOC matrix: [time, 4, nbasis, nbasis]
+                        // up to up => 0;  dn to dn => 3
+                        // up to dn => 1;  dn to up => 2
+                        let spin = if iband < 0 { 1 } else { 2 };
+                        soc.slice_mut(nd::s![.., i, j])
+                            .assign(&coup.get_soc().unwrap().slice(nd::s![.., spin, nac_ii, nac_jj]));
+                    }
+
                     continue;
                 }
 
-                let nac_jj = iband_to_nac_index(&brange, jband.abs() as _)?;
                 nac_t.slice_mut(nd::s![.., i, j])
                     .assign(&coup.get_tdcoup().slice(nd::s![.., ispin, nac_ii, nac_jj]));
                 pij_t.slice_mut(nd::s![.., .., i, j])
                     .assign(&coup.get_tdpij().slice(nd::s![.., ispin, .., nac_ii, nac_jj]));
                 rij_t.slice_mut(nd::s![.., .., i, j])
                     .assign(&coup.get_tdrij().slice(nd::s![.., ispin, .., nac_ii, nac_jj]));
+
+                if let Some(soc) = soc_t.as_mut() {
+                    let spin = if 0 == ispin { 0 } else { 3 };
+                    soc.slice_mut(nd::s![.., i, j])
+                        .assign(&coup.get_soc().unwrap().slice(nd::s![.., spin, nac_ii, nac_jj]));
+                }
             }
         }
 
@@ -352,13 +397,14 @@ impl SPHamiltonian {
             apply_scissor(&mut eig_t, scissor);
         }
 
-        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t);
+        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t, soc_t.as_ref());
         let thermal_factor = Self::calculate_thermal_factor(&eig_t, temperature);
 
         Ok(Self {
             ikpoint,
             nspin,
             lncl,
+            spin_diabatics,
             basis_list,
             basis_labels,
             nbasis,
@@ -374,6 +420,7 @@ impl SPHamiltonian {
             nac_t,
             pij_t,
             rij_t,
+            soc_t,
             proj_t,
             proj_x,
             proj_y,
@@ -396,6 +443,12 @@ impl SPHamiltonian {
     pub fn get_hamil0_rtime(&self, iion: usize, namdinit: usize) -> nd::ArrayView2<c64> {
         let [rtime, _] = Self::get_rtime_xtime(iion, self.nsw, namdinit);
         self.get_hamil(rtime)
+    }
+
+
+    pub fn get_soc_rtime(&self, iion: usize, namdinit: usize) -> Option<nd::ArrayView2<c64>> {
+        let [rtime, _] = Self::get_rtime_xtime(iion, self.nsw, namdinit);
+        self.soc_t.as_ref().map(|v| v.slice(nd::s![rtime, .., ..]))
     }
 
 
@@ -451,11 +504,15 @@ impl SPHamiltonian {
 
 
     // H_diag = eig_t
-    // H_offdiag = nac_t * -i hbar
-    fn calculate_hamil0(eig_t: &nd::Array2<f64>, nac_t: &nd::Array3<c64>) -> nd::Array3<c64> {
+    // H_offdiag = nac_t * -i hbar + soc
+    fn calculate_hamil0(eig_t: &nd::Array2<f64>, nac_t: &nd::Array3<c64>, soc_t: Option<&nd::Array3<c64>>) -> nd::Array3<c64> {
         // off-diag = -i * \hbar * NAC
         let mut ret = -IMGUNIT * HBAR * nac_t;
         let nsw = nac_t.shape()[0];
+
+        if let Some(soc) = soc_t {
+            ret += soc;
+        }
 
         // diag = eig
         for i in 0 .. nsw {
