@@ -27,6 +27,9 @@ pub struct WavesliceConfig {
 
     nsw: usize,
 
+    #[serde(default = "WavesliceConfig::default_spin_diabatics")]
+    spin_diabatics: bool,
+
     #[serde(default = "WavesliceConfig::default_ndigit")]
     ndigit: usize,
 
@@ -39,6 +42,12 @@ pub struct WavesliceConfig {
     #[serde(default = "WavesliceConfig::default_rearrangement")]
     rearrangement: bool,
 
+    #[serde(default = "WavesliceConfig::default_lnormalcar")]
+    lnormalcar: bool,
+
+    #[serde(default = "WavesliceConfig::default_lsoccar")]
+    lsoccar: bool,
+
     #[serde(default = "WavesliceConfig::default_waveslicefname")]
     waveslicefname: PathBuf,
 }
@@ -46,11 +55,14 @@ pub struct WavesliceConfig {
 
 impl WavesliceConfig {
     fn default_ikpoints() -> Vec<usize> { vec![1] }
+    fn default_spin_diabatics() -> bool { false }
     fn default_ndigit() -> usize { 4 }
     fn default_phasecorrection() -> bool { true }
-    fn default_waveslicefname() -> PathBuf { PathBuf::from("waveslice.h5") }
     fn default_unitary_transform() -> bool { false }
     fn default_rearrangement() -> bool { false }
+    fn default_lnormalcar() -> bool { false }
+    fn default_lsoccar() -> bool { false }
+    fn default_waveslicefname() -> PathBuf { PathBuf::from("waveslice.h5") }
 }
 
 
@@ -94,6 +106,12 @@ impl WavesliceConfig {
             ret = ret.context("Field 'waveslicefname' cannot be empy.");
         }
 
+        if self.spin_diabatics {
+            if !self.lnormalcar || ! self.lsoccar {
+                ret = ret.context("Spin diabatics requires lnormalcar = true and lsoccar = true.");
+            }
+        }
+
         ret
     }
 
@@ -117,10 +135,13 @@ impl Default for WavesliceConfig {
             ikpoints: vec![1],
             brange: [0, 0],
             nsw: 2000,
+            spin_diabatics: false,
             ndigit: 4,
             phasecorrection: true,
             unitary_transform: false,
             rearrangement: false,
+            lnormalcar: false,
+            lsoccar: false,
             waveslicefname: PathBuf::from("waveslice.h5"),
         }
     }
@@ -134,13 +155,16 @@ impl fmt::Display for WavesliceConfig {
         writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "rundir",   self.rundir)?;
-        writeln!(f, " {:>20} = {:?}", "ikpoints",  self.ikpoints)?;
+        writeln!(f, " {:>20} = {:?}", "ikpoints", self.ikpoints)?;
         writeln!(f, " {:>20} = {:?}", "brange",   self.brange)?;
         writeln!(f, " {:>20} = {}",   "nsw",      self.nsw)?;
+        writeln!(f, " {:>20} = {}",   "spin_diabatics", self.spin_diabatics)?;
         writeln!(f, " {:>20} = {}",   "ndigit",   self.ndigit)?;
         writeln!(f, " {:>20} = {}",   "phasecorrection", self.phasecorrection)?;
         writeln!(f, " {:>20} = {}",   "unitary_transform", self.unitary_transform)?;
         writeln!(f, " {:>20} = {}",   "rearrangement", self.rearrangement)?;
+        writeln!(f, " {:>20} = {}",   "lnormalcar", self.lnormalcar)?;
+        writeln!(f, " {:>20} = {}",   "lsoccar",    self.lsoccar)?;
         writeln!(f, " {:>20} = {:?}", "waveslicefname", self.waveslicefname)?;
 
         Ok(())
@@ -180,10 +204,13 @@ mod tests {
         ikpoints = [0]
         brange = [100, 200]
         nsw = 3000
+        spin_diabatics = true
         ndigit = 5
         phasecorrection = false
         unitary_transform = true
         rearrangement = true
+        lnormalcar = true
+        lsoccar = true
         waveslicefname = "Waveslice.h5"
         "#;
 
@@ -193,10 +220,13 @@ mod tests {
             ikpoints: vec![0],
             brange: [100, 200],
             nsw: 3000,
+            spin_diabatics: true,
             ndigit: 5,
             phasecorrection: false,
             unitary_transform: true,
             rearrangement: true,
+            lnormalcar: true,
+            lsoccar: true,
             waveslicefname: PathBuf::from("Waveslice.h5"),
         };
 

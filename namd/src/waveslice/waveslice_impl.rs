@@ -50,6 +50,15 @@ pub struct Waveslice {
     /// number of spin channels
     nspin:  usize,
 
+    /// check if use spin diabatics representation
+    spin_diabatics: bool,
+
+    /// check if this waveslice contains normalcar
+    lnormalcar: bool,
+
+    /// check if this waveslice contains soccar
+    lsoccar: bool,
+
     /// Total bands of WAVECAR
     nbands: usize,
 
@@ -98,17 +107,26 @@ pub struct Waveslice {
     /// G vectors of each plane wave for selected K points, [nkpoints, [nplw, 3]]
     gvecs:    Vec<nd::Array2<i64>>,
 
-    /// Eigenvalue of each band for each Waveslice, [nsw, nkpoints, nbrange]
-    eigs:     nd::Array4<f64>,
+    /// Eigenvalue of each band for each Waveslice, [nkpoints, [nspin, nsw, nbrange]]
+    eigs:     Vec<nd::Array3<f64>>,
 
-    /// Fermi occupation of each band for each Waveslice, [nsw, nkpoints, nbrange]
-    fweights: nd::Array4<f64>,
+    /// Fermi occupation of each band for each Waveslice, [nkpoints, [nspin, nsw, nbrange]]
+    fweights: Vec<nd::Array3<f64>>,
 
-    /// Coefficients for each k-point, [nsw, nspin, nkpoints, nbrange, nplwmax]
-    coeffs:   nd::Array5<c64>,
+    /// Coefficients for each k-point, [nkpoints, [nsw, nspin, nbrange, nplwmax]]
+    coeffs:   Vec<nd::Array4<c64>>,
 
-    /// Slice of PROCAR for each WAVECAR, [nsw, nkpoints, nspinor, nbrange, nions, nspd]
-    projs:    nd::Array6<f64>,
+    /// Slice of PROCAR for each WAVECAR, [nkpoints, [nsw, nspinor, nbrange, nions, nspd]]
+    projs:    Vec<nd::Array5<f64>>,
+
+    /// Slice of NormalCAR, projection coefficient of PAW projectors, [nkpoints, [nsw, 2, nbands, nproj]]
+    cprojs:   Option<Vec<nd::Array4<c64>>>,
+
+    /// SocCars, [nsw, 4, nproj, nproj]
+    soccars:  Option<nd::Array4<c64>>,
+
+    /// Spin orbit matrix, [nsw, 4, nbrange, nbrange]
+    hmms: Option<nd::Array4<c64>>,
 
     /// Atomic trajectory of each step, [nsw]
     ///
@@ -120,6 +138,9 @@ pub struct Waveslice {
 impl Waveslice {
     pub fn get_ikpoints(&self) -> &[usize] { &self.ikpoints }
     pub fn get_nspin(&self) -> usize { self.nspin }
+    pub fn get_spin_diabatics(&self) -> bool { self.spin_diabatics }
+    pub fn get_lnormalcar(&self) -> bool { self.lnormalcar }
+    pub fn get_lsoccar(&self) -> bool { self.lsoccar }
     pub fn get_nbands(&self) -> usize { self.nbands }
     pub fn get_brange(&self) -> [usize;2] { self.brange }
     pub fn get_nbrange(&self) -> usize { self.nbrange }
@@ -137,10 +158,14 @@ impl Waveslice {
     pub fn get_kvecs(&self) -> nd::ArrayView2<f64> { self.kvecs.view() }
     pub fn get_num_plws(&self) -> &[usize] { &self.num_plws }
     pub fn get_gvecs(&self) -> &[nd::Array2<i64>] { &self.gvecs }
-    pub fn get_eigs(&self) -> nd::ArrayView4<f64> { self.eigs.view() }
-    pub fn get_fweights(&self) -> nd::ArrayView4<f64> { self.fweights.view() }
-    pub fn get_coeffs(&self) -> nd::ArrayView5<c64> { self.coeffs.view() }
-    pub fn get_projs(&self) -> nd::ArrayView6<f64> { self.projs.view() }
+    pub fn get_eigs(&self) -> &[nd::Array3<f64>] { self.eigs.as_ref() }
+    pub fn get_fweights(&self) -> &[nd::Array3<f64>] { self.fweights.as_ref() }
+    pub fn get_coeffs(&self) -> &[nd::Array4<c64>] { self.coeffs.as_ref() }
+    pub fn get_projs(&self) -> &[nd::Array5<f64>] { self.projs.as_ref() }
+    pub fn get_cprojs(&self) -> Option<&[nd::Array4<c64>]> { self.cprojs.as_ref().map(|x| x.as_ref()) }
+    pub fn get_soccars(&self) -> Option<nd::ArrayView4<c64>> { self.soccars.as_ref().map(|x| x.view()) }
+    pub fn get_hmms(&self) -> Option<nd::ArrayView4<c64>> { self.hmms.as_ref().map(|x| x.view()) }
+    pub fn get_xdatcar(&self) -> &Xdatcar { &self.xdatcar }
 
 
     pub fn from_config(cfg: &WavesliceConfig) -> Result<Self> {
@@ -177,6 +202,9 @@ impl Waveslice {
         let ikpoints: Vec<usize> = f.dataset("ikpoints")?.read_raw()?;
 
         let nspin  = f.dataset("nspin")?.read_scalar::<usize>()?;
+        let spin_diabatics = f.dataset("spin_diabatics")?.read_scalar::<bool>()?;
+        let lnormalcar = f.dataset("lnormalcar")?.read_scalar::<bool>()?;
+        let lsoccar = f.dataset("lsoccar")?.read_scalar::<bool>()?;
         let nbands = f.dataset("nbands")?.read_scalar::<usize>()?;
         let brange = f.dataset("brange")?.read_scalar::<[usize;2]>()?;
         let nbrange = f.dataset("nbrange")?.read_scalar::<usize>()?;
@@ -201,27 +229,59 @@ impl Waveslice {
         let kvecs: nd::Array2<f64>   = f.dataset("kvecs")?.read()?;
         let num_plws: Vec<usize>     = f.dataset("num_plws")?.read_raw()?;
 
-        let gvecs = {
-            let gvecs_group = f.group("gvecs_group")?;
+        let nkpoints = ikpoints.len();
+        let mut gvecs = Vec::<nd::Array2<i64>>::new();
+        let mut eigs = Vec::<nd::Array3<f64>>::new();
+        let mut fweights = Vec::<nd::Array3<f64>>::new();
+        let mut coeffs = Vec::<nd::Array4<c64>>::new();
+        let mut projs = Vec::<nd::Array5<f64>>::new();
 
-            let mut gvecs: Vec<nd::Array2<i64>> = Vec::new();
-            for &ik in &ikpoints {
-                let ikpath = format!("k{}", ik+1);
-                let gvec: nd::Array2<i64> = gvecs_group.dataset(&ikpath)?.read()?;
-                gvecs.push(gvec);
+        let mut cprojs = if lnormalcar {
+            Some(Vec::<nd::Array4<c64>>::new())
+        } else { None };
+
+        for (i, &ik) in ikpoints.iter().enumerate() {
+            let grp = f.group(format!("k{ik}").as_ref())?;
+
+            let gvec: nd::Array2<i64> = grp.dataset("gvecs")?.read()?;
+            gvecs.push(gvec);
+
+            let eig: nd::Array3<f64> = grp.dataset("eigs")?.read()?;
+            eigs.push(eig);
+
+            let fweight: nd::Array3<f64> = grp.dataset("fweights")?.read()?;
+            fweights.push(fweight);
+
+            let coeff_r: nd::Array4<f64> = grp.dataset("coeffs_r")?.read()?;
+            let coeff_i: nd::Array4<f64> = grp.dataset("coeffs_i")?.read()?;
+            coeffs.push(coeff_r.mapv(|v| c64::new(v, 0.0)) + coeff_i.mapv(|v| c64::new(0.0, v)));
+
+            let proj: nd::Array5<f64> = grp.dataset("projs")?.read()?;
+            projs.push(proj);
+
+            if let Some(cproj) = cprojs.as_mut() {
+                let cproj_r: nd::Array4<f64> = grp.dataset("cprojs_r")?.read()?;
+                let cproj_i: nd::Array4<f64> = grp.dataset("cprojs_i")?.read()?;
+                cproj[i] = cproj_r.mapv(|x| c64::new(x, 0.0)) + cproj_i.mapv(|x| c64::new(0.0, x));
             }
-            gvecs
+        }
+
+        let soccars = if lsoccar {
+            let soccar_r: nd::Array4<f64> = f.dataset("soccars_r")?.read()?;
+            let soccar_i: nd::Array4<f64> = f.dataset("soccars_i")?.read()?;
+            Some(soccar_r.mapv(|x| c64::new(x, 0.0)) + soccar_i.mapv(|x| c64::new(0.0, x)))
+        } else {
+            None
         };
 
-        let eigs: nd::Array4<f64> = f.dataset("eigs")?.read()?;
-        let fweights: nd::Array4<f64> = f.dataset("fweights")?.read()?;
-        let coeffs: nd::Array5<c64> = {
-            let coeffs_r: nd::Array5<f64> = f.dataset("coeffs_r")?.read()?;
-            let coeffs_i: nd::Array5<f64> = f.dataset("coeffs_i")?.read()?;
-            coeffs_r.mapv(|x| c64::new(x, 0.0)) + coeffs_i.mapv(|x| c64::new(0.0, x))
+        let hmms = if spin_diabatics {
+            let hmm_r: nd::Array4<f64> = f.dataset("hmms_r")?.read()?;
+            let hmm_i: nd::Array4<f64> = f.dataset("hmms_i")?.read()?;
+            Some(hmm_r.mapv(|x| c64::new(x, 0.0)) + hmm_i.mapv(|x| c64::new(0.0, x)))
+        } else {
+            None
         };
 
-        let projs: nd::Array6<f64> = f.dataset("projs")?.read()?;
         let xdatcar = {
             let bytes = f.dataset("xdatcar")?.read_raw::<u8>()?;
             let xdatcar_str = String::from_utf8(bytes)?;
@@ -231,6 +291,9 @@ impl Waveslice {
         Ok(Self {
             ikpoints,
             nspin,
+            spin_diabatics,
+            lnormalcar,
+            lsoccar,
             nbands,
             brange,
             nbrange,
@@ -252,6 +315,9 @@ impl Waveslice {
             fweights,
             coeffs,
             projs,
+            cprojs,
+            soccars,
+            hmms,
             xdatcar,
         })
     }
@@ -264,6 +330,9 @@ impl Waveslice {
         f.new_dataset_builder().with_data(&self.ikpoints).create("ikpoints")?;
 
         f.new_dataset::<usize>().create("nspin")?.write_scalar(&self.nspin)?;
+        f.new_dataset::<bool>().create("spin_diabatics")?.write_scalar(&self.spin_diabatics)?;
+        f.new_dataset::<bool>().create("lnormalcar")?.write_scalar(&self.lnormalcar)?;
+        f.new_dataset::<bool>().create("lsoccar")?.write_scalar(&self.lsoccar)?;
         f.new_dataset::<usize>().create("nbands")?.write_scalar(&self.nbands)?;
         f.new_dataset::<[usize;2]>().create("brange")?.write_scalar(&self.brange)?;
         f.new_dataset::<usize>().create("nbrange")?.write_scalar(&self.nbrange)?;
@@ -285,19 +354,37 @@ impl Waveslice {
         f.new_dataset_builder().with_data(&self.kvecs).create("kvecs")?;
         f.new_dataset_builder().with_data(&self.num_plws).create("num_plws")?;
 
-        let gvecs_group = f.create_group("gvecs_group")?;
         for (i, &ik) in self.ikpoints.iter().enumerate() {
-            let ikpath = format!("k{}", ik+1);
-            gvecs_group.new_dataset_builder().with_data(&self.gvecs[i]).create(ikpath.as_ref())?;
+            let grp = f.create_group(format!("k{ik}").as_ref())?;
+
+            grp.new_dataset_builder().with_data(&self.kvecs.slice(nd::s![i, ..])).create("kvec")?;
+
+            grp.new_dataset::<usize>().create("nplw")?.write_scalar(&self.num_plws[i])?;
+            grp.new_dataset_builder().with_data(&self.gvecs[i]).create("gvecs")?;
+
+            grp.new_dataset_builder().with_data(&self.eigs[i]).create("eigs")?;
+            grp.new_dataset_builder().with_data(&self.fweights[i]).create("fweights")?;
+
+            grp.new_dataset_builder().with_data(&self.coeffs[i].mapv(|x| x.re)).create("coeffs_r")?;
+            grp.new_dataset_builder().with_data(&self.coeffs[i].mapv(|x| x.im)).create("coeffs_i")?;
+
+            grp.new_dataset_builder().with_data(&self.projs[i]).create("projs")?;
+
+            if let Some(cprojs) = self.cprojs.as_ref() {
+                grp.new_dataset_builder().with_data(&cprojs[i].mapv(|x| x.re)).create("cprojs_r")?;
+                grp.new_dataset_builder().with_data(&cprojs[i].mapv(|x| x.im)).create("cprojs_i")?;
+            }
         }
 
-        f.new_dataset_builder().with_data(&self.eigs).create("eigs")?;
-        f.new_dataset_builder().with_data(&self.fweights).create("fweights")?;
+        if let Some(soccars) = self.soccars.as_ref() {
+            f.new_dataset_builder().with_data(&soccars.mapv(|x| x.re)).create("soccars_r")?;
+            f.new_dataset_builder().with_data(&soccars.mapv(|x| x.im)).create("soccars_i")?;
+        }
 
-        f.new_dataset_builder().with_data(&self.coeffs.mapv(|x| x.re)).create("coeffs_r")?;
-        f.new_dataset_builder().with_data(&self.coeffs.mapv(|x| x.im)).create("coeffs_i")?;
-
-        f.new_dataset_builder().with_data(&self.projs).create("projs")?;
+        if let Some(hmm) = self.hmms.as_ref() {
+            f.new_dataset_builder().with_data(&hmm.mapv(|x| x.re)).create("hmms_r")?;
+            f.new_dataset_builder().with_data(&hmm.mapv(|x| x.im)).create("hmms_i")?;
+        }
 
         let xdatcar_str = format!("{}", self.xdatcar);
         f.new_dataset_builder().with_data(&xdatcar_str.as_bytes()).create("xdatcar")?;
