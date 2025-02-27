@@ -20,7 +20,7 @@ use byteorder::{
 
 /// Read NormalCAR data, ikpoint count from 1, then returns the projector coefficients CPROJ
 /// shape(CPROJ) = (2, nbands, nproj)
-fn read_normalcar<P>(fname: P, nbands: usize, nkpoints: usize, ikpoint: usize) -> Result<(na::Array3<c64> /* cproj */, usize /* nproj */)>
+pub fn read_normalcar<P>(fname: P, nbands: usize, nkpoints: usize, ikpoint: usize) -> Result<(na::Array3<c64> /* cproj */, usize /* nproj */)>
 where P: AsRef<Path> {
     let mut f = fs::File::open(&fname).context(format!("Failed to open file {:?}.", fname.as_ref()))?;
 
@@ -82,7 +82,7 @@ where P: AsRef<Path> {
 ///        SCO[1, .., ..] = up to dn
 ///        SCO[2, .., ..] = dn to up
 ///        SCO[3, .., ..] = dn to dn
-fn read_soccar<P>(fname: P, nproj: usize) -> Result<na::Array3<c64> /* soc */>
+pub fn read_soccar<P>(fname: P, nproj: usize) -> Result<na::Array3<c64> /* soc */>
 where P: AsRef<Path> {
     let txt = fs::read_to_string(&fname).context(format!("Failed to open file: {:?}.", fname.as_ref()))?;
 
@@ -116,34 +116,49 @@ where P: AsRef<Path> {
     let (cproj, nproj) = read_normalcar(normalcar_fname, nbands, nkpoints, ikpoint)?;
     let soccar = read_soccar(soccar_fname, nproj)?;
 
-    let mut Hmm = na::Array3::<c64>::zeros((4, nbands, nbands));
+    Ok(calc_hmm_helper(&cproj, &soccar))
+}
+
+
+pub fn calc_hmm_helper(cproj: &na::Array3<c64>, soccar: &na::Array3<c64>) -> na::Array3<c64> {
+    let cproj_shape = cproj.shape();
+    assert_eq!(cproj_shape[0], 2);
+    let nbands = cproj_shape[1];
+    let nproj  = cproj_shape[2];
+
+    let soccar_shape = soccar.shape();
+    assert_eq!(4, soccar_shape[0]);
+    assert_eq!(nproj, soccar_shape[1]);
+    assert_eq!(nproj, soccar_shape[2]);
+
+    let mut hmm = na::Array3::<c64>::zeros((4, nbands, nbands));
 
     // CPROJ[0, .., ..]^H * SOCCAR * CPROJ[0, .., ..]
-    Hmm.index_axis_mut(na::Axis(0), 0).assign(
+    hmm.index_axis_mut(na::Axis(0), 0).assign(
         &cproj.index_axis(na::Axis(0), 0).mapv(|v| v.conj())
             .dot(&soccar.index_axis(na::Axis(0), 0))
             .dot(&cproj.index_axis(na::Axis(0), 0).t())
     );
 
-    Hmm.index_axis_mut(na::Axis(0), 3).assign(
+    hmm.index_axis_mut(na::Axis(0), 3).assign(
         &cproj.index_axis(na::Axis(0), 1).mapv(|v| v.conj())
             .dot(&soccar.index_axis(na::Axis(0), 3))
             .dot(&cproj.index_axis(na::Axis(0), 1).t())
     );
 
-    Hmm.index_axis_mut(na::Axis(0), 2).assign(
+    hmm.index_axis_mut(na::Axis(0), 2).assign(
         &cproj.index_axis(na::Axis(0), 1).mapv(|v| v.conj())
             .dot(&soccar.index_axis(na::Axis(0), 2))
             .dot(&cproj.index_axis(na::Axis(0), 0).t())
     );
 
-    Hmm.index_axis_mut(na::Axis(0), 1).assign(
+    hmm.index_axis_mut(na::Axis(0), 1).assign(
         &cproj.index_axis(na::Axis(0), 0).mapv(|v| v.conj())
             .dot(&soccar.index_axis(na::Axis(0), 1))
             .dot(&cproj.index_axis(na::Axis(0), 1).t())
     );
 
-    Ok(Hmm)
+    hmm
 }
 
 

@@ -16,3 +16,6 @@ pub use wavecar::{
     Wavefunction,
 };
 pub use soc::calc_hmm;
+pub use soc::calc_hmm_helper;
+pub use soc::read_normalcar;
+pub use soc::read_soccar;

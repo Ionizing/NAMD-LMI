@@ -19,27 +19,37 @@ use vasp_parsers::{
     WavecarType,
     Xdatcar,
     Poscar,
+    read_normalcar,
+    read_soccar,
+    calc_hmm_helper,
 };
 use crate::waveslice::WavesliceConfig;
 
 
 struct SliceIRet {
-    eigs_i:     nd::Array3<f64>, // [nspin, nkpoints, nbrange]
-    fweights_i: nd::Array3<f64>, // [nspin, nkpoints, nbrange]
-    coeffs_i:  nd::Array4<c64>, // [nspin, nkpoints, nbrange, nplwmax]
-    projs_i:   nd::Array5<f64>, // [nsw, nkpoints, nions, nspinor, nbrange]
-    poscar:    Poscar,          // parsed from CONTCAR
-    efermi:    f64,
+    eigs_i:     Vec<nd::Array2<f64>>, // [nkpoints, [nspin, nbrange]]
+    fweights_i: Vec<nd::Array2<f64>>, // [nkpoints, [nspin, nbrange]]
+    coeffs_i:   Vec<nd::Array3<c64>>, // [nkpoints, [nspin, nbrange, nplwmax]]
+    projs_i:    Vec<nd::Array4<f64>>, // [nkpoints, [nspinors, nions, nspinor, nbrange]]
+    cprojs_i:   Option<Vec<nd::Array3<c64>>>, // [nkpoints, [2, nbrange, nproj]]
+    soccar_i:   Option<nd::Array3<c64>>,      // [4, nproj, nproj]
+    hmm_i:      Option<Vec<nd::Array3<c64>>>, // [nkpoints, [4, nbrange, nbrange]]
+    poscar:     Poscar,
+    efermi:     f64,
 }
 
 
 struct SliceTotRet {
-    eigs:     nd::Array4<f64>,  // [nsw, nspin, nkpoints, nbrange]
-    fweights: nd::Array4<f64>,  // [nsw, nspin, nkpoints, nbrange]
-    coeffs:   nd::Array5<c64>,  // [nsw, nspin, nkpoints, nbrange, nplwmax]
-    projs:    nd::Array6<f64>,  // [nsw, nkpoints, nspinor, nbrange, nions, nspd]
-    efermis:  nd::Array1<f64>,  // [nsw,]
+    eigs:     Vec<nd::Array3<f64>>,  // [nkpoints, [nsw, nspin, nbrange]]
+    fweights: Vec<nd::Array3<f64>>,  // [nkpoints, [nsw, nspin, nbrange]]
+    coeffs:   Vec<nd::Array4<c64>>,  // [nkpoints, [nsw, nspin, nbrange, nplwmax]]
+    projs:    Vec<nd::Array5<f64>>,  // [nkpoints, [nsw, nspinor, nbrange, nions, nspd]]
+    cprojs:   Option<Vec<nd::Array4<c64>>>, // [nkpoints, [nsw, 2, nbands, nproj]]
+
+    soccars:  Option<nd::Array4<c64>>,      // [nsw, 4, nproj, nproj]
+    hmms:     Option<Vec<nd::Array4<c64>>>,      // [nkpoints, [nsw, 4, nbrange, nbrange]]
     xdatcar:  Xdatcar,          // [nsw,]
+    efermis:  nd::Array1<f64>,  // [nsw,]
 }
 
 
@@ -119,14 +129,14 @@ pub struct Waveslice {
     /// Slice of PROCAR for each WAVECAR, [nkpoints, [nsw, nspinor, nbrange, nions, nspd]]
     projs:    Vec<nd::Array5<f64>>,
 
-    /// Slice of NormalCAR, projection coefficient of PAW projectors, [nkpoints, [nsw, 2, nbands, nproj]]
+    /// Slice of NormalCAR, projection coefficient of PAW projectors, [nkpoints, [nsw, 2, nbrange, nproj]]
     cprojs:   Option<Vec<nd::Array4<c64>>>,
 
     /// SocCars, [nsw, 4, nproj, nproj]
     soccars:  Option<nd::Array4<c64>>,
 
     /// Spin orbit matrix, [nsw, 4, nbrange, nbrange]
-    hmms: Option<nd::Array4<c64>>,
+    hmms: Option<Vec<nd::Array4<c64>>>,
 
     /// Atomic trajectory of each step, [nsw]
     ///
@@ -164,7 +174,7 @@ impl Waveslice {
     pub fn get_projs(&self) -> &[nd::Array5<f64>] { self.projs.as_ref() }
     pub fn get_cprojs(&self) -> Option<&[nd::Array4<c64>]> { self.cprojs.as_ref().map(|x| x.as_ref()) }
     pub fn get_soccars(&self) -> Option<nd::ArrayView4<c64>> { self.soccars.as_ref().map(|x| x.view()) }
-    pub fn get_hmms(&self) -> Option<nd::ArrayView4<c64>> { self.hmms.as_ref().map(|x| x.view()) }
+    pub fn get_hmms(&self) -> Option<&[nd::Array4<c64>]> { self.hmms.as_ref().map(|x| x.as_ref()) }
     pub fn get_xdatcar(&self) -> &Xdatcar { &self.xdatcar }
 
 
@@ -229,7 +239,7 @@ impl Waveslice {
         let kvecs: nd::Array2<f64>   = f.dataset("kvecs")?.read()?;
         let num_plws: Vec<usize>     = f.dataset("num_plws")?.read_raw()?;
 
-        let nkpoints = ikpoints.len();
+        //let nkpoints = ikpoints.len();
         let mut gvecs = Vec::<nd::Array2<i64>>::new();
         let mut eigs = Vec::<nd::Array3<f64>>::new();
         let mut fweights = Vec::<nd::Array3<f64>>::new();
@@ -237,6 +247,10 @@ impl Waveslice {
         let mut projs = Vec::<nd::Array5<f64>>::new();
 
         let mut cprojs = if lnormalcar {
+            Some(Vec::<nd::Array4<c64>>::new())
+        } else { None };
+
+        let mut hmms = if spin_diabatics {
             Some(Vec::<nd::Array4<c64>>::new())
         } else { None };
 
@@ -264,20 +278,18 @@ impl Waveslice {
                 let cproj_i: nd::Array4<f64> = grp.dataset("cprojs_i")?.read()?;
                 cproj[i] = cproj_r.mapv(|x| c64::new(x, 0.0)) + cproj_i.mapv(|x| c64::new(0.0, x));
             }
+
+            if let Some(hmm) = hmms.as_mut() {
+                let hmm_r: nd::Array4<f64> = grp.dataset("hmms_r")?.read()?;
+                let hmm_i: nd::Array4<f64> = grp.dataset("hmms_i")?.read()?;
+                hmm.push(hmm_r.mapv(|x| c64::new(x, 0.0)) + hmm_i.mapv(|x| c64::new(0.0, x)));
+            }
         }
 
         let soccars = if lsoccar {
             let soccar_r: nd::Array4<f64> = f.dataset("soccars_r")?.read()?;
             let soccar_i: nd::Array4<f64> = f.dataset("soccars_i")?.read()?;
             Some(soccar_r.mapv(|x| c64::new(x, 0.0)) + soccar_i.mapv(|x| c64::new(0.0, x)))
-        } else {
-            None
-        };
-
-        let hmms = if spin_diabatics {
-            let hmm_r: nd::Array4<f64> = f.dataset("hmms_r")?.read()?;
-            let hmm_i: nd::Array4<f64> = f.dataset("hmms_i")?.read()?;
-            Some(hmm_r.mapv(|x| c64::new(x, 0.0)) + hmm_i.mapv(|x| c64::new(0.0, x)))
         } else {
             None
         };
@@ -374,16 +386,16 @@ impl Waveslice {
                 grp.new_dataset_builder().with_data(&cprojs[i].mapv(|x| x.re)).create("cprojs_r")?;
                 grp.new_dataset_builder().with_data(&cprojs[i].mapv(|x| x.im)).create("cprojs_i")?;
             }
+
+            if let Some(hmm) = self.hmms.as_ref() {
+                grp.new_dataset_builder().with_data(&hmm[i].mapv(|x| x.re)).create("hmms_r")?;
+                grp.new_dataset_builder().with_data(&hmm[i].mapv(|x| x.im)).create("hmms_i")?;
+            }
         }
 
         if let Some(soccars) = self.soccars.as_ref() {
             f.new_dataset_builder().with_data(&soccars.mapv(|x| x.re)).create("soccars_r")?;
             f.new_dataset_builder().with_data(&soccars.mapv(|x| x.im)).create("soccars_i")?;
-        }
-
-        if let Some(hmm) = self.hmms.as_ref() {
-            f.new_dataset_builder().with_data(&hmm.mapv(|x| x.re)).create("hmms_r")?;
-            f.new_dataset_builder().with_data(&hmm.mapv(|x| x.im)).create("hmms_i")?;
         }
 
         let xdatcar_str = format!("{}", self.xdatcar);
@@ -410,6 +422,11 @@ impl Waveslice {
 
         let nspin   = w1.nspin as usize;
         let nbands  = w1.nbands as usize;
+
+        let spin_diabatics = cfg.get_spin_diabatics();
+        let lnormalcar = cfg.get_lnormalcar();
+        let lsoccar = cfg.get_lsoccar();
+
 
         let encut = w1.encut;
         let wavetype = match w1.wavecar_type {
@@ -468,13 +485,16 @@ impl Waveslice {
 
 
         let SliceTotRet {
-            eigs, fweights, coeffs, projs, efermis, xdatcar
+            eigs, fweights, coeffs, projs, cprojs, soccars, hmms, xdatcar, efermis
         } = Self::from_wavecars(&rundir, nsw, &ikpoints, brange.clone(), ndigit,
-            nspin, &num_plws, lncl, nions, nspd)?;
+            nspin, &num_plws, lncl, nions, nspd, lnormalcar, lsoccar, spin_diabatics)?;
 
         Ok(Self {
             ikpoints,
             nspin,
+            spin_diabatics,
+            lnormalcar,
+            lsoccar,
             nbands,
             brange: cfg.get_brange().clone(),
             nbrange,
@@ -500,38 +520,50 @@ impl Waveslice {
             fweights,
             coeffs,
             projs,
+            cprojs,
+            soccars,
+            hmms,
             xdatcar,
         })
     }
 
 
-    fn from_wavecars(rundir: &Path, nsw: usize, ikpoints: &[usize], brange: Range<usize>,
-        ndigit: usize, nspin: usize, num_plws: &[usize], lncl: bool, nions: usize, nspd: usize,
-        ) -> Result<SliceTotRet> {
+    fn from_wavecars(
+        rundir: &Path, nsw: usize, ikpoints: &[usize], brange: Range<usize>, ndigit: usize,
+        nspin: usize, num_plws: &[usize], lncl: bool, nions: usize, nspd: usize,
+        lnormalcar: bool, lsoccar: bool, spin_diabatics: bool,
+    ) -> Result<SliceTotRet> {
         
         let nbrange   = brange.clone().count();
         let nkpoints  = ikpoints.len();
-        let nplws_max = num_plws.iter().cloned().max().unwrap();
+        //let nplws_max = num_plws.iter().cloned().max().unwrap();
         let nspinors  = if lncl { 4 } else { nspin };
 
         let ret_eigs = Arc::new(Mutex::new(
-                nd::Array4::<f64>::zeros((nsw, nspin, nkpoints, nbrange))
+                vec![nd::Array3::<f64>::zeros((nsw, nspin, nbrange)); nkpoints]
                 ));
         let ret_fweights = Arc::new(Mutex::new(
-                nd::Array4::<f64>::zeros((nsw, nspin, nkpoints, nbrange))
+                vec![nd::Array3::<f64>::zeros((nsw, nspin, nbrange)); nkpoints]
                 ));
         let ret_coeffs = Arc::new(Mutex::new(
-                nd::Array5::<c64>::zeros((nsw, nspin, nkpoints, nbrange, nplws_max))
+                num_plws.iter().cloned()
+                    .map(|nplw| nd::Array4::<c64>::zeros((nsw, nspin, nbrange, nplw)))
+                    .collect::<Vec<_>>()
                 ));
         let ret_projs = Arc::new(Mutex::new(
-                nd::Array6::<f64>::zeros((nsw, nkpoints, nspinors, nbrange, nions, nspd))
+                vec![nd::Array5::<f64>::zeros((nsw, nspinors, nbrange, nions, nspd)); nkpoints]
                 ));
-        let ret_efermis = Arc::new(Mutex::new(
-                nd::Array1::<f64>::zeros((nsw,))
-                ));
-        let ret_xdatcar = Arc::new(Mutex::new(vec![Poscar::default(); nsw]));
 
-        
+        let ret_cprojs  = Arc::new(Mutex::new(Option::<Vec<nd::Array4::<c64>>>::None));
+        let ret_soccars = Arc::new(Mutex::new(Option::<nd::Array4::<c64>>::None));
+        let ret_hmms    = Arc::new(Mutex::new(if spin_diabatics {
+            Some(vec![nd::Array4::zeros((nsw, 4, nbrange, nbrange)); nkpoints])
+        } else { None }));
+
+        let ret_xdatcar = Arc::new(Mutex::new(vec![Poscar::default(); nsw]));
+        let ret_efermis = Arc::new(Mutex::new(nd::Array1::<f64>::zeros(nsw)));
+
+
         let remain_count = Arc::new(Mutex::new(nsw - 1));
         (0 .. nsw).into_par_iter().for_each(|isw| {
             let path_i = rundir.join(format!("{:0ndigit$}", isw+1));
@@ -542,16 +574,53 @@ impl Waveslice {
                 *remain_now -= 1;
             }
 
-            let SliceIRet { eigs_i, fweights_i, coeffs_i, projs_i, poscar, efermi } =
-                Self::slice_i(
-                    &path_i, ikpoints, brange.clone(), nspin, lncl, nplws_max, nions, nspd
+            let SliceIRet { eigs_i, fweights_i, coeffs_i, projs_i,
+                cprojs_i, soccar_i, hmm_i, poscar, efermi,
+            } = Self::slice_i(&path_i, nspin, lncl, ikpoints, brange.clone(),
+                    num_plws, /*nions, nspd,*/ lnormalcar, lsoccar, spin_diabatics
                 ).with_context(|| format!("Failed to slicing WAVECAR or PROCAR from {:?}.", &path_i))
                 .unwrap();
 
-            ret_eigs.lock().unwrap().slice_mut(nd::s![isw, .., .., ..]).assign(&eigs_i);
-            ret_fweights.lock().unwrap().slice_mut(nd::s![isw, .., .., ..]).assign(&fweights_i);
-            ret_coeffs.lock().unwrap().slice_mut(nd::s![isw, .., .., .., ..]).assign(&coeffs_i);
-            ret_projs.lock().unwrap().slice_mut(nd::s![isw, .., .., .., .., ..]).assign(&projs_i);
+            for ik in 0 .. ikpoints.len() {
+                ret_eigs.lock().unwrap()[ik].slice_mut(nd::s![isw, .., ..]).assign(&eigs_i[ik]);
+                ret_fweights.lock().unwrap()[ik].slice_mut(nd::s![isw, .., ..]).assign(&fweights_i[ik]);
+                ret_coeffs.lock().unwrap()[ik].slice_mut(nd::s![isw, .., .., ..]).assign(&coeffs_i[ik]);
+                ret_projs.lock().unwrap()[ik].slice_mut(nd::s![isw, .., .., .., ..]).assign(&projs_i[ik]);
+
+                if lnormalcar {
+                    // Initialize
+                    let mut cprojs = ret_cprojs.lock().unwrap();
+                    if cprojs.is_none() {
+                        let nproj = cprojs_i.as_ref().unwrap()[0].shape()[3];
+                        *cprojs = Some(vec![nd::Array4::zeros((nsw, 2, nbrange, nproj)); nkpoints]);
+                    }
+                    drop(cprojs);
+                    // Initilaization done
+
+                    ret_cprojs.lock().unwrap()      // Option<Vec<_>>
+                        .as_mut().unwrap()[ik].slice_mut(nd::s![isw, .., .., ..])
+                        .assign(&cprojs_i.as_ref().unwrap()[ik]);
+                }
+
+                if let Some(hmm) = ret_hmms.lock().unwrap().as_mut() {
+                    hmm[ik].slice_mut(nd::s![isw, .., .., ..])
+                        .assign(&hmm_i.as_ref().unwrap()[ik]);
+                }
+            }
+
+            if lsoccar {
+                let mut soccars = ret_soccars.lock().unwrap();
+                if soccars.is_none() {
+                    let nproj = soccar_i.as_ref().unwrap().shape()[2];
+                    *soccars = Some(nd::Array4::<c64>::zeros((nsw, 4, nproj, nproj)));
+                }
+                drop(soccars);
+
+                ret_soccars.lock().unwrap().as_mut().unwrap()
+                    .slice_mut(nd::s![isw, .., .., ..])
+                    .assign(&soccar_i.as_ref().unwrap());
+            }
+
             ret_efermis.lock().unwrap()[isw] = efermi;
             ret_xdatcar.lock().unwrap()[isw] = poscar;
         });
@@ -562,58 +631,102 @@ impl Waveslice {
             fweights: Arc::try_unwrap(ret_fweights).unwrap().into_inner()?,
             coeffs: Arc::try_unwrap(ret_coeffs).unwrap().into_inner()?,
             projs: Arc::try_unwrap(ret_projs).unwrap().into_inner()?,
+            cprojs: Arc::try_unwrap(ret_cprojs).unwrap().into_inner()?,
+
+            soccars: Arc::try_unwrap(ret_soccars).unwrap().into_inner()?,
+            hmms: Arc::try_unwrap(ret_hmms).unwrap().into_inner()?,
             xdatcar: Xdatcar::from(Arc::try_unwrap(ret_xdatcar).unwrap().into_inner()?),
             efermis: Arc::try_unwrap(ret_efermis).unwrap().into_inner()?,
         })
     }
 
 
-    fn slice_i(path_i: &Path, ikpoints: &[usize], brange: Range<usize>, nspin: usize, lncl: bool,
-        nplws_max: usize, nions: usize, nspd: usize) -> Result<SliceIRet> {
+    fn slice_i(path_i: &Path,
+        nspin: usize, lncl: bool, ikpoints: &[usize], brange: Range<usize>,
+        num_plws: &[usize], /*nions: usize, nspd: usize,*/
+        lnormalcar: bool, lsoccar: bool, spin_diabatics: bool,
+    ) -> Result<SliceIRet> {
         let wav = Wavecar::from_file(&path_i.join("WAVECAR"))?;
         let proj = Procar::from_file(&path_i.join("PROCAR"))?;
-        let poscar = Poscar::from_file(&path_i.join("CONTCAR"))?;
 
         let nbrange = brange.clone().count();
-        let nkpoints = ikpoints.len();
-        let nspinors = if lncl { 4 } else { nspin };
+        //let nspinors = if lncl { 4 } else { nspin };
+        let nk = ikpoints.len();
 
-        anyhow::ensure!(nkpoints <= wav.nkpoints as usize);
         anyhow::ensure!(nbrange <= wav.nbands as usize);
+        anyhow::ensure!(nk <= wav.nkpoints as usize);
 
-        let mut eigs_i = nd::Array3::<f64>::zeros((nspin, nkpoints, nbrange));
+        let mut eigs_i     = Vec::<nd::Array2::<f64>>::new();
         let mut fweights_i = eigs_i.clone();
-        let mut coeffs_i = nd::Array4::<c64>::zeros((nspin, nkpoints, nbrange, nplws_max));
-        let mut projs_i = nd::Array5::<f64>::zeros((nkpoints, nspinors, nbrange, nions, nspd));
+        let mut coeffs_i   = Vec::<nd::Array3::<c64>>::new();
+        let mut projs_i    = Vec::<nd::Array4::<f64>>::new();
 
-        for (ii, &ik) in ikpoints.iter().enumerate() {
-            eigs_i.slice_mut(nd::s![.., ik, ..])
-                .assign(&wav.band_eigs.slice(nd::s![.., ik, brange.clone()]));
-            fweights_i.slice_mut(nd::s![.., ik, ..])
-                .assign(&wav.band_fweights.slice(nd::s![.., ik, brange.clone()]));
-            projs_i.slice_mut(nd::s![ik, .., .., .., ..])
-                .assign(&proj.pdos.projected.slice(nd::s![.., ik, brange.clone(), .., ..]));
+        let mut cprojs_i = if lnormalcar {
+            Some(Vec::<nd::Array3::<c64>>::new())
+        } else {
+            None
+        };
+        let mut nproj = 0usize;
 
-            let nplw = wav.nplws[ik] as usize;
+        for (ik, &ikpoint) in ikpoints.iter().enumerate() {
+            anyhow::ensure!(ikpoint < wav.nkpoints as usize);
+            anyhow::ensure!(num_plws[ikpoint] == wav.nplws[ikpoint] as usize);
+
+            eigs_i.push(wav.band_eigs.slice(nd::s![.., ikpoint, brange.clone()]).to_owned());
+            fweights_i.push(wav.band_fweights.slice(nd::s![.., ikpoint, brange.clone()]).to_owned());
+            projs_i.push(proj.pdos.projected.slice(nd::s![.., ikpoint, brange.clone(), .., ..]).to_owned());
+
             let nspinor = if lncl { 2 } else { 1usize };
+            let nplw = num_plws[ik];
+            let mut coeff_tmp = nd::Array3::<c64>::zeros((nspin, nbrange, nplw));
             for ispin in 0 .. nspin {
                 for (jj, iband) in brange.clone().into_iter().enumerate() {
-                    let coeff = wav._wav_kspace(ispin as u64, ik as u64, iband as u64, nplw / nspinor)
+                    let coeff = wav._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
                         .into_shape((nplw,))
                         .context("Wavefunction reshape failed.")?;
-                    coeffs_i.slice_mut(nd::s![ispin, ii, jj, 0..nplw])
-                        .assign(&coeff);
+                    coeff_tmp.slice_mut(nd::s![ispin, jj, ..]).assign(&coeff);
                 }
+            }
+            coeffs_i.push(coeff_tmp);
+
+            if let Some(cprojs) = cprojs_i.as_mut() {
+                let (cproj, _nproj) = read_normalcar(
+                    path_i.join("NormalCAR"), wav.nbands as _, wav.nkpoints as _, ikpoint + 1)?;
+                nproj = _nproj;
+                cprojs.push(cproj.slice(nd::s![.., brange.clone(), ..]).to_owned());
             }
         }
 
+        let soccar_i = if lsoccar {
+            anyhow::ensure!(nproj != 0);
+            let soccar = read_soccar(path_i.join("SocCar"), nproj)?;
+            Some(soccar)
+        } else {
+            None
+        };
+
+        let hmm_i = if spin_diabatics {
+            anyhow::ensure!(lnormalcar && lsoccar, "Spin diabatics requires lnormalcar=true and lsoccar=true");
+            let hmm = cprojs_i.as_ref().unwrap().iter()
+                .map(|cproj| calc_hmm_helper(cproj, soccar_i.as_ref().unwrap()))
+                .collect::<Vec<_>>();
+            Some(hmm)
+        } else {
+            None
+        };
+
+        let poscar = Poscar::from_file(path_i.join("POSCAR"))?;
         let efermi = wav.efermi;
+
 
         Ok( SliceIRet {
             eigs_i,
             fweights_i,
             coeffs_i,
             projs_i,
+            cprojs_i,
+            soccar_i,
+            hmm_i,
             poscar,
             efermi,
         })
