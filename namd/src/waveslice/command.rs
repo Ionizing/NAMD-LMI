@@ -46,6 +46,11 @@ pub struct WavesliceCommand {
 }
 
 
+//enum Reconstruct {
+    
+//}
+
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, PartialOrd, ValueEnum)]
 enum TemplateGenerator {
     #[value(aliases=["config", "cfg", "conf"])]

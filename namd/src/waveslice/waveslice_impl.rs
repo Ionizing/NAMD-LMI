@@ -60,6 +60,9 @@ pub struct Waveslice {
     /// number of spin channels
     nspin:  usize,
 
+    /// check if the wavecar is produced by vasp_ncl
+    lncl: bool,
+
     /// check if use spin diabatics representation
     spin_diabatics: bool,
 
@@ -88,6 +91,12 @@ pub struct Waveslice {
 
     /// ENCUT from INCAR
     encut:   f64,
+
+    /// Time step of the trajectory, in fs
+    potim: f64,
+
+    /// Temperature for the trajectory, in Kelvin
+    temperature: f64,
     
     phasecorrection:   bool,
     unitary_transform: bool,
@@ -148,6 +157,7 @@ pub struct Waveslice {
 impl Waveslice {
     pub fn get_ikpoints(&self) -> &[usize] { &self.ikpoints }
     pub fn get_nspin(&self) -> usize { self.nspin }
+    pub fn get_lncl(&self) -> bool { self.lncl }
     pub fn get_spin_diabatics(&self) -> bool { self.spin_diabatics }
     pub fn get_lnormalcar(&self) -> bool { self.lnormalcar }
     pub fn get_lsoccar(&self) -> bool { self.lsoccar }
@@ -157,6 +167,9 @@ impl Waveslice {
     pub fn get_ndigit(&self) -> usize { self.ndigit }
     pub fn get_nsw(&self) -> usize { self.nsw }
     pub fn get_encut(&self) -> f64 { self.encut }
+    pub fn get_potim(&self) -> f64 { self.potim }
+    pub fn get_temperature(&self) -> f64 { self.temperature }
+
     pub fn get_phasecorrection(&self) -> bool { self.phasecorrection }
     pub fn get_unitary_transform(&self) -> bool { self.unitary_transform }
     pub fn get_rearrangement(&self) -> bool { self.rearrangement }
@@ -194,9 +207,9 @@ impl Waveslice {
             anyhow::ensure!(cfg.get_nsw() == waveslice.nsw, "Incompatible nsw.");
             anyhow::ensure!(cfg.get_ndigit() == waveslice.ndigit, "Incompatible ndigit.");
             anyhow::ensure!(cfg.get_brange() == &waveslice.brange, "Incompatible brange.");
-            anyhow::ensure!(cfg.get_phasecorrection() == waveslice.phasecorrection, "Incompatible phasecorrection.");
-            anyhow::ensure!(cfg.get_unitary_transform() == waveslice.unitary_transform, "Incompatible unitary_transform.");
-            anyhow::ensure!(cfg.get_rearrangement() == waveslice.rearrangement, "Incompatible rearrangement.");
+            //anyhow::ensure!(cfg.get_phasecorrection() == waveslice.phasecorrection, "Incompatible phasecorrection.");
+            //anyhow::ensure!(cfg.get_unitary_transform() == waveslice.unitary_transform, "Incompatible unitary_transform.");
+            //anyhow::ensure!(cfg.get_rearrangement() == waveslice.rearrangement, "Incompatible rearrangement.");
 
             return Ok(waveslice);
         }
@@ -212,6 +225,7 @@ impl Waveslice {
         let ikpoints: Vec<usize> = f.dataset("ikpoints")?.read_raw()?;
 
         let nspin  = f.dataset("nspin")?.read_scalar::<usize>()?;
+        let lncl = f.dataset("lncl")?.read_scalar::<bool>()?;
         let spin_diabatics = f.dataset("spin_diabatics")?.read_scalar::<bool>()?;
         let lnormalcar = f.dataset("lnormalcar")?.read_scalar::<bool>()?;
         let lsoccar = f.dataset("lsoccar")?.read_scalar::<bool>()?;
@@ -221,6 +235,8 @@ impl Waveslice {
         let ndigit = f.dataset("ndigit")?.read_scalar::<usize>()?;
         let nsw    = f.dataset("nsw")?.read_scalar::<usize>()?;
         let encut  = f.dataset("encut")?.read_scalar::<f64>()?;
+        let potim  = f.dataset("potim")?.read_scalar::<f64>()?;
+        let temperature  = f.dataset("temperature")?.read_scalar::<f64>()?;
 
         let phasecorrection = f.dataset("phasecorrectio")?.read_scalar::<bool>()?;
         let unitary_transform = f.dataset("unitary_transform")?.read_scalar::<bool>()?;
@@ -303,6 +319,7 @@ impl Waveslice {
         Ok(Self {
             ikpoints,
             nspin,
+            lncl,
             spin_diabatics,
             lnormalcar,
             lsoccar,
@@ -312,17 +329,23 @@ impl Waveslice {
             ndigit,
             nsw,
             encut,
+            potim,
+            temperature,
+
             phasecorrection,
             unitary_transform,
             rearrangement,
+
             wavetype,
             real_cell,
             reci_cell,
             ngrid,
+
             efermis,
             kvecs,
             num_plws,
             gvecs,
+
             eigs,
             fweights,
             coeffs,
@@ -342,6 +365,7 @@ impl Waveslice {
         f.new_dataset_builder().with_data(&self.ikpoints).create("ikpoints")?;
 
         f.new_dataset::<usize>().create("nspin")?.write_scalar(&self.nspin)?;
+        f.new_dataset::<bool>().create("lncl")?.write_scalar(&self.lncl)?;
         f.new_dataset::<bool>().create("spin_diabatics")?.write_scalar(&self.spin_diabatics)?;
         f.new_dataset::<bool>().create("lnormalcar")?.write_scalar(&self.lnormalcar)?;
         f.new_dataset::<bool>().create("lsoccar")?.write_scalar(&self.lsoccar)?;
@@ -351,6 +375,8 @@ impl Waveslice {
         f.new_dataset::<usize>().create("ndigit")?.write_scalar(&self.ndigit)?;
         f.new_dataset::<usize>().create("nsw")?.write_scalar(&self.nsw)?;
         f.new_dataset::<f64>().create("encut")?.write_scalar(&self.encut)?;
+        f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
+        f.new_dataset::<f64>().create("temperature")?.write_scalar(&self.temperature)?;
 
         f.new_dataset::<bool>().create("phasecorrection")?.write_scalar(&self.phasecorrection)?;
         f.new_dataset::<bool>().create("unitary_transform")?.write_scalar(&self.unitary_transform)?;
@@ -413,6 +439,8 @@ impl Waveslice {
         let brange = Range { start: cfg.get_brange()[0] - 1, end: cfg.get_brange()[1] };
         let nbrange = brange.len();
         let ndigit = cfg.get_ndigit();
+        let potim = cfg.get_potim();
+        let temperature = cfg.get_temperature();
         
 
         let path_1 = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
@@ -479,9 +507,9 @@ impl Waveslice {
         let nspd  = p1.pdos.projected.shape()[4];
 
 
-        let phasecorrection = cfg.get_phasecorrection();
-        let unitary_transform = cfg.get_unitary_transform();
-        let rearrangement = cfg.get_rearrangement();
+        let phasecorrection = false;    //cfg.get_phasecorrection();
+        let unitary_transform = false;  //cfg.get_unitary_transform();
+        let rearrangement = false;      //cfg.get_rearrangement();
 
 
         let SliceTotRet {
@@ -492,6 +520,7 @@ impl Waveslice {
         Ok(Self {
             ikpoints,
             nspin,
+            lncl,
             spin_diabatics,
             lnormalcar,
             lsoccar,
@@ -501,6 +530,8 @@ impl Waveslice {
             ndigit,
             nsw,
             encut,
+            potim,
+            temperature,
 
             phasecorrection,
             unitary_transform,
@@ -591,7 +622,7 @@ impl Waveslice {
                     // Initialize
                     let mut cprojs = ret_cprojs.lock().unwrap();
                     if cprojs.is_none() {
-                        let nproj = cprojs_i.as_ref().unwrap()[0].shape()[3];
+                        let nproj = cprojs_i.as_ref().unwrap()[0].shape()[2];
                         *cprojs = Some(vec![nd::Array4::zeros((nsw, 2, nbrange, nproj)); nkpoints]);
                     }
                     drop(cprojs);

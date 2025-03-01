@@ -22,12 +22,14 @@ use vasp_parsers::{procar::Procar, Wavecar, WavecarType, soc::calc_hmm};
 
 use crate::core::Couplings;
 use crate::nac::config::NacConfig;
+use crate::waveslice::Waveslice;
 
 /// All the indices are counted from 1, and use closed inverval.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Nac {
     ikpoint: usize,         // In this struct, ikpoint starts from 1.
     nspin: usize,
+    spin_diabatics: bool,   // supports spin diabatics
     lncl: bool,             // Is ncl or not
     nbands: usize,
     ndigit: usize,
@@ -127,6 +129,7 @@ impl Couplings for Nac {
         // ikpoint counts from 1
         let ikpoint = f.dataset("ikpoint")?.read_scalar::<usize>()?;
         let nspin   = f.dataset("nspin")?.read_scalar::<usize>()?;
+        let spin_diabatics = f.dataset("spin_diabatics")?.read_scalar::<bool>()?;
         let lncl    = f.dataset("lncl")?.read_scalar::<bool>()?;
         let nbands  = f.dataset("nbands")?.read_scalar::<usize>()?;
         let ndigit  = f.dataset("ndigit")?.read_scalar::<usize>()?;
@@ -165,6 +168,7 @@ impl Couplings for Nac {
         Ok(Self {
             ikpoint,
             nspin,
+            spin_diabatics,
             lncl,
             nbands,
             ndigit,
@@ -190,6 +194,7 @@ impl Couplings for Nac {
         // In NAC.h5, ikpoint counts from 1, but in struct, ikpoint starts from 0.
         f.new_dataset::<usize>().create("ikpoint")?.write_scalar(&self.ikpoint)?;
         f.new_dataset::<usize>().create("nspin")?.write_scalar(&self.nspin)?;
+        f.new_dataset::<bool>().create("spin_diabatics")?.write_scalar(&self.spin_diabatics)?;
         f.new_dataset::<bool>().create("lncl")?.write_scalar(&self.lncl)?;
         f.new_dataset::<usize>().create("nbands")?.write_scalar(&self.nbands)?;
         f.new_dataset::<usize>().create("ndigit")?.write_scalar(&self.ndigit)?;
@@ -326,6 +331,7 @@ impl Nac {
         Ok(Self {
             ikpoint: ikpoint + 1,
             nspin,
+            spin_diabatics,
             lncl,
             nbands,
             ndigit,
@@ -568,5 +574,102 @@ impl Nac {
     pub fn get_ndigit(&self) -> usize { self.ndigit }
     pub fn get_soc(&self) -> Option<nd::ArrayView4<c64>> {
         self.soc.as_ref().map(|x| x.view())
+    }
+
+
+    /// ikpoint counts from 0
+    pub fn from_waveslice<P>(fname: P, ikpoint: usize) -> Result<Self>
+    where P: AsRef<Path> {
+        const PI:   f64 = 3.141592653589793238;
+        const PIX2: f64 = PI * 2.0;
+        const HBAR: f64 = 0.6582119281559802; // eV * fs
+                                              //
+        info!("Loading waveslice from {:?}", fname.as_ref());
+
+        let ws = Waveslice::from_h5(fname)?;
+
+        let nspin = ws.get_nspin();
+        let spin_diabatics = ws.get_spin_diabatics();
+        let lncl = ws.get_lncl();
+        let nbands = ws.get_nbands();
+        let ndigit = ws.get_ndigit();
+
+        let brange = ws.get_brange();
+        let nbrange = ws.get_nbrange();
+        let nsw = ws.get_nsw();
+        let efermi = ws.get_efermis().mean().unwrap();
+        let potim = ws.get_potim();
+        let temperature = ws.get_temperature();
+        let phasecorrection = ws.get_phasecorrection();
+        let lgamma = if "gam" == &ws.get_wavetype()[..3] { true } else { false };
+
+        let kvec = ws.get_kvecs().slice(nd::s![ikpoint, ..]).to_owned();
+        let reci_cell = ws.get_reci_cell();
+        let gvecs = ws.get_gvecs()[ikpoint].view();
+        let gvecs_cart = (gvecs.mapv(|x| x as f64) + kvec.slice(nd::s![nd::NewAxis, ..]))
+            .dot(&reci_cell) * PIX2 * HBAR;
+        let gvecs_cart = gvecs_cart.mapv(|x| c64::new(x, 0.0));
+        let gvecs_cart = if lncl {
+            nd::concatenate![nd::Axis(0), gvecs_cart, gvecs_cart]
+        } else { gvecs_cart };
+
+        // Calculate olaps, pij
+        //
+        let mut olaps = nd::Array4::<c64>::zeros((nsw-1, nspin, nbrange, nbrange));
+        let mut pij = nd::Array5::<c64>::zeros((nsw-1, nspin, 3, nbrange, nbrange));
+
+        let phi_i = ws.get_coeffs()[ikpoint].to_owned();    // [nsw, nspin, nbrange, nplw]
+        let phi_j = phi_i.mapv(|x| x.conj());
+
+        for isw in 0 .. nsw-1 {
+            for ispin in 0 .. nspin {
+                olaps.slice_mut(nd::s![isw, ispin, .. ,..])
+                    .assign(&phi_j.slice(nd::s![isw+1, ispin, .., ..])
+                        .dot(&phi_i.slice(nd::s![isw, ispin, .., ..])).t());
+
+                for idirection in 0 .. 3 {
+                    let phi_i_x_gvecs: nd::Array2<_> =
+                        phi_i.slice(nd::s![isw, ispin, .., ..]).to_owned() *
+                        gvecs_cart.slice(nd::s![nd::NewAxis, .., idirection]);
+                    pij.slice_mut(nd::s![isw, ispin, idirection, .., ..])
+                        .assign(&phi_j.slice(nd::s![isw+1, ispin, .., ..]).t()
+                            .mapv(|x| x.conj())
+                            .dot(&phi_i_x_gvecs));
+                }
+            }
+        }
+
+        let eigs = (
+            ws.get_eigs()[ikpoint].slice(nd::s![..nsw-1, .., ..]).to_owned() +
+            ws.get_eigs()[ikpoint].slice(nd::s![1.., .., ..])
+        ) / 2.0;
+
+
+        let soc = ws.get_hmms().map(|x| x[ikpoint].clone());
+        let proj = ws.get_projs()[ikpoint].clone();
+
+        Ok(Self {
+            ikpoint: ikpoint + 1,
+            nspin,
+            spin_diabatics,
+            lncl,
+            nbands,
+            ndigit,
+
+            brange,
+            nbrange,
+            nsw,
+            efermi,
+            potim,
+            temperature,
+            phasecorrection,
+
+            olaps,
+            eigs,
+            pij,
+            soc,
+
+            proj,
+        })
     }
 }

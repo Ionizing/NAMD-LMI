@@ -33,14 +33,20 @@ pub struct WavesliceConfig {
     #[serde(default = "WavesliceConfig::default_ndigit")]
     ndigit: usize,
 
-    #[serde(default = "WavesliceConfig::default_phasecorrection")]
-    phasecorrection: bool,
+    #[serde(default = "WavesliceConfig::default_potim")]
+    potim: f64,
 
-    #[serde(default = "WavesliceConfig::default_unitary_transform")]
-    unitary_transform: bool,
+    #[serde(default = "WavesliceConfig::default_temperature")]
+    temperature: f64,
 
-    #[serde(default = "WavesliceConfig::default_rearrangement")]
-    rearrangement: bool,
+    //#[serde(default = "WavesliceConfig::default_phasecorrection")]
+    //phasecorrection: bool,
+
+    //#[serde(default = "WavesliceConfig::default_unitary_transform")]
+    //unitary_transform: bool,
+
+    //#[serde(default = "WavesliceConfig::default_rearrangement")]
+    //rearrangement: bool,
 
     #[serde(default = "WavesliceConfig::default_lnormalcar")]
     lnormalcar: bool,
@@ -57,9 +63,11 @@ impl WavesliceConfig {
     fn default_ikpoints() -> Vec<usize> { vec![1] }
     fn default_spin_diabatics() -> bool { false }
     fn default_ndigit() -> usize { 4 }
-    fn default_phasecorrection() -> bool { true }
-    fn default_unitary_transform() -> bool { false }
-    fn default_rearrangement() -> bool { false }
+    //fn default_phasecorrection() -> bool { true }
+    //fn default_unitary_transform() -> bool { false }
+    //fn default_rearrangement() -> bool { false }
+    fn default_potim() -> f64 { 1.0 }
+    fn default_temperature() -> f64 { 300.0 }
     fn default_lnormalcar() -> bool { false }
     fn default_lsoccar() -> bool { false }
     fn default_waveslicefname() -> PathBuf { PathBuf::from("waveslice.h5") }
@@ -119,13 +127,15 @@ impl WavesliceConfig {
     pub fn get_brange(&self) -> &[usize; 2] { &self.brange }
     pub fn get_ikpoints(&self) -> &[usize] { &self.ikpoints }
     pub fn get_ndigit(&self) -> usize { self.ndigit }
+    pub fn get_potim(&self) -> f64 { self.potim }
+    pub fn get_temperature(&self) -> f64 { self.temperature }
     pub fn get_nsw(&self) -> usize { self.nsw }
     pub fn get_spin_diabatics(&self) -> bool { self.spin_diabatics }
-    pub fn get_phasecorrection(&self) -> bool { self.phasecorrection }
-    pub fn get_rearrangement(&self) -> bool { self.rearrangement }
+    //pub fn get_phasecorrection(&self) -> bool { self.phasecorrection }
+    //pub fn get_rearrangement(&self) -> bool { self.rearrangement }
     pub fn get_lnormalcar(&self) -> bool { self.lnormalcar }
     pub fn get_lsoccar(&self) -> bool { self.lsoccar }
-    pub fn get_unitary_transform(&self) -> bool { self.unitary_transform }
+    //pub fn get_unitary_transform(&self) -> bool { self.unitary_transform }
     pub fn get_rundir(&self) -> &Path { &self.rundir }
     pub fn get_waveslicefname(&self) -> &Path { &self.waveslicefname }
 }
@@ -140,9 +150,11 @@ impl Default for WavesliceConfig {
             nsw: 2000,
             spin_diabatics: false,
             ndigit: 4,
-            phasecorrection: true,
-            unitary_transform: false,
-            rearrangement: false,
+            potim: 1.0,
+            temperature: 300.0,
+            //phasecorrection: true,
+            //unitary_transform: false,
+            //rearrangement: false,
             lnormalcar: false,
             lsoccar: false,
             waveslicefname: PathBuf::from("waveslice.h5"),
@@ -163,9 +175,11 @@ impl fmt::Display for WavesliceConfig {
         writeln!(f, " {:>20} = {}",   "nsw",      self.nsw)?;
         writeln!(f, " {:>20} = {}",   "spin_diabatics", self.spin_diabatics)?;
         writeln!(f, " {:>20} = {}",   "ndigit",   self.ndigit)?;
-        writeln!(f, " {:>20} = {}",   "phasecorrection", self.phasecorrection)?;
-        writeln!(f, " {:>20} = {}",   "unitary_transform", self.unitary_transform)?;
-        writeln!(f, " {:>20} = {}",   "rearrangement", self.rearrangement)?;
+        writeln!(f, " {:>20} = {}",   "potim",   self.potim)?;
+        writeln!(f, " {:>20} = {}",   "temperature",   self.temperature)?;
+        //writeln!(f, " {:>20} = {}",   "phasecorrection", self.phasecorrection)?;
+        //writeln!(f, " {:>20} = {}",   "unitary_transform", self.unitary_transform)?;
+        //writeln!(f, " {:>20} = {}",   "rearrangement", self.rearrangement)?;
         writeln!(f, " {:>20} = {}",   "lnormalcar", self.lnormalcar)?;
         writeln!(f, " {:>20} = {}",   "lsoccar",    self.lsoccar)?;
         writeln!(f, " {:>20} = {:?}", "waveslicefname", self.waveslicefname)?;
@@ -209,9 +223,11 @@ mod tests {
         nsw = 3000
         spin_diabatics = true
         ndigit = 5
-        phasecorrection = false
-        unitary_transform = true
-        rearrangement = true
+        potim = 2.0
+        temperature = 100.0
+        #phasecorrection = false
+        #unitary_transform = true
+        #rearrangement = true
         lnormalcar = true
         lsoccar = true
         waveslicefname = "Waveslice.h5"
@@ -225,9 +241,11 @@ mod tests {
             nsw: 3000,
             spin_diabatics: true,
             ndigit: 5,
-            phasecorrection: false,
-            unitary_transform: true,
-            rearrangement: true,
+            potim: 2.0,
+            temperature: 100.0,
+            //phasecorrection: false,
+            //unitary_transform: true,
+            //rearrangement: true,
             lnormalcar: true,
             lsoccar: true,
             waveslicefname: PathBuf::from("Waveslice.h5"),
