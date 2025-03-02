@@ -584,9 +584,11 @@ impl Nac {
         const PIX2: f64 = PI * 2.0;
         const HBAR: f64 = 0.6582119281559802; // eV * fs
                                               //
-        info!("Loading waveslice from {:?}", fname.as_ref());
+        info!("Loading waveslice from {:?} ...", fname.as_ref());
 
         let ws = Waveslice::from_h5(fname)?;
+
+        info!("Loading done, constructing NAC ...");
 
         let nspin = ws.get_nspin();
         let spin_diabatics = ws.get_spin_diabatics();
@@ -628,13 +630,20 @@ impl Nac {
                         .dot(&phi_i.slice(nd::s![isw, ispin, .., ..])).t());
 
                 for idirection in 0 .. 3 {
-                    let phi_i_x_gvecs: nd::Array2<_> =
-                        phi_i.slice(nd::s![isw, ispin, .., ..]).to_owned() *
-                        gvecs_cart.slice(nd::s![nd::NewAxis, .., idirection]);
-                    pij.slice_mut(nd::s![isw, ispin, idirection, .., ..])
-                        .assign(&phi_j.slice(nd::s![isw+1, ispin, .., ..]).t()
-                            .mapv(|x| x.conj())
-                            .dot(&phi_i_x_gvecs));
+                    pij.slice_mut(nd::s![isw, ispin, idirection, .., ..]).assign(
+                        &(if lgamma {
+                            phi_j.slice(nd::s![isw, ispin, .., ..])
+                                .dot(&(phi_i.slice(nd::s![isw, ispin, .., ..]).t().to_owned() *
+                                        gvecs_cart.slice(nd::s![nd::NewAxis, .., idirection])))
+                                - phi_i.slice(nd::s![isw, ispin, .., ..])
+                                .dot(&(phi_j.slice(nd::s![isw, ispin, .., ..]).t().to_owned() *
+                                        gvecs_cart.slice(nd::s![nd::NewAxis, .., idirection])))
+                        } else {
+                            phi_j.slice(nd::s![isw, ispin, .., ..])
+                                .dot(&(phi_i.slice(nd::s![isw, ispin, .., ..]).t().to_owned() *
+                                        gvecs_cart.slice(nd::s![nd::NewAxis, .., idirection])))
+                        })
+                    );
                 }
             }
         }
