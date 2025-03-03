@@ -238,7 +238,7 @@ impl Waveslice {
         let potim  = f.dataset("potim")?.read_scalar::<f64>()?;
         let temperature  = f.dataset("temperature")?.read_scalar::<f64>()?;
 
-        let phasecorrection = f.dataset("phasecorrectio")?.read_scalar::<bool>()?;
+        let phasecorrection = f.dataset("phasecorrection")?.read_scalar::<bool>()?;
         let unitary_transform = f.dataset("unitary_transform")?.read_scalar::<bool>()?;
         let rearrangement = f.dataset("rearrangement")?.read_scalar::<bool>()?;
 
@@ -292,7 +292,7 @@ impl Waveslice {
             if let Some(cproj) = cprojs.as_mut() {
                 let cproj_r: nd::Array4<f64> = grp.dataset("cprojs_r")?.read()?;
                 let cproj_i: nd::Array4<f64> = grp.dataset("cprojs_i")?.read()?;
-                cproj[i] = cproj_r.mapv(|x| c64::new(x, 0.0)) + cproj_i.mapv(|x| c64::new(0.0, x));
+                cproj.push(cproj_r.mapv(|x| c64::new(x, 0.0)) + cproj_i.mapv(|x| c64::new(0.0, x)));
             }
 
             if let Some(hmm) = hmms.as_mut() {
@@ -303,9 +303,25 @@ impl Waveslice {
         }
 
         let soccars = if lsoccar {
-            let soccar_r: nd::Array4<f64> = f.dataset("soccars_r")?.read()?;
-            let soccar_i: nd::Array4<f64> = f.dataset("soccars_i")?.read()?;
-            Some(soccar_r.mapv(|x| c64::new(x, 0.0)) + soccar_i.mapv(|x| c64::new(0.0, x)))
+            let dset_r = f.dataset("soccars_r")?;
+            let dset_i = f.dataset("soccars_i")?;
+
+            let shape = dset_r.shape().to_owned();
+            let nsw = shape[0];
+            let nproj = shape[2];
+            let mut ret = nd::Array4::<c64>::zeros((nsw, 4, nproj, nproj));
+
+            for isw in 0 .. nsw {
+                let cproj_r: nd::Array3<f64> = dset_r.read_slice(nd::s![isw, .., .., ..])?;
+                let cproj_i: nd::Array3<f64> = dset_i.read_slice(nd::s![isw, .., .., ..])?;
+                ret.slice_mut(nd::s![isw, .., .., ..])
+                    .assign(&(cproj_r.mapv(|x| c64::new(x, 0.0)) + cproj_i.mapv(|x| c64::new(0.0, x))));
+            }
+
+            //let soccar_r: nd::Array4<f64> = f.dataset("soccars_r")?.read()?;
+            //let soccar_i: nd::Array4<f64> = f.dataset("soccars_i")?.read()?;
+            //Some(soccar_r.mapv(|x| c64::new(x, 0.0)) + soccar_i.mapv(|x| c64::new(0.0, x)))
+            Some(ret)
         } else {
             None
         };

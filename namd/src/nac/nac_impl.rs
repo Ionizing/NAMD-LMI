@@ -627,21 +627,21 @@ impl Nac {
             for ispin in 0 .. nspin {
                 olaps.slice_mut(nd::s![isw, ispin, .. ,..])
                     .assign(&phi_j.slice(nd::s![isw+1, ispin, .., ..])
-                        .dot(&phi_i.slice(nd::s![isw, ispin, .., ..])).t());
+                        .dot(&phi_i.slice(nd::s![isw, ispin, .., ..]).t()));
 
                 for idirection in 0 .. 3 {
                     pij.slice_mut(nd::s![isw, ispin, idirection, .., ..]).assign(
                         &(if lgamma {
                             phi_j.slice(nd::s![isw, ispin, .., ..])
                                 .dot(&(phi_i.slice(nd::s![isw, ispin, .., ..]).t().to_owned() *
-                                        gvecs_cart.slice(nd::s![nd::NewAxis, .., idirection])))
+                                        gvecs_cart.slice(nd::s![.., nd::NewAxis, idirection])))
                                 - phi_i.slice(nd::s![isw, ispin, .., ..])
                                 .dot(&(phi_j.slice(nd::s![isw, ispin, .., ..]).t().to_owned() *
-                                        gvecs_cart.slice(nd::s![nd::NewAxis, .., idirection])))
+                                        gvecs_cart.slice(nd::s![.., nd::NewAxis, idirection])))
                         } else {
                             phi_j.slice(nd::s![isw, ispin, .., ..])
                                 .dot(&(phi_i.slice(nd::s![isw, ispin, .., ..]).t().to_owned() *
-                                        gvecs_cart.slice(nd::s![nd::NewAxis, .., idirection])))
+                                        gvecs_cart.slice(nd::s![.., nd::NewAxis, idirection])))
                         })
                     );
                 }

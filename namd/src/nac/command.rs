@@ -42,6 +42,23 @@ pub struct NacCommand {
     ///
     /// Alias: "gen"
     generate: Option<TemplateGenerator>,
+
+    #[arg(long)]
+    /// Construct NAC from waveslice.
+    ///
+    /// If this argument is present, the NAC will be constructed completely from waveslice,
+    /// while the "config" will not be used.
+    from_waveslice: Option<PathBuf>,
+
+    #[arg(long, default_value="NAC_fromwaveslice.h5")]
+    /// The filename of NAC file.
+    nacfname: PathBuf,
+
+    #[arg(long, default_value="1")]
+    /// Which kpoint to use, during the construction of NAC from waveslice.
+    ///
+    /// Counts from 1.
+    ikpoint: usize,
 }
 
 
@@ -72,6 +89,12 @@ impl OptProcess for NacCommand {
                     write_script("nac_plot.py", include_str!("./nac_plot.py"), true)
                 },
             }
+        }
+
+        if let Some(f) = self.from_waveslice.as_ref() {
+            log::info!("Constructing NAC from {:?}", f);
+            let coup = nac::Nac::from_waveslice(f, self.ikpoint - 1)?;
+            return coup.save_to_h5(&self.nacfname);
         }
 
         log::info!("\n{}", Version::new());
