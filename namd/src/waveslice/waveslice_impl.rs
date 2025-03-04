@@ -13,6 +13,12 @@ use shared::{
     log,
 };
 
+use pathfinding::prelude::{
+    kuhn_munkres,
+    Matrix as pfMatrix,
+};
+use ordered_float::OrderedFloat;
+
 use vasp_parsers::{
     procar::Procar,
     Wavecar,
@@ -778,4 +784,184 @@ impl Waveslice {
             efermi,
         })
     }
+
+
+    fn apply_rearrangement(&mut self) {
+
+    }
+
+
+    fn apply_phase_correction(&mut self) {
+
+    }
+
+
+    fn apply_unitary_transform(&mut self) {
+
+    }
+}
+
+
+/// Phase correction: 
+///
+///          < phi(t) | phi(0) >
+/// theta = -----------------------
+///         |< phi(t) | phi(0) >|
+///
+/// Then phi(t)' = phi(t) * conj(theta)
+pub fn phase_correction(coeff: &mut nd::Array4<c64>) {
+    let nsw = coeff.shape()[0];
+    let phi_ref = coeff.slice(nd::s![0, .., .., ..]).to_owned();
+
+    for isw in 1 .. nsw {
+        let phi = coeff.slice(nd::s![isw, .., .., ..]).to_owned();
+        let phase = (phi.mapv(|x| x.conj()) * phi_ref.view())
+            .sum_axis(nd::Axis(2))
+            .mapv(|x| x.conj()/x.norm());
+        coeff.slice_mut(nd::s![isw, .., .., ..]).assign(&(
+            phi.to_owned() * phase.slice(nd::s![.., .., nd::NewAxis])
+        ));
+    }
+}
+
+
+/// Find rearrangement order by solving the linear assignment problem (LAP):
+///
+/// Maximize Sum of <phi_i(t) | phi_j(t')> for i,j in basis
+///
+/// Assume the index i is sorted, and the rearranged index j is returned where order[j] is sorted.
+///
+/// Kuhn Munkres algorithm is used.
+fn find_order(cij: nd::ArrayView2<f64>) -> nd::Array1<usize> {
+    let uij = cij.mapv(|v| OrderedFloat(v));
+    let weights = pfMatrix::square_from_vec(uij.into_raw_vec()).unwrap();
+    let (_maxcoup, order) = kuhn_munkres(&weights);
+    nd::Array1::<usize>::from(order)
+}
+
+
+pub fn find_all_orders(coeff: nd::ArrayView4<c64>) -> nd::Array3<usize> {
+    let (nsw, nspin, nbrange, _) = coeff.dim();
+    let phi_ref: nd::Array3<c64> = coeff.slice(nd::s![0, .., .., ..]).to_owned();
+
+    let mut orders = nd::Array3::<usize>::zeros((nsw, nspin, nbrange));
+    for ispin in 0 .. nspin {
+        for isw in 1 .. nsw {
+            let cij = coeff.slice(nd::s![isw, ispin, .., ..]).to_owned()
+                .dot(&phi_ref.slice(nd::s![ispin, .., ..]).t())
+                .mapv(|v| v.norm_sqr());
+            orders.slice_mut(nd::s![isw, ispin, ..])
+                .assign(&find_order(cij.view()));
+
+        }
+
+        for iband in 0 .. nbrange {
+            orders[(0, ispin, iband)] = iband;
+        }
+    }
+
+    orders
+}
+
+
+/// Resort eigs, fweights, coeffs, projs and cprojs with given order.
+pub fn apply_orders(
+    order: nd::ArrayView3<usize>,           // [nsw, nspin, nbrange]
+    eigs: &mut nd::Array3<f64>,             // [nsw, nspin, nbrange]
+    fweights: &mut nd::Array3<f64>,         // [nsw, nspin, nbrange]
+    coeffs: &mut nd::Array4<c64>,           // [nsw, nspin, nbrange, nplw]
+    projs: &mut nd::Array5<f64>,            // [nsw, nspinor, nbrange, nion, nspd]
+    cprojs: Option<&mut nd::Array4<c64>>,   // [nsw, nspin, nbrange, nproj]
+    ) {
+    let (nsw, nspin, nbrange) = order.dim();
+    let lncl = if 4 == projs.shape()[1] { true } else { false };
+
+    // first pass rearrange eigs and wavefunction coeffs
+    for isw in 1 .. nsw {
+        for ispin in 0 .. nspin {
+            let eigs_org = eigs.slice(nd::s![isw, ispin, ..]).to_owned();
+            let fwei_org = fweights.slice(nd::s![isw, ispin, ..]).to_owned();
+            let coef_org = coeffs.slice(nd::s![isw, ispin, .., ..]).to_owned();
+
+            let iorder = order.slice(nd::s![isw, ispin, ..]);
+            for iband in 0 .. nbrange {
+                eigs[(isw, ispin, iorder[iband])]     = eigs_org[iband];
+                fweights[(isw, ispin, iorder[iband])] = fwei_org[iband];
+                coeffs.slice_mut(nd::s![isw, ispin, iorder[iband], ..])
+                    .assign(&coef_org.slice(nd::s![iband, ..]));
+            }
+
+            if !lncl {      // nspinors = nspin
+                let proj_org = projs.slice(nd::s![isw, ispin, .., .., ..]).to_owned();
+                for iband in 0 .. nbrange {
+                    projs.slice_mut(nd::s![isw, ispin, iorder[iband], .., ..])
+                        .assign(&proj_org.slice(nd::s![iband, .., ..]));
+                }
+            } else {        // nspinors = 4, reorder once
+                if 0 == ispin {
+                    let proj_org = projs.slice(nd::s![isw, .., .., .., ..]).to_owned();
+                    for iband in 0 .. nbrange {
+                        projs.slice_mut(nd::s![isw, .., iorder[iband], .., ..])
+                            .assign(&proj_org.slice(nd::s![.., iband, .., ..]));
+                    }
+                }
+            }
+            
+        }
+    }
+
+
+    // rearrange cprojs
+    if let Some(cproj) = cprojs {
+        for isw in 1 .. nsw {
+            for ispin in 0 .. nspin {
+                let cproj_org = cproj.slice(nd::s![isw, ispin, .., ..]).to_owned();
+                let iorder = order.slice(nd::s![isw, ispin, ..]);
+                for iband in 0 .. nbrange {
+                    cproj.slice_mut(nd::s![isw, ispin, iorder[iband], ..])
+                        .assign(&cproj_org.slice(nd::s![iband, ..]));
+                }
+            }
+        }
+
+    }
+}
+
+
+/// Resort Hmm with given ordering
+pub fn apply_orders_hmm(
+    order: nd::ArrayView3<usize>,           // [nsw, nspin, nbrange]
+    hmms: Option<&mut nd::Array4<c64>>,     // [nsw, 4, nbrange, nbrange]
+    ) {
+    let (nsw, nspin, nbrange) = order.dim();
+
+    if let Some(hmm) = hmms{
+        assert_eq!(nspin, 2);
+        for isw in 1 .. nsw {
+            let hmm_org = hmm.slice(nd::s![isw, .., .., ..]).to_owned();
+
+            for ispin in 0 .. nspin {
+                let iorder = order.slice(nd::s![isw, ispin, ..]);
+
+                for jspin in 0 .. nspin {
+                    let jorder = order.slice(nd::s![isw, jspin, ..]);
+
+                    let spin_idx = ispin * 2 + jspin;
+
+                    for iband in 0 .. nbrange {
+                        for jband in 0 .. nbrange {
+                            hmm[(isw, spin_idx, iorder[iband], jorder[jband])]
+                                = hmm_org[(spin_idx, iband, jband)];
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+pub fn unitray_transform(coeff: &mut nd::Array4<c64>) {
+    todo!()
 }
