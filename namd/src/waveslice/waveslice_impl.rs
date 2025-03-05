@@ -1,5 +1,5 @@
 use std::ops::Range;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use hdf5::File as H5File;
@@ -11,6 +11,7 @@ use shared::{
     Result,
     anyhow,
     log,
+    argsort,
 };
 
 use pathfinding::prelude::{
@@ -786,18 +787,81 @@ impl Waveslice {
     }
 
 
-    fn apply_rearrangement(&mut self) {
+    pub fn apply_rearrangement(&mut self, sigma: f64) {
+        let nk = self.ikpoints.len();
+        let nspin = self.nspin;
+        let nbrange = self.nbrange;
+        let nsw = self.nsw;
 
+        let mut total_orders = nd::Array4::<usize>::zeros((nk, nsw, nspin, nbrange));
+        for ik in 0 .. nk {
+            let orders = find_all_orders(self.coeffs[ik].view(), self.eigs[ik].view(), sigma);
+            total_orders.slice_mut(nd::s![ik, .., .., ..]).assign(&orders);
+            apply_orders_ikpoint(
+                orders.view(),
+                &mut self.eigs[ik],
+                &mut self.fweights[ik],
+                &mut self.coeffs[ik],
+                &mut self.projs[ik],
+                self.cprojs.as_mut().map(|cproj| &mut cproj[ik]),
+                self.hmms.as_mut().map(|hmm| &mut hmm[ik]),
+            );
+        }
+        
+        {
+            let order_fname = PathBuf::from(&format!("rearrangement_orders_{}-{}.h5", self.brange[0], self.brange[1]));
+            log::info!("Saving band order to file {:?}", order_fname);
+            let f = H5File::create(order_fname).unwrap();
+            f.new_dataset_builder().with_data(&total_orders).create("total_orders").unwrap();
+        }
+
+        self.rearrangement = true;
     }
 
 
-    fn apply_phase_correction(&mut self) {
+    pub fn apply_rearrangement_with_given_order<P>(&mut self, order_fname: P) -> Result<()>
+    where P: AsRef<Path>
+    {
+        let f = H5File::open(order_fname)?;
+        let total_orders: nd::Array4<usize> = f.dataset("total_orders")?.read()?;
 
+        let (nk, nsw, nspin, nbrange) = total_orders.dim();
+        anyhow::ensure!(nk == self.ikpoints.len());
+        anyhow::ensure!(nsw == self.nsw);
+        anyhow::ensure!(nspin == self.nspin);
+        anyhow::ensure!(nbrange == self.nbrange);
+
+        for ik in 0 .. nk {
+            let orders = total_orders.slice(nd::s![ik, .., .., ..]);
+            apply_orders_ikpoint(
+                orders.view(),
+                &mut self.eigs[ik],
+                &mut self.fweights[ik],
+                &mut self.coeffs[ik],
+                &mut self.projs[ik],
+                self.cprojs.as_mut().map(|cproj| &mut cproj[ik]),
+                self.hmms.as_mut().map(|hmm| &mut hmm[ik]),
+            );
+        }
+        
+        self.rearrangement = true;
+        Ok(())
     }
 
 
-    fn apply_unitary_transform(&mut self) {
 
+    pub fn apply_phase_correction(&mut self) {
+        self.coeffs.iter_mut().for_each(|mut coeff| {
+            phase_correction(&mut coeff);
+        });
+
+        self.phasecorrection = true;
+    }
+
+
+    pub fn apply_unitary_transform(&mut self) {
+        self.unitary_transform = true;
+        todo!()
     }
 }
 
@@ -840,23 +904,37 @@ fn find_order(cij: nd::ArrayView2<f64>) -> nd::Array1<usize> {
 }
 
 
-pub fn find_all_orders(coeff: nd::ArrayView4<c64>) -> nd::Array3<usize> {
+pub fn find_all_orders(coeff: nd::ArrayView4<c64>, eigs: nd::ArrayView3<f64>, sigma: f64) -> nd::Array3<usize> {
     let (nsw, nspin, nbrange, _) = coeff.dim();
-    let phi_ref: nd::Array3<c64> = coeff.slice(nd::s![0, .., .., ..]).to_owned();
 
     let mut orders = nd::Array3::<usize>::zeros((nsw, nspin, nbrange));
+
+    let mut order_last: nd::Array1<usize> = (0 .. nbrange).collect();
+    let mut order_current = order_last.clone();
     for ispin in 0 .. nspin {
+        // For t = 0, treat as sorted.
+        for iband in 0 .. nbrange { orders[(0, ispin, iband)] = iband; }
+
         for isw in 1 .. nsw {
-            let cij = coeff.slice(nd::s![isw, ispin, .., ..]).to_owned()
-                .dot(&phi_ref.slice(nd::s![ispin, .., ..]).t())
-                .mapv(|v| v.norm_sqr());
+            // calculate scale for NA coupling, exp(-sigma * |Ei(t) - Ej(t)|)
+            let scale = (
+                eigs.slice(nd::s![isw, ispin, .., nd::NewAxis]).to_owned() -
+                eigs.slice(nd::s![isw-1, ispin, nd::NewAxis, ..])
+                ).mapv(|x| (-sigma * x * x).exp());
+
+            let cij = coeff.slice(nd::s![isw, ispin, .., ..]).mapv(|x| x.conj())
+                .dot(&coeff.slice(nd::s![isw-1, ispin, .., ..]).t())
+                .mapv(|v| v.norm_sqr()) * scale;
+
+            let perm_ij = find_order(cij.view());
+            for iband in 0 .. nbrange {
+                order_current[iband] = order_last[perm_ij[iband]];
+            }
+
             orders.slice_mut(nd::s![isw, ispin, ..])
-                .assign(&find_order(cij.view()));
+                .assign(&order_current);
 
-        }
-
-        for iband in 0 .. nbrange {
-            orders[(0, ispin, iband)] = iband;
+            order_last.assign(&order_current);
         }
     }
 
@@ -865,19 +943,20 @@ pub fn find_all_orders(coeff: nd::ArrayView4<c64>) -> nd::Array3<usize> {
 
 
 /// Resort eigs, fweights, coeffs, projs and cprojs with given order.
-pub fn apply_orders(
+pub fn apply_orders_ikpoint(
     order: nd::ArrayView3<usize>,           // [nsw, nspin, nbrange]
     eigs: &mut nd::Array3<f64>,             // [nsw, nspin, nbrange]
     fweights: &mut nd::Array3<f64>,         // [nsw, nspin, nbrange]
     coeffs: &mut nd::Array4<c64>,           // [nsw, nspin, nbrange, nplw]
     projs: &mut nd::Array5<f64>,            // [nsw, nspinor, nbrange, nion, nspd]
     cprojs: Option<&mut nd::Array4<c64>>,   // [nsw, nspin, nbrange, nproj]
+    hmms: Option<&mut nd::Array4<c64>>,     // [nsw, 4, nbrange, nbrange]
     ) {
     let (nsw, nspin, nbrange) = order.dim();
     let lncl = if 4 == projs.shape()[1] { true } else { false };
 
     // first pass rearrange eigs and wavefunction coeffs
-    for isw in 1 .. nsw {
+    for isw in 0 .. nsw {
         for ispin in 0 .. nspin {
             let eigs_org = eigs.slice(nd::s![isw, ispin, ..]).to_owned();
             let fwei_org = fweights.slice(nd::s![isw, ispin, ..]).to_owned();
@@ -923,18 +1002,10 @@ pub fn apply_orders(
                 }
             }
         }
-
     }
-}
 
 
-/// Resort Hmm with given ordering
-pub fn apply_orders_hmm(
-    order: nd::ArrayView3<usize>,           // [nsw, nspin, nbrange]
-    hmms: Option<&mut nd::Array4<c64>>,     // [nsw, 4, nbrange, nbrange]
-    ) {
-    let (nsw, nspin, nbrange) = order.dim();
-
+    // rearrange Hmms
     if let Some(hmm) = hmms{
         assert_eq!(nspin, 2);
         for isw in 1 .. nsw {
@@ -958,10 +1029,16 @@ pub fn apply_orders_hmm(
             }
         }
     }
+
+    return;
 }
 
 
-
+/// Perform linear unitary transform for degenerated states.
 pub fn unitray_transform(coeff: &mut nd::Array4<c64>) {
+    let (nsw, nspin, nbrange, nplw) = coeff.dim();
+
+    assert_eq!(nspin, 1);
+
     todo!()
 }
