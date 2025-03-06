@@ -626,8 +626,11 @@ impl Nac {
         for isw in 0 .. nsw-1 {
             for ispin in 0 .. nspin {
                 olaps.slice_mut(nd::s![isw, ispin, .. ,..])
-                    .assign(&phi_j.slice(nd::s![isw+1, ispin, .., ..])
-                        .dot(&phi_i.slice(nd::s![isw, ispin, .., ..]).t()));
+                    .assign(&{
+                        let tmp = phi_j.slice(nd::s![isw+1, ispin, .., ..])
+                            .dot(&phi_i.slice(nd::s![isw, ispin, .., ..]).t());
+                        tmp.clone() - tmp.t().mapv(|x| x.conj())
+                    });
 
                 for idirection in 0 .. 3 {
                     pij.slice_mut(nd::s![isw, ispin, idirection, .., ..]).assign(
