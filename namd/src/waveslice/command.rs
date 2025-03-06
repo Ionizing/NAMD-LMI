@@ -62,7 +62,7 @@ enum Transform {
         /// You can perform multiple operations in way.
         operations: Vec<Transformations>,
 
-        #[arg(long, default_value_t=1.0)]
+        #[arg(long, default_value_t=0.0)]
         /// The gausian width applied during the rearrangement.
         ///
         /// This factor works when calculating
