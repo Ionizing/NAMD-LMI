@@ -46,9 +46,9 @@ pub struct Surfhop {
     time: nd::Array1<f64>,
     tdpops: nd::Array2<f64>,            // [namdtime, nbasis]
     tdenergy: nd::Array1<f64>,          // [namdtime]
-    tdphotons: nd::Array3<f64>,         // [namdtime, nbasis, nbasis], emit => plus, absorb => minus
-    tdphonons: nd::Array3<f64>,         // [namdtime, nbasis, nbasis]
     tdsoc: Option<nd::Array3<f64>>,     // [namdtime, nbasis, nbasis]
+    tdphotons: Option<nd::Array3<f64>>,         // [namdtime, nbasis, nbasis], emit => plus, absorb => minus
+    tdphonons: Option<nd::Array3<f64>>,         // [namdtime, nbasis, nbasis]
 }
 
 
@@ -92,13 +92,16 @@ impl<'a> SurfaceHopping for Surfhop {
         let nbasis = hamil.get_nbasis();
         let tdpops = nd::Array2::<f64>::zeros((namdtime, nbasis));
         let tdenergy = nd::Array1::<f64>::zeros(namdtime);
-        let tdphotons = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
-        let tdphonons = nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis));
+
+        let tdphotons = if cfg.get_ltdphotons() {
+            Some(nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis)))
+        } else { None };
+        let tdphonons = if cfg.get_ltdphonons() {
+            Some(nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis)))
+        } else { None };
         let tdsoc = if hamil.get_spin_diabatics() {
             Some(nd::Array3::<f64>::zeros((namdtime, nbasis, nbasis)))
-        } else {
-            None
-        };
+        } else { None };
 
         log::info!("Linking Hamiltonian file {:?} to {:?}", cfg.get_hamil_fname(), &outdir);
         link_file_to(cfg.get_hamil_fname(), &outdir)?;
@@ -170,8 +173,13 @@ impl<'a> SurfaceHopping for Surfhop {
 
         f.new_dataset_builder().with_data(&self.tdpops).create("sh_pops")?;
         f.new_dataset_builder().with_data(&self.tdenergy).create("sh_energy")?;
-        f.new_dataset_builder().with_data(&self.tdphotons).create("sh_photons_t")?;
-        f.new_dataset_builder().with_data(&self.tdphonons).create("sh_phonons_t")?;
+
+        if let Some(tdphotons) = self.tdphotons.as_ref() {
+            f.new_dataset_builder().with_data(tdphotons).create("sh_photons_t")?;
+        }
+        if let Some(tdphonons) = self.tdphonons.as_ref() {
+            f.new_dataset_builder().with_data(tdphonons).create("sh_phonons_t")?;
+        }
         if let Some(soc) = self.tdsoc.as_ref() {
             f.new_dataset_builder().with_data(soc).create("sh_soc_t")?;
         }
@@ -275,20 +283,24 @@ impl Surfhop {
                         // downward hop: cur > nxt => tdxxx[cur, nxt] +1
                         if td_eigs[(iion, curstate)] > td_eigs[(iion, nxtstate)] {
                             if randnum2 < epc {     // phonon emitted
-                                self.tdphonons[(iion, curstate, nxtstate)] += 1.0;
+                                self.tdphonons.as_mut().map(|x| x[(iion, curstate, nxtstate)] += 1.0);
                             } else if randnum2 < epc + soc {
                                 self.tdsoc.as_mut().map(|x| x[(iion, curstate, nxtstate)] += 1.0);
                             } else {                // photon emitted
-                                self.tdphotons[(iion, curstate, nxtstate)] += 1.0;
+                                if let Some(photons) = self.tdphotons.as_mut() {
+                                    photons[(iion, curstate, nxtstate)] += 1.0;
+                                }
                             }
                             // upward hop: cur < nxt => tdxxx[cur, nxt] -1
                         } else {
                             if randnum2 < epc {     // phonon absorbed
-                                self.tdphonons[(iion, curstate, nxtstate)] -= 1.0;
+                                self.tdphonons.as_mut().map(|x| x[(iion, curstate, nxtstate)] -= 1.0);
                             } else if randnum2 < epc + soc {
                                 self.tdsoc.as_mut().map(|x| x[(iion, curstate, nxtstate)] -= 1.0);
                             } else {                // photon absorbed
-                                self.tdphotons[(iion, curstate, nxtstate)] -= 1.0;
+                                if let Some(photons) = self.tdphotons.as_mut() {
+                                    photons[(iion, curstate, nxtstate)] -= 1.0;
+                                }
                             }
                         }
                     }
@@ -297,14 +309,18 @@ impl Surfhop {
                     occ_all[nxtstate] += 1;
                     curstate_all[j] = nxtstate;
                     self.tdpops[(iion, nxtstate)] += 1.0;
-
-                    //curstate = nxtstate;
                 }
             }
         }
 
-        self.tdphotons /= self.ntraj as f64;
-        self.tdphonons /= self.ntraj as f64;
+        if let Some(photons) = self.tdphotons.as_mut() {
+            *photons /= self.ntraj as f64;
+        }
+
+        if let Some(phonons) = self.tdphonons.as_mut() {
+            *phonons /= self.ntraj as f64;
+        }
+
         self.tdpops /= self.ntraj as f64;
 
         if let Some(soc) = self.tdsoc.as_mut() {
