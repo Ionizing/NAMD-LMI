@@ -202,12 +202,12 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
         sh_pops:        nd::Array2<f64>, // [namdtime, nbasis]
         eigs_t:         nd::Array2<f64>, // [namdtime, nbasis]
         proj_t:         nd::Array4<f64>, // [namdtime, nbasis, nions, nproj]
-        sh_phonons_t:   nd::Array3<f64>, // [namdtime, nbasis, nbasis]
-        sh_photons_t:   nd::Array3<f64>, // [namdtime, nbasis, nbasis]
-        photons_emit_t: nd::Array2<f64>, // [namdtime, npoints], May it's better to plot theses things in python
-        photons_absp_t: nd::Array2<f64>, // [namdtime, npoints]
-        phonons_emit_t: nd::Array2<f64>, // [namdtime, nfreqs]
-        phonons_absp_t: nd::Array2<f64>, // [namdtime, nfreqs]
+        sh_phonons_t:   Option<nd::Array3<f64>>, // [namdtime, nbasis, nbasis]
+        sh_photons_t:   Option<nd::Array3<f64>>, // [namdtime, nbasis, nbasis]
+        photons_emit_t: Option<nd::Array2<f64>>, // [namdtime, npoints], May it's better to plot theses things in python
+        photons_absp_t: Option<nd::Array2<f64>>, // [namdtime, npoints]
+        phonons_emit_t: Option<nd::Array2<f64>>, // [namdtime, nfreqs]
+        phonons_absp_t: Option<nd::Array2<f64>>, // [namdtime, nfreqs]
     }
 
     let outdir = outdir.as_ref();
@@ -248,74 +248,84 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
             let mut eigs = nd::Array2::<f64>::zeros((namdtime, nbasis));
             let mut proj = nd::Array4::<f64>::zeros((namdtime, nbasis, nions, nproj));
 
-            let tdphotons: nd::Array3<f64> = f.dataset("sh_photons_t")?.read()?;
-            let mut photons_emit_t = nd::Array2::<f64>::zeros((namdtime, npoints));
-            let mut photons_absp_t = nd::Array2::<f64>::zeros((namdtime, npoints));
+            let (tdphotons, mut photons_emit_t, mut photons_absp_t): (Option<nd::Array3<f64>>, _, _)
+                = if let Ok(x) = f.dataset("sh_photons_t") {
+                    (Some(x.read()?),
+                     Some(nd::Array2::<f64>::zeros((namdtime, npoints))),
+                     Some(nd::Array2::<f64>::zeros((namdtime, npoints))),)
+            } else { (None, None, None) };
 
-            let tdphonons: nd::Array3<f64> = f.dataset("sh_phonons_t")?.read()?;
-            let mut phonons_emit_t = nd::Array2::<f64>::zeros((namdtime, nfreqs));
-            let mut phonons_absp_t = nd::Array2::<f64>::zeros((namdtime, nfreqs));
+            let (tdphonons, mut phonons_emit_t, mut phonons_absp_t): (Option<nd::Array3<f64>>, _, _)
+                = if let Ok(x) =  f.dataset("sh_phonons_t") {
+                    (Some(x.read()?),
+                     Some(nd::Array2::<f64>::zeros((namdtime, nfreqs))),
+                     Some(nd::Array2::<f64>::zeros((namdtime, nfreqs))),)
+            } else { (None, None, None) };
 
             for iion in 0 .. namdtime {
                 let [rtime, _xtime] = hamil::SPHamiltonian::get_rtime_xtime(iion, nsw, namdinit);
                 eigs.slice_mut(nd::s![iion, ..]).assign(&eigs_t.slice(nd::s![rtime, ..]));
                 proj.slice_mut(nd::s![iion, .., .., ..]).assign(&proj_t.slice(nd::s![rtime, .., .., ..]));
 
-                let mut photon_emit_de  = vec![0.0f64; 0];
-                let mut photon_emit_num = vec![0.0f64; 0];
-                let mut photon_absp_de  = vec![0.0f64; 0];
-                let mut photon_absp_num = vec![0.0f64; 0];
-                for (iband, jband) in iproduct!(0 .. nbasis, 0 .. nbasis) {
-                    if iband == jband { continue; }
-                    let de = (eigs[(iion, iband)] - eigs[(iion, jband)]).abs();
-                    let oc = tdphotons[(iion, iband, jband)];
+                if tdphotons.is_some() {
+                    let mut photon_emit_de  = vec![0.0f64; 0];
+                    let mut photon_emit_num = vec![0.0f64; 0];
+                    let mut photon_absp_de  = vec![0.0f64; 0];
+                    let mut photon_absp_num = vec![0.0f64; 0];
+                    for (iband, jband) in iproduct!(0 .. nbasis, 0 .. nbasis) {
+                        if iband == jband { continue; }
+                        let de = (eigs[(iion, iband)] - eigs[(iion, jband)]).abs();
+                        let oc = tdphotons.as_ref().unwrap()[(iion, iband, jband)];
 
-                    if oc < 0.0 {
-                        photon_absp_de.push(de);        // absorption part
-                        photon_absp_num.push(oc);
-                    } else if oc == 0.0 {
-                        continue;
-                    } else {
-                        photon_emit_de.push(de);        // emission part
-                        photon_emit_num.push(oc);
+                        if oc < 0.0 {
+                            photon_absp_de.push(de);        // absorption part
+                            photon_absp_num.push(oc);
+                        } else if oc == 0.0 {
+                            continue;
+                        } else {
+                            photon_emit_de.push(de);        // emission part
+                            photon_emit_num.push(oc);
+                        }
                     }
+
+                    let photons_emit: nd::Array1<f64> = smearing_method.apply_smearing(
+                            &xvals.as_slice().unwrap(),
+                            &photon_emit_de,
+                            smearing_sigma,
+                            Some(&photon_emit_num)
+                        );
+                    let photons_absp: nd::Array1<f64> = smearing_method.apply_smearing(
+                            &xvals.as_slice().unwrap(),
+                            &photon_absp_de,
+                            smearing_sigma,
+                            Some(&photon_absp_num)
+                        );
+
+                    photons_emit_t.as_mut().unwrap().row_mut(iion).assign(&photons_emit);
+                    photons_absp_t.as_mut().unwrap().row_mut(iion).assign(&photons_absp);
                 }
 
-                let photons_emit: nd::Array1<f64> = smearing_method.apply_smearing(
-                        &xvals.as_slice().unwrap(),
-                        &photon_emit_de,
-                        smearing_sigma,
-                        Some(&photon_emit_num)
-                    );
-                let photons_absp: nd::Array1<f64> = smearing_method.apply_smearing(
-                        &xvals.as_slice().unwrap(),
-                        &photon_absp_de,
-                        smearing_sigma,
-                        Some(&photon_absp_num)
-                    );
 
-                photons_emit_t.row_mut(iion).assign(&photons_emit);
-                photons_absp_t.row_mut(iion).assign(&photons_absp);
+                if tdphonons.is_some() {
+                    let mut phonons_emit = nd::Array1::<f64>::zeros(nfreqs);
+                    let mut phonons_absp = nd::Array1::<f64>::zeros(nfreqs);
+                    for (iband, jband) in iproduct!(0 .. nbasis, 0 .. nbasis) {
+                        if iband == jband { continue; }
+                        let oc = tdphonons.as_ref().unwrap()[(iion, iband, jband)];
 
-
-                let mut phonons_emit = nd::Array1::<f64>::zeros(nfreqs);
-                let mut phonons_absp = nd::Array1::<f64>::zeros(nfreqs);
-                for (iband, jband) in iproduct!(0 .. nbasis, 0 .. nbasis) {
-                    if iband == jband { continue; }
-                    let oc = tdphonons[(iion, iband, jband)];
-
-                    let idx = lower_triangle_matrix_index(iband, jband);
-                    if oc < 0.0 {
-                        phonons_absp += &(spectra.row(idx).to_owned() * oc);
-                    } else if oc == 0.0 {
-                        continue;
-                    } else {
-                        phonons_emit += &(spectra.row(idx).to_owned() * oc);
+                        let idx = lower_triangle_matrix_index(iband, jband);
+                        if oc < 0.0 {
+                            phonons_absp += &(spectra.row(idx).to_owned() * oc);
+                        } else if oc == 0.0 {
+                            continue;
+                        } else {
+                            phonons_emit += &(spectra.row(idx).to_owned() * oc);
+                        }
                     }
-                }
 
-                phonons_emit_t.row_mut(iion).assign(&phonons_emit);
-                phonons_absp_t.row_mut(iion).assign(&phonons_absp);
+                    phonons_emit_t.as_mut().unwrap().row_mut(iion).assign(&phonons_emit);
+                    phonons_absp_t.as_mut().unwrap().row_mut(iion).assign(&phonons_absp);
+                }
             }
 
             Ok(ResultType {
@@ -337,6 +347,24 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
         .reduce_with(|acc, e| -> Result<ResultType> {
             let acc = acc?;
             let e = e?;
+
+            let sh_phonons_t = if acc.sh_phonons_t.is_some() {
+                Some(acc.sh_phonons_t.unwrap() + e.sh_phonons_t.unwrap())
+            } else { None };
+            let sh_photons_t = if acc.sh_photons_t.is_some() {
+                Some(acc.sh_photons_t.unwrap() + e.sh_photons_t.unwrap())
+            } else { None };
+
+            let (photons_emit_t, photons_absp_t) = if sh_photons_t.is_some() {
+                (Some(acc.photons_emit_t.unwrap() + e.photons_emit_t.unwrap()),
+                 Some(acc.photons_absp_t.unwrap() + e.photons_absp_t.unwrap()),)
+            } else { (None, None) };
+
+            let (phonons_emit_t, phonons_absp_t) = if sh_phonons_t.is_some() {
+                (Some(acc.phonons_emit_t.unwrap() + e.phonons_emit_t.unwrap()),
+                 Some(acc.phonons_absp_t.unwrap() + e.phonons_absp_t.unwrap()),)
+            } else { (None, None) };
+
             Ok(ResultType {
                 time:        e.time,
 
@@ -348,14 +376,14 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
                 eigs_t:      acc.eigs_t + e.eigs_t,
                 proj_t:      acc.proj_t + e.proj_t,
 
-                sh_phonons_t: acc.sh_phonons_t + e.sh_phonons_t,
-                sh_photons_t: acc.sh_photons_t + e.sh_photons_t,
+                sh_phonons_t,
+                sh_photons_t,
 
-                photons_emit_t: acc.photons_emit_t + e.photons_emit_t,
-                photons_absp_t: acc.photons_absp_t + e.photons_absp_t,
+                photons_emit_t,
+                photons_absp_t,
 
-                phonons_emit_t: acc.phonons_emit_t + e.phonons_emit_t,
-                phonons_absp_t: acc.phonons_absp_t + e.phonons_absp_t,
+                phonons_emit_t,
+                phonons_absp_t,
             })
         })
         .context("No results collected")??;
@@ -369,12 +397,12 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
     let sh_pops   = result_sum.sh_pops / nsample;
     let eigs_t    = result_sum.eigs_t / nsample;
     let proj_t    = result_sum.proj_t / nsample;
-    let sh_phonons_t = result_sum.sh_phonons_t / nsample;
-    let sh_photons_t = result_sum.sh_photons_t / nsample;
-    let photons_emit_t = result_sum.photons_emit_t / nsample;
-    let photons_absp_t = result_sum.photons_absp_t / nsample;
-    let phonons_emit_t = result_sum.phonons_emit_t / nsample;
-    let phonons_absp_t = result_sum.phonons_absp_t / nsample;
+    let sh_phonons_t = result_sum.sh_phonons_t.map(|x| x / nsample);
+    let sh_photons_t = result_sum.sh_photons_t.map(|x| x / nsample);
+    let photons_emit_t = result_sum.photons_emit_t.map(|x| x / nsample);
+    let photons_absp_t = result_sum.photons_absp_t.map(|x| x / nsample);
+    let phonons_emit_t = result_sum.phonons_emit_t.map(|x| x / nsample);
+    let phonons_absp_t = result_sum.phonons_absp_t.map(|x| x / nsample);
 
     // Writing results.
     let ret_fname = outdir.join(collected_fname);
@@ -413,14 +441,26 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
     f.new_dataset_builder().with_data(&eigs_t).create("eigs_t")?;
     f.new_dataset_builder().with_data(&proj_t).create("proj_t")?;
 
-    f.new_dataset_builder().with_data(&sh_phonons_t).create("sh_phonons_t")?;
-    f.new_dataset_builder().with_data(&sh_photons_t).create("sh_photons_t")?;
+    if let Some(v) = sh_photons_t.as_ref() {
+        f.new_dataset_builder().with_data(v).create("sh_phonons_t")?;
+    }
+    if let Some(v) = sh_phonons_t.as_ref() {
+        f.new_dataset_builder().with_data(v).create("sh_photons_t")?;
+    }
 
-    f.new_dataset_builder().with_data(&phonons_emit_t).create("phonons_emit_t")?;
-    f.new_dataset_builder().with_data(&phonons_absp_t).create("phonons_absp_t")?;
+    if let Some(v) = phonons_emit_t.as_ref() {
+        f.new_dataset_builder().with_data(v).create("phonons_emit_t")?;
+    }
+    if let Some(v) = phonons_absp_t.as_ref() {
+        f.new_dataset_builder().with_data(v).create("phonons_absp_t")?;
+    }
 
-    f.new_dataset_builder().with_data(&photons_emit_t).create("photons_emit_t")?;
-    f.new_dataset_builder().with_data(&photons_absp_t).create("photons_absp_t")?;
+    if let Some(v) = photons_emit_t.as_ref() {
+        f.new_dataset_builder().with_data(v).create("photons_emit_t")?;
+    }
+    if let Some(v) = photons_absp_t.as_ref() {
+        f.new_dataset_builder().with_data(v).create("photons_absp_t")?;
+    }
 
     f.new_dataset_builder().with_data(&frequencies).create("phonon_spectra_frequencies")?;
     f.new_dataset_builder().with_data(&spectra).create("phonons_spectra")?;
