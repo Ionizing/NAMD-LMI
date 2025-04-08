@@ -206,6 +206,14 @@ pub struct SurfhopConfig {
             default = "SurfhopConfig::default_smearing_npoints_per_ev")]
     smearing_npoints_per_ev: usize,
 
+    /// Output phonon contributions
+    #[serde(default="SurfhopConfig::default_ltdphonons")]
+    ltdphonons: bool,
+
+    /// Output photon contributions
+    #[serde(default="SurfhopConfig::default_ltdphotons")]
+    ltdphotons: bool,
+
     #[serde(deserialize_with="SurfhopConfig::parse_iniband")]
     iniband: Vec<i32>,
     inisteps: Vec<usize>,
@@ -217,6 +225,8 @@ impl SurfhopConfig {
     fn default_smearing_method() -> SmearingMethod { SmearingMethod::LorentzianSmearing }
     fn default_smearing_sigma() -> f64 { 0.01 }
     fn default_smearing_npoints_per_ev() -> usize { 500 }
+    fn default_ltdphonons() -> bool { false }
+    fn default_ltdphotons() -> bool { false }
 
     fn parse_iniband<'de, D>(deserializer: D) -> std::result::Result<Vec<i32>, D::Error>
     where D: Deserializer<'de> {
@@ -290,6 +300,8 @@ impl SurfhopConfig {
     pub fn get_smearing_method(&self) -> SmearingMethod { self.smearing_method }
     pub fn get_smearing_sigma(&self) -> f64 { self.smearing_sigma }
     pub fn get_npoints_per_ev(&self) -> usize { self.smearing_npoints_per_ev }
+    pub fn get_ltdphonons(&self) -> bool { self.ltdphonons }
+    pub fn get_ltdphotons(&self) -> bool { self.ltdphotons }
 
     pub fn get_iniband(&self) -> &[i32] { &self.iniband }
     pub fn get_inisteps(&self) -> &[usize] { &self.inisteps }
@@ -317,9 +329,11 @@ impl Default for SurfhopConfig {
             shmethod: SHMethod::FSSH,
             outdir: ".".into(),
             detailed_balance: DetailedBalance::default(),
-            smearing_method: SmearingMethod::LorentzianSmearing,
-            smearing_sigma: 0.01,
-            smearing_npoints_per_ev: 500,
+            smearing_method: SurfhopConfig::default_smearing_method(),
+            smearing_sigma: SurfhopConfig::default_smearing_sigma(),
+            smearing_npoints_per_ev: SurfhopConfig::default_smearing_npoints_per_ev(),
+            ltdphonons: SurfhopConfig::default_ltdphonons(),
+            ltdphotons: SurfhopConfig::default_ltdphotons(),
 
             iniband: vec![0],
             inisteps: vec![1, 2, 3],
@@ -344,6 +358,8 @@ impl fmt::Display for SurfhopConfig {
         writeln!(f, " {:>20} = \"{:?}\"", "smearing_method", self.smearing_method)?;
         writeln!(f, " {:>20} = {:?}", "smearing_sigma", self.smearing_sigma)?;
         writeln!(f, " {:>20} = {:?}", "smearing_npoints_per_eV", self.smearing_npoints_per_ev)?;
+        writeln!(f, " {:>20} = {:?}", "ltdphonons", self.ltdphonons)?;
+        writeln!(f, " {:>20} = {:?}", "ltdphotons", self.ltdphotons)?;
         writeln!(f)?;
 
         writeln!(f, " {:>20} = {:?}", "iniband", self.iniband)?;
@@ -396,6 +412,8 @@ mod tests {
         smearing_method = "gaussian"
         smearing_sigma = 0.05
         smearing_npoints_per_eV = 1000
+        ltdphonons = true
+        ltdphonons = true
 
         iniband = "-1..-4 1..4"
         inisteps = [
@@ -416,6 +434,8 @@ mod tests {
             smearing_method: SmearingMethod::GaussianSmearing,
             smearing_sigma: 0.05,
             smearing_npoints_per_ev: 1000,
+            ltdphonons: true,
+            ltdphotons: true,
 
             iniband: vec![-1, -2, -3, -4, 1, 2, 3, 4],
             inisteps: vec![114, 514],
