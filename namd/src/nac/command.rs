@@ -94,6 +94,7 @@ impl OptProcess for NacCommand {
         if let Some(f) = self.from_waveslice.as_ref() {
             log::info!("Constructing NAC from {:?}", f);
             let coup = nac::Nac::from_waveslice(f, self.ikpoint - 1)?;
+            log::info!("Writing to {:?}", self.nacfname);
             return coup.save_to_h5(&self.nacfname);
         }
 

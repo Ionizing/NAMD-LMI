@@ -657,8 +657,8 @@ impl Nac {
         ) / 2.0;
 
 
-        let soc = ws.get_hmms().map(|x| x[ikpoint].clone());
-        let proj = ws.get_projs()[ikpoint].clone();
+        let soc = ws.get_hmms().map(|x| x[ikpoint].slice(nd::s![..nsw-1, .., .., ..]).to_owned());
+        let proj = ws.get_projs()[ikpoint].slice(nd::s![..nsw-1, .., .., .., ..]).to_owned();
 
         Ok(Self {
             ikpoint: ikpoint + 1,
