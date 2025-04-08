@@ -287,9 +287,7 @@ impl Surfhop {
                             } else if randnum2 < epc + soc {
                                 self.tdsoc.as_mut().map(|x| x[(iion, curstate, nxtstate)] += 1.0);
                             } else {                // photon emitted
-                                if let Some(photons) = self.tdphotons.as_mut() {
-                                    photons[(iion, curstate, nxtstate)] += 1.0;
-                                }
+                                self.tdphotons.as_mut().map(|x| x[(iion, curstate, nxtstate)] += 1.0);
                             }
                             // upward hop: cur < nxt => tdxxx[cur, nxt] -1
                         } else {
@@ -298,9 +296,7 @@ impl Surfhop {
                             } else if randnum2 < epc + soc {
                                 self.tdsoc.as_mut().map(|x| x[(iion, curstate, nxtstate)] -= 1.0);
                             } else {                // photon absorbed
-                                if let Some(photons) = self.tdphotons.as_mut() {
-                                    photons[(iion, curstate, nxtstate)] -= 1.0;
-                                }
+                                self.tdphotons.as_mut().map(|x| x[(iion, curstate, nxtstate)] -= 1.0);
                             }
                         }
                     }
@@ -313,19 +309,12 @@ impl Surfhop {
             }
         }
 
-        if let Some(photons) = self.tdphotons.as_mut() {
-            *photons /= self.ntraj as f64;
-        }
-
-        if let Some(phonons) = self.tdphonons.as_mut() {
-            *phonons /= self.ntraj as f64;
-        }
+        self.tdphotons.as_mut().map(|x| *x /= self.ntraj as f64);
+        self.tdphonons.as_mut().map(|x| *x /= self.ntraj as f64);
 
         self.tdpops /= self.ntraj as f64;
 
-        if let Some(soc) = self.tdsoc.as_mut() {
-            *soc /= self.ntraj as f64
-        }
+        self.tdsoc.as_mut().map(|x| *x /= self.ntraj as f64);
 
         for iion in 0 .. namdtime {
             self.tdenergy[iion] = (
