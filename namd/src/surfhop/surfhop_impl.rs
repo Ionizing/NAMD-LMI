@@ -76,7 +76,7 @@ impl<'a> SurfaceHopping for Surfhop {
         self.save_to_h5(&fname)
     }
 
-    fn from_config(cfg: &Self::ConfigType) -> Result<Vec<Self>> {
+    fn from_config(cfg: &Self::ConfigType) -> Result<Vec<()>> {
         let shmethod = cfg.get_shmethod();
         let hamil = SPHamiltonian::from_h5(cfg.get_hamil_fname())?;
         // wfn constructed inside the closure
@@ -147,6 +147,7 @@ impl<'a> SurfaceHopping for Surfhop {
                     tdsoc: tdsoc.clone(),
                 })
             })
+            .map(|v| v?.run())
             .collect()
     }
 

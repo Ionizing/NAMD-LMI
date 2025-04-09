@@ -138,9 +138,6 @@ impl OptProcess for SurfhopCommand {
 
         log::info!("Got Surface Hopping config:\n{}", &cfg);
         let sh = surfhop::Surfhop::from_config(&cfg)?;
-        let _ = sh.into_par_iter()
-            .map(|mut v| v.run())
-            .collect::<Result<Vec<()>>>()?;
 
         log::info!("Collecting results ...");
         collect_results(&cfg, cfg.get_outdir(), "averaged_results.h5")?;

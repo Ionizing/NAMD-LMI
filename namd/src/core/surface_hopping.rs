@@ -16,8 +16,7 @@ pub trait SurfaceHopping {
 
     fn run(&mut self) -> Result<()>;
 
-    fn from_config(cfg: &Self::ConfigType) -> Result<Vec<Self>>
-        where Self: Sized;
+    fn from_config(cfg: &Self::ConfigType) -> Result<Vec<()>>;
     fn save_to_h5<P>(&self, fname: P) -> Result<()>
         where P: AsRef<Path>;
 }
