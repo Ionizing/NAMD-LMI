@@ -44,7 +44,7 @@ where P: AsRef<Path> {
     assert_eq!(rec_l, rec_r, "Invalid record length.");
 
     // skip [rec_l, lmmax, nityp, rec_r] * ntyp
-    f.seek(SeekFrom::Current(4 * (2 + ntyp + ntyp) as i64)).unwrap();
+    f.seek(SeekFrom::Current(4 * (ntyp * 4) as i64)).unwrap();
 
 
     let rec_l = f.read_i32::<LittleEndian>().unwrap();

@@ -2,6 +2,7 @@ use std::path::{
     Path,
     PathBuf,
 };
+use once_cell::sync::OnceCell;
 
 use rand::{Rng,thread_rng};
 use hdf5::File as H5File;
@@ -29,9 +30,12 @@ use crate::surfhop::config::{
 };
 
 
+static SPHAMIL: OnceCell<SPHamiltonian> = OnceCell::new();
+
+
 pub struct Surfhop {
     shmethod: SHMethod,
-    hamil: SPHamiltonian,
+    hamil: &'static SPHamiltonian,
     wfn: SPWavefunction,
     outdir: PathBuf,
     detailed_balance: DB,
@@ -79,6 +83,8 @@ impl<'a> SurfaceHopping for Surfhop {
     fn from_config(cfg: &Self::ConfigType) -> Result<Vec<()>> {
         let shmethod = cfg.get_shmethod();
         let hamil = SPHamiltonian::from_h5(cfg.get_hamil_fname())?;
+        let hamil = SPHAMIL.get_or_init(|| hamil);
+
         // wfn constructed inside the closure
         let outdir = cfg.get_outdir().clone();
         let detailed_balance = cfg.get_detailed_balance();
@@ -119,7 +125,6 @@ impl<'a> SurfaceHopping for Surfhop {
 
         cfg.get_inisteps().par_iter()
             .map(|&istep| -> Result<Self> {
-                let hamil = hamil.clone();
                 let namdinit = istep;
                 let wfn = SPWavefunction::from_hamil_and_params(
                     &hamil, cfg.get_iniband(),

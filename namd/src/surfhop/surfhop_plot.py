@@ -193,7 +193,7 @@ if '__main__' == __name__:
     ar = AveragedResult()
     ar.plot_wfn_propagation()
     ar.plot_surfhop()
-    ar.plot_phonon_spectra(pair=(5,6))
-    ar.plot_phonon_waterfall(list(range(1000, 10000, 1000)))
-    ar.plot_photon_waterfall(list(range(1000, 10000, 1000)))
+    # ar.plot_phonon_spectra(pair=(5,6))
+    # ar.plot_phonon_waterfall(list(range(1000, 10000, 1000)))
+    # ar.plot_photon_waterfall(list(range(1000, 10000, 1000)))
     pass
