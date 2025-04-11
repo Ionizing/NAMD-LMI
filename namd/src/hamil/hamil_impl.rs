@@ -164,7 +164,7 @@ impl Hamiltonian for SPHamiltonian {
             }
         };
 
-        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t, soc_t.as_ref());
+        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t, potim, soc_t.as_ref());
         let thermal_factor = Self::calculate_thermal_factor(&eig_t, temperature);
 
         Ok(Self {
@@ -397,7 +397,7 @@ impl SPHamiltonian {
             apply_scissor(&mut eig_t, scissor);
         }
 
-        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t, soc_t.as_ref());
+        let hamil0 = Self::calculate_hamil0(&eig_t, &nac_t, potim, soc_t.as_ref());
         let thermal_factor = Self::calculate_thermal_factor(&eig_t, temperature);
 
         Ok(Self {
@@ -505,9 +505,9 @@ impl SPHamiltonian {
 
     // H_diag = eig_t
     // H_offdiag = nac_t * -i hbar + soc
-    fn calculate_hamil0(eig_t: &nd::Array2<f64>, nac_t: &nd::Array3<c64>, soc_t: Option<&nd::Array3<c64>>) -> nd::Array3<c64> {
+    fn calculate_hamil0(eig_t: &nd::Array2<f64>, nac_t: &nd::Array3<c64>, potim: f64, soc_t: Option<&nd::Array3<c64>>) -> nd::Array3<c64> {
         // off-diag = -i * \hbar * NAC
-        let mut ret = -IMGUNIT * HBAR * nac_t;
+        let mut ret = -IMGUNIT * HBAR / (2.0 * potim) * nac_t;
         let nsw = nac_t.shape()[0];
 
         if let Some(soc) = soc_t {

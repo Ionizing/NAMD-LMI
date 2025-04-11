@@ -48,6 +48,9 @@ pub struct WavesliceConfig {
     //#[serde(default = "WavesliceConfig::default_rearrangement")]
     //rearrangement: bool,
 
+    #[serde(default = "WavesliceConfig::default_normalization")]
+    normalization: bool,
+
     #[serde(default = "WavesliceConfig::default_lnormalcar")]
     lnormalcar: bool,
 
@@ -68,6 +71,7 @@ impl WavesliceConfig {
     //fn default_rearrangement() -> bool { false }
     fn default_potim() -> f64 { 1.0 }
     fn default_temperature() -> f64 { 300.0 }
+    fn default_normalization() -> bool { false }
     fn default_lnormalcar() -> bool { false }
     fn default_lsoccar() -> bool { false }
     fn default_waveslicefname() -> PathBuf { PathBuf::from("waveslice.h5") }
@@ -133,6 +137,7 @@ impl WavesliceConfig {
     pub fn get_spin_diabatics(&self) -> bool { self.spin_diabatics }
     //pub fn get_phasecorrection(&self) -> bool { self.phasecorrection }
     //pub fn get_rearrangement(&self) -> bool { self.rearrangement }
+    pub fn get_normalization(&self) -> bool { self.normalization }
     pub fn get_lnormalcar(&self) -> bool { self.lnormalcar }
     pub fn get_lsoccar(&self) -> bool { self.lsoccar }
     //pub fn get_unitary_transform(&self) -> bool { self.unitary_transform }
@@ -155,6 +160,7 @@ impl Default for WavesliceConfig {
             //phasecorrection: true,
             //unitary_transform: false,
             //rearrangement: false,
+            normalization: false,
             lnormalcar: false,
             lsoccar: false,
             waveslicefname: PathBuf::from("waveslice.h5"),
@@ -180,6 +186,7 @@ impl fmt::Display for WavesliceConfig {
         //writeln!(f, " {:>20} = {}",   "phasecorrection", self.phasecorrection)?;
         //writeln!(f, " {:>20} = {}",   "unitary_transform", self.unitary_transform)?;
         //writeln!(f, " {:>20} = {}",   "rearrangement", self.rearrangement)?;
+        writeln!(f, " {:>20} = {}",   "normalization", self.normalization)?;
         writeln!(f, " {:>20} = {}",   "lnormalcar", self.lnormalcar)?;
         writeln!(f, " {:>20} = {}",   "lsoccar",    self.lsoccar)?;
         writeln!(f, " {:>20} = {:?}", "waveslicefname", self.waveslicefname)?;
@@ -228,6 +235,7 @@ mod tests {
         #phasecorrection = false
         #unitary_transform = true
         #rearrangement = true
+        normalization = true
         lnormalcar = true
         lsoccar = true
         waveslicefname = "Waveslice.h5"
@@ -246,6 +254,7 @@ mod tests {
             //phasecorrection: false,
             //unitary_transform: true,
             //rearrangement: true,
+            normalization: true,
             lnormalcar: true,
             lsoccar: true,
             waveslicefname: PathBuf::from("Waveslice.h5"),

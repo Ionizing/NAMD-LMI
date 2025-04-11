@@ -137,7 +137,7 @@ impl OptProcess for SurfhopCommand {
         copy_file_to(&config_fname, cfg.get_outdir())?;
 
         log::info!("Got Surface Hopping config:\n{}", &cfg);
-        let sh = surfhop::Surfhop::from_config(&cfg)?;
+        surfhop::Surfhop::from_config(&cfg)?;
 
         log::info!("Collecting results ...");
         collect_results(&cfg, cfg.get_outdir(), "averaged_results.h5")?;
@@ -214,7 +214,7 @@ fn collect_results<P1: AsRef<Path>, P2: AsRef<Path>>(
 
     let hamil_fname = cfg.get_hamil_fname();
     let hamil    = hamil::SPHamiltonian::from_h5(hamil_fname)?;
-    let lncl     = hamil.get_lncl();
+    //let lncl     = hamil.get_lncl();
     let ndigit   = hamil.get_ndigit();
     let potim    = hamil.get_potim();
     let namdtime = cfg.get_namdtime();

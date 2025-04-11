@@ -23,7 +23,7 @@ use itertools::Itertools;
 pub struct SPWavefunction {
     nbasis: usize,
     basisini: nd::Array1<usize>,
-    nbasisini: usize,
+    //nbasisini: usize,
     namdinit: usize,
     namdtime: usize,
     potim: f64,
@@ -69,9 +69,13 @@ impl Wavefunction for SPWavefunction {
             (hamil_diag * self.pop_t.slice(nd::s![0, ..])).sum()
         };
 
+        let propmethod = hamil.get_propmethod();
 
         // initial psi
         let mut psi = self.psi0.clone();
+
+        // aux psi
+        let mut psi_prev = self.psi0.clone();
 
         // construct hamiltonian with electron-photon interaction
         for iion in 0 .. self.namdtime - 1 {
@@ -85,7 +89,19 @@ impl Wavefunction for SPWavefunction {
                 // This matrix is re-constructed in every loop, thus propagate_s can take its
                 // ownersip.
                 let hamil_t = hamil_i.to_owned() + delta_hamil.to_owned() * ielm as f64 + lmi;
-                Self::propagate_dispatch(hamil_t, &mut psi, edt, hamil.get_propmethod());
+
+                if propmethod != PropagateMethod::FiniteDifference {
+                    Self::propagate_dispatch(hamil_t, &mut psi, edt, propmethod);
+                } else { // propagate_fd implements here
+                    let dpsi = hamil_t.dot(&psi);
+                    let psi_next = if iion == 0 && ielm == 0 {
+                        - IMGUNIT * edt / HBAR * dpsi + &psi
+                    } else {
+                        - 2.0 * IMGUNIT * edt / HBAR * dpsi + &psi_prev
+                    };
+                    psi_prev = psi;
+                    psi = psi_next;
+                }
             }
 
             self.psi_t.slice_mut(nd::s![iion+1, ..]).assign(&psi);
@@ -133,27 +149,37 @@ impl SPWavefunction {
         match method {
             Expm => Self::propagate_expm(hamil, psi, edt),
             Exact => Self::propagate_exact(hamil, psi, edt),
-            FiniteDifference => Self::propagate_fd(hamil, psi, edt),
+            FiniteDifference => panic!("Implemented in propagate_full"),
             LiouvilleTrotter => Self::propagate_lt(hamil, psi, edt),
         }
     }
 
 
     fn propagate_expm(mut hamil: nd::Array2<c64>, psi: &mut nd::Array1<c64>, edt: f64) {
-        hamil *= edt / HBAR * IMGUNIT;
+        hamil *= -edt / HBAR * IMGUNIT;
         psi.assign(&expm(&hamil)
             .expect("Matrix exponentiation failed during propagate_expm.")
             .dot(psi));
     }
 
 
-    fn propagate_fd(mut hamil: nd::Array2<c64>, psi: &mut nd::Array1<c64>, edt: f64) {
-        todo!("To be implemented.")
-    }
+    //fn propagate_fd(hamil: nd::Array2<c64>, psi: &mut nd::Array1<c64>, edt: f64,
+                    //psi_prev: &mut nd::Array1<c64>, psi_next: &mut nd::Array1<c64>, first: &mut bool) {
+        //let dpsi = hamil.dot(psi);
+        //if *first {
+            //*first = false;
+            //*psi_next = psi.clone() - IMGUNIT * edt / HBAR * dpsi;
+        //} else {
+            //*psi_next = psi_prev.clone() - 2.0 * IMGUNIT * edt / HBAR * dpsi;
+        //}
+
+        //psi_prev.assign(psi);
+        //psi.assign(psi_next);
+    //}
 
 
     fn propagate_exact(mut hamil: nd::Array2<c64>, psi: &mut nd::Array1<c64>, edt: f64) {
-        hamil *= edt / HBAR * IMGUNIT;
+        hamil *= -edt / HBAR * IMGUNIT;
         let (eigvals, eigvecs) = hamil.eigh_inplace(UPLO::Upper).unwrap();
         let expie = eigvals.mapv(|v| c64::new(v.cos(), v.sin()));
         psi.assign(&eigvecs.dot(&nd::Array2::from_diag(&expie))
@@ -248,7 +274,7 @@ impl SPWavefunction {
         Ok(Self {
             nbasis,
             basisini,
-            nbasisini,
+            //nbasisini,
             namdinit,
             namdtime,
             potim,

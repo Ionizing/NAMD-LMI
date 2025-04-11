@@ -33,6 +33,9 @@ pub struct NacConfig {
 
     temperature: f64,
 
+    #[serde(default = "NacConfig::default_normalization")]
+    normalization: bool,
+
     #[serde(default = "NacConfig::default_phasecorrection")]
     phasecorrection: bool,
 
@@ -45,6 +48,7 @@ impl NacConfig {
     fn default_ikpoint() -> usize { 1 }
     fn default_spin_diabatics() -> bool { false }
     fn default_ndigit() -> usize { 4 }
+    fn default_normalization() -> bool { false }
     fn default_phasecorrection() -> bool { true }
     fn default_nacfname() -> PathBuf { PathBuf::from("NAC.h5") }
 }
@@ -59,6 +63,7 @@ impl NacConfig {
     pub fn get_ndigit(&self) -> usize { self.ndigit }
     pub fn get_potim(&self) -> f64 { self.potim }
     pub fn get_temperature(&self) -> f64 { self.temperature }
+    pub fn get_normalization(&self) -> bool { self.normalization }
     pub fn get_phasecorrection(&self) -> bool { self.phasecorrection }
     pub fn get_nacfname(&self) -> &PathBuf { &self.nacfname }
 
@@ -126,6 +131,7 @@ impl Default for NacConfig {
             ndigit: 4,
             potim: 1.0,
             temperature: 0.0,
+            normalization: false,
             phasecorrection: true,
             nacfname: PathBuf::from("NAC.h5"),
         }
@@ -147,6 +153,7 @@ impl fmt::Display for NacConfig {
         writeln!(f, " {:>20} = {}",   "ndigit",   self.ndigit)?;
         writeln!(f, " {:>20} = {}",   "potim",    self.potim)?;
         writeln!(f, " {:>20} = {}",   "temperature", self.temperature)?;
+        writeln!(f, " {:>20} = {}",   "normalization", self.normalization)?;
         writeln!(f, " {:>20} = {}",   "phasecorrection", self.phasecorrection)?;
         writeln!(f, " {:>20} = {:?}", "nacfname", self.nacfname)?;
 
@@ -191,6 +198,7 @@ mod tests {
         ndigit = 5
         potim = 1.5
         temperature = 150
+        normalization = true
         phasecorrection = false
         nacfname = "NAC2.h5"
         "#;
@@ -205,6 +213,7 @@ mod tests {
             ndigit: 5,
             potim: 1.5,
             temperature: 150.0,
+            normalization: true,
             phasecorrection: false,
             nacfname: PathBuf::from("NAC2.h5"),
         };

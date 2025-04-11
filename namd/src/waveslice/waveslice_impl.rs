@@ -11,7 +11,6 @@ use shared::{
     Result,
     anyhow,
     log,
-    argsort,
 };
 
 use pathfinding::prelude::{
@@ -104,6 +103,9 @@ pub struct Waveslice {
 
     /// Temperature for the trajectory, in Kelvin
     temperature: f64,
+
+    /// Whether normalize the pseudo-wavefunction
+    normalization:   bool,
     
     phasecorrection:   bool,
     unitary_transform: bool,
@@ -177,6 +179,7 @@ impl Waveslice {
     pub fn get_potim(&self) -> f64 { self.potim }
     pub fn get_temperature(&self) -> f64 { self.temperature }
 
+    pub fn get_normalization(&self) -> bool { self.normalization }
     pub fn get_phasecorrection(&self) -> bool { self.phasecorrection }
     pub fn get_unitary_transform(&self) -> bool { self.unitary_transform }
     pub fn get_rearrangement(&self) -> bool { self.rearrangement }
@@ -245,6 +248,7 @@ impl Waveslice {
         let potim  = f.dataset("potim")?.read_scalar::<f64>()?;
         let temperature  = f.dataset("temperature")?.read_scalar::<f64>()?;
 
+        let normalization = f.dataset("normalization")?.read_scalar::<bool>()?;
         let phasecorrection = f.dataset("phasecorrection")?.read_scalar::<bool>()?;
         let unitary_transform = f.dataset("unitary_transform")?.read_scalar::<bool>()?;
         let rearrangement = f.dataset("rearrangement")?.read_scalar::<bool>()?;
@@ -355,6 +359,7 @@ impl Waveslice {
             potim,
             temperature,
 
+            normalization,
             phasecorrection,
             unitary_transform,
             rearrangement,
@@ -401,6 +406,7 @@ impl Waveslice {
         f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
         f.new_dataset::<f64>().create("temperature")?.write_scalar(&self.temperature)?;
 
+        f.new_dataset::<bool>().create("normalization")?.write_scalar(&self.normalization)?;
         f.new_dataset::<bool>().create("phasecorrection")?.write_scalar(&self.phasecorrection)?;
         f.new_dataset::<bool>().create("unitary_transform")?.write_scalar(&self.unitary_transform)?;
         f.new_dataset::<bool>().create("rearrangement")?.write_scalar(&self.rearrangement)?;
@@ -464,6 +470,7 @@ impl Waveslice {
         let ndigit = cfg.get_ndigit();
         let potim = cfg.get_potim();
         let temperature = cfg.get_temperature();
+        let normalization = cfg.get_normalization();
         
 
         let path_1 = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
@@ -538,7 +545,7 @@ impl Waveslice {
         let SliceTotRet {
             eigs, fweights, coeffs, projs, cprojs, soccars, hmms, xdatcar, efermis
         } = Self::from_wavecars(&rundir, nsw, &ikpoints, brange.clone(), ndigit,
-            nspin, &num_plws, lncl, nions, nspd, lnormalcar, lsoccar, spin_diabatics)?;
+            nspin, &num_plws, lncl, nions, nspd, normalization, lnormalcar, lsoccar, spin_diabatics)?;
 
         Ok(Self {
             ikpoints,
@@ -556,6 +563,7 @@ impl Waveslice {
             potim,
             temperature,
 
+            normalization,
             phasecorrection,
             unitary_transform,
             rearrangement,
@@ -584,7 +592,7 @@ impl Waveslice {
 
     fn from_wavecars(
         rundir: &Path, nsw: usize, ikpoints: &[usize], brange: Range<usize>, ndigit: usize,
-        nspin: usize, num_plws: &[usize], lncl: bool, nions: usize, nspd: usize,
+        nspin: usize, num_plws: &[usize], lncl: bool, nions: usize, nspd: usize, normalization: bool,
         lnormalcar: bool, lsoccar: bool, spin_diabatics: bool,
     ) -> Result<SliceTotRet> {
         
@@ -631,7 +639,7 @@ impl Waveslice {
             let SliceIRet { eigs_i, fweights_i, coeffs_i, projs_i,
                 cprojs_i, soccar_i, hmm_i, poscar, efermi,
             } = Self::slice_i(&path_i, nspin, lncl, ikpoints, brange.clone(),
-                    num_plws, /*nions, nspd,*/ lnormalcar, lsoccar, spin_diabatics
+                    num_plws, /*nions, nspd,*/ normalization, lnormalcar, lsoccar, spin_diabatics
                 ).with_context(|| format!("Failed to slicing WAVECAR or PROCAR from {:?}.", &path_i))
                 .unwrap();
 
@@ -697,7 +705,7 @@ impl Waveslice {
 
     fn slice_i(path_i: &Path,
         nspin: usize, lncl: bool, ikpoints: &[usize], brange: Range<usize>,
-        num_plws: &[usize], /*nions: usize, nspd: usize,*/
+        num_plws: &[usize], /*nions: usize, nspd: usize,*/ normalization: bool,
         lnormalcar: bool, lsoccar: bool, spin_diabatics: bool,
     ) -> Result<SliceIRet> {
         let wav = Wavecar::from_file(&path_i.join("WAVECAR"))?;
@@ -735,9 +743,13 @@ impl Waveslice {
             let mut coeff_tmp = nd::Array3::<c64>::zeros((nspin, nbrange, nplw));
             for ispin in 0 .. nspin {
                 for (jj, iband) in brange.clone().into_iter().enumerate() {
-                    let coeff = wav._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
+                    let mut coeff = wav._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
                         .into_shape((nplw,))
                         .context("Wavefunction reshape failed.")?;
+                    if normalization {
+                        let norm = coeff.iter().map(|x| x.norm_sqr()).sum::<f64>().sqrt();
+                        coeff.mapv_inplace(|x| x / norm);
+                    }
                     coeff_tmp.slice_mut(nd::s![ispin, jj, ..]).assign(&coeff);
                 }
             }

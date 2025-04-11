@@ -14,7 +14,6 @@ use shared::{
     Result,
     //ndarray_linalg as nl
 };
-//use nl::Norm;
 #[cfg(test)]
 use std::{println as info, assert as ensure, panic as bail};
 
@@ -41,6 +40,7 @@ pub struct Nac {
     efermi: f64,
     potim: f64,
     temperature: f64,
+    normalization: bool,
     phasecorrection: bool,
 
     olaps: nd::Array4<c64>, // istep, ispin, iband, iband
@@ -81,6 +81,7 @@ struct Params {
     nbands: usize,
     nions: usize,
     nproj: usize,
+    normalization: bool,
     phasecorrection: bool,
     spin_diabatics: bool,
 }
@@ -139,6 +140,7 @@ impl Couplings for Nac {
         let efermi  = f.dataset("efermi")?.read_scalar::<f64>()?;
         let potim   = f.dataset("potim")?.read_scalar::<f64>()?;
         let temperature = f.dataset("temperature")?.read_scalar::<f64>()?;
+        let normalization = f.dataset("normalization")?.read_scalar::<bool>()?;
         let phasecorrection = f.dataset("phasecorrection")?.read_scalar::<bool>()?;
 
         let olaps = {
@@ -178,6 +180,7 @@ impl Couplings for Nac {
             efermi,
             potim,
             temperature,
+            normalization,
             phasecorrection,
             olaps,
             eigs,
@@ -204,6 +207,7 @@ impl Couplings for Nac {
         f.new_dataset::<f64>().create("efermi")?.write_scalar(&self.efermi)?;
         f.new_dataset::<f64>().create("potim")?.write_scalar(&self.potim)?;
         f.new_dataset::<f64>().create("temperature")?.write_scalar(&self.temperature)?;
+        f.new_dataset::<bool>().create("normalization")?.write_scalar(&self.normalization)?;
         f.new_dataset::<bool>().create("phasecorrection")?.write_scalar(&self.phasecorrection)?;
 
         f.new_dataset_builder().with_data(&self.olaps.mapv(|v| v.re)).create("olaps_r")?;
@@ -239,6 +243,7 @@ impl Nac {
         let spin_diabatics = cfg.get_spin_diabatics();
         let potim   = cfg.get_potim();
         let temperature = cfg.get_temperature();
+        let normalization = cfg.get_normalization();
         let phasecorrection = cfg.get_phasecorrection();
 
         let path_1 = rundir.join(format!("{:0ndigit$}", 1)).join("WAVECAR");
@@ -320,6 +325,7 @@ impl Nac {
             nbands,
             nions,
             nproj,
+            normalization,
             phasecorrection,
             spin_diabatics,
         };
@@ -341,6 +347,7 @@ impl Nac {
             efermi,
             potim,
             temperature,
+            normalization,
             phasecorrection,
 
             olaps,
@@ -461,6 +468,7 @@ impl Nac {
             nkpoints,
             ikpoint,
             nbands,
+            normalization,
             phasecorrection,
             spin_diabatics,
             ..
@@ -488,14 +496,28 @@ impl Nac {
         for ispin in 0 .. nspin {
             for iband in brange.clone().into_iter() {
                 phi_i.slice_mut(nd::s![iband - brange.start, ..]).assign(
-                    &wi._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
-                        .into_shape((nplw,))
-                        .with_context(|| format!("Wavefunction reshape failed."))?
+                    &{
+                        let mut phi = wi._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
+                            .into_shape((nplw,))
+                            .with_context(|| format!("Wavefunction reshape failed."))?;
+                        if normalization {
+                            let norm = phi.iter().map(|x| x.norm_sqr()).sum::<f64>().sqrt();
+                            phi.mapv_inplace(|x| x / norm);
+                        }
+                        phi
+                    }
                 );
                 phi_j.slice_mut(nd::s![iband - brange.start, ..]).assign(
-                    &wj._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
-                        .into_shape((nplw,))
-                        .with_context(|| format!("Wavefunction reshape failed."))?
+                    &{
+                        let mut phi = wj._wav_kspace(ispin as u64, ikpoint as u64, iband as u64, nplw / nspinor)
+                            .into_shape((nplw,))
+                            .with_context(|| format!("Wavefunction reshape failed."))?;
+                        if normalization {
+                            let norm = phi.iter().map(|x| x.norm_sqr()).sum::<f64>().sqrt();
+                            phi.mapv_inplace(|x| x / norm);
+                        }
+                        phi
+                    }
                 );
             }
 
@@ -572,6 +594,7 @@ impl Nac {
     }
 
     pub fn get_ndigit(&self) -> usize { self.ndigit }
+    pub fn get_normalization(&self) -> bool { self.normalization }
     pub fn get_soc(&self) -> Option<nd::ArrayView4<c64>> {
         self.soc.as_ref().map(|x| x.view())
     }
@@ -602,6 +625,7 @@ impl Nac {
         let efermi = ws.get_efermis().mean().unwrap();
         let potim = ws.get_potim();
         let temperature = ws.get_temperature();
+        let normalization = ws.get_normalization();
         let phasecorrection = ws.get_phasecorrection();
         let lgamma = if "gam" == &ws.get_wavetype()[..3] { true } else { false };
 
@@ -674,6 +698,7 @@ impl Nac {
             efermi,
             potim,
             temperature,
+            normalization,
             phasecorrection,
 
             olaps,
