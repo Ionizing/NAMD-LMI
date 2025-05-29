@@ -1,3 +1,5 @@
+// typst version: 0.13.1
+
 #import "@preview/touying:0.6.1": *
 #import themes.metropolis: *
 #import "@preview/physica:0.9.5": *
@@ -113,8 +115,8 @@ $
   grid(
     columns: (35%, 65%),
     gutter: 5%,
-    image("vasp-workflow.svg", height: 80%),
-    image("workflow.svg", height: 80%),
+    image("assets/vasp-workflow.svg", height: 80%),
+    image("assets/workflow.svg", height: 80%),
   ),
 )
 
@@ -172,8 +174,8 @@ Options:
 = Example: Photoexcited Spin Valley Dynamics in MoSe#sub[2] Monolayer <touying:hidden>
 
 #align(center)[
-  #image("MoX2.png", width: 100%)
-  #image("SVG/Asset 1.svg", height: 46%)
+  #image("assets/MoX2.png", width: 100%)
+  #image("assets/namd-lmi_MoSe2-example.svg", height: 46%)
 ]
 
 #align(right)[
@@ -209,7 +211,7 @@ Options:
   supcell.write("POSCAR.sup", vasp5=True, direct=True)
   ```
   ]
-  #image("supp-bz.png", width: 100%)
+  #image("assets/supp-bz.png", width: 100%)
   ],
   [
   #show raw: set text(size: 10pt)
@@ -291,7 +293,7 @@ Options:
   TEEND  =  100  # End temperature
   ...
   ```
-  #figure(image("NVT-temperature.png", width: 100%))
+  #figure(image("assets/NVT-temperature.png", width: 100%))
   #text(size: 18pt)[Make sure Temperature is stabled at 100 K.]
   ],
   [
@@ -306,7 +308,7 @@ Options:
   NBLOCK =  1     # XDATCAR contains every step
   ...
   ```
-  #figure(image("NVE-PES-ETOT.png", width: 85%))
+  #figure(image("assets/NVE-PES-ETOT.png", width: 85%))
   #text(size: 18pt)[Total energy is stable. ($Delta E < 0.01$ eV)]
   ]
 )
@@ -395,7 +397,7 @@ Options:
 #let cml-prompt = figure(
   caption: text(size: 16pt, [Run SCF on selected NVE trajectories]),
   supplement: none,
-  image("scf-on-nve.png", width: 100%),
+  image("assets/scf-on-nve.png", width: 100%),
 )
 
 
@@ -413,7 +415,7 @@ Options:
 = Workflow-NAMD-LMI: NAC <touying:hidden>
 
 #let nac-genconfig = figure(
-  image("namd-lmi_nac-genconfig.png", width:100%)
+  image("assets/namd-lmi_nac-genconfig.png", width:100%)
 )
 
 #let nac-config = text(size: 12pt)[
@@ -442,15 +444,15 @@ Options:
 ]
 
 #let nac-process = figure(
-  image("namd-lmi_nac-process.svg", width:100%)
+  image("assets/namd-lmi_nac-process.svg", width:100%)
 )
 
 #let nac-run = figure(
-  image("namd-lmi_nac-run.png", width:90%)
+  image("assets/namd-lmi_nac-run.png", width:90%)
 )
 
 #let nac-h5py = figure(
-  image("namd-lmi_nac-h5py.png", width: 90%)
+  image("assets/namd-lmi_nac-h5py.png", width: 90%)
 )
 
 #grid(
@@ -503,11 +505,11 @@ Options:
 = Workflow-NAMD-LMI: Hamiltonian (Basis selection) <touying:hidden>
 
 #let hamil-process = figure(
-  image("namd-lmi_hamil-process.svg", width:100%)
+  image("assets/namd-lmi_hamil-process.svg", width:100%)
 )
 
 #let basis-band-index = figure(
-  image("SVG/Asset 2.svg", width: 100%),
+  image("assets/namd-lmi_hamil-basis-selection.svg", width: 100%),
   caption: [MoSe#sub[2] band index.],
   supplement: none,
 )
@@ -572,7 +574,7 @@ Options:
     $mathred(E_x = E cos(omega t)\; E_y = -E sin(omega t))$
 
   #figure(
-    image("circular-polarization-left-hand.svg", width: 100%),
+    image("assets/circular-polarization-left-hand.svg", width: 100%),
     caption: [Left hand circularly ($sigma^+$) polarized light.],
     supplement: none,
   )
@@ -629,7 +631,7 @@ Options:
 = Workflow-NAMD-LMI: Hamiltonian (Run) <touying:hidden>
 
 #let hamil-run = figure(
-  image("namd-lmi_hamil-run.png", width: 90%),
+  image("assets/namd-lmi_hamil-run.png", width: 90%),
   caption: text(size: 16pt)[
     #textred(`namd_lmi hamil -c hamil_config.toml`)
   ],
@@ -638,7 +640,7 @@ Options:
 )
 
 #let hamil-genpp = figure(
-  image("namd-lmi_hamil-genpp.png", width: 90%),
+  image("assets/namd-lmi_hamil-genpp.png", width: 90%),
   caption: text(size: 16pt)[
     #textred(`namd_lmi hamil --gen pp`)\
     #textred(`./hamil_plot.py HAMIL.h5`)
@@ -648,7 +650,7 @@ Options:
 )
 
 #let hamil-nac = figure(
-  image("./namd-lmi_hamil-nac.png", height: 40%),
+  image("assets/namd-lmi_hamil-nac.png", height: 40%),
   caption: text(size: 16pt)[
     NAC: $hbar mel(phi.alt_j, pdv(,t), phi.alt_k)$
   ],
@@ -656,7 +658,7 @@ Options:
 )
 
 #let hamil-pij-chiral = figure(
-  image("./namd-lmi_hamil-pij-chiral.png", height: 40%),
+  image("assets/namd-lmi_hamil-pij-chiral.png", height: 40%),
   caption: text(size: 16pt)[
     TDM: $mel(phi.alt_j, p_x + i p_y, phi.alt_k)$ (not Hermitian)
   ],
@@ -681,15 +683,15 @@ Options:
 = Workflow-NAMD-LMI: Surface Hopping (Run) <touying:hidden>
 
 #let surfhop-process = figure(
-  image("namd-lmi_surfhop-process.svg", width: 95%)
+  image("assets/namd-lmi_surfhop-process.svg", width: 95%)
 )
 
 #let surfhop-run = figure(
-  image("namd-lmi_surfhop-run.png", width: 95%)
+  image("assets/namd-lmi_surfhop-run.png", width: 95%)
 )
 
 #let surfhop-log = figure(
-  image("namd-lmi_surfhop-log.png", width: 95%)
+  image("assets/namd-lmi_surfhop-log.png", width: 95%)
 )
 
 #let surfhop-config = text(size: 12pt)[
@@ -745,13 +747,13 @@ Options:
 = Workflow-NAMD-LMI: Surface Hopping (Post Process) <touying:hidden>
 
 #let surfhop-result-sigmaplus = figure(
-  image("namd-lmi_surfhop-sigmaplus.png", width: 90%),
+  image("assets/namd-lmi_surfhop-sigmaplus.png", width: 90%),
   caption: [Using $sigma^+$ laser.],
   supplement: none,
 )
 
 #let surfhop-result-sigmaminus = figure(
-  image("namd-lmi_surfhop-sigmaminus.png", width: 90%),
+  image("assets/namd-lmi_surfhop-sigmaminus.png", width: 90%),
   caption: [Using $sigma^-$ laser.],
   supplement: none,
 )
@@ -777,13 +779,13 @@ where the #textred([colors]) on band denote the time dependent #textred([populat
 = Combined Workflow of NAMD-LMI <touying:hidden>
 
 #let fig-detailed-workflow = figure(
-  image("supp-flowchart.svg", height: 90%),
+  image("assets/supp-flowchart.svg", height: 90%),
   caption: [Combined workflow of NAMD-LMI.],
   supplement: none,
 )
 
 #let fig-overall-process = figure(
-  image("./namd-lmi_overall-process.svg", height: 90%),
+  image("assets/namd-lmi_overall-process.svg", height: 90%),
   caption: [Overall process of NAMD-LMI.],
   supplement: none,
 )
