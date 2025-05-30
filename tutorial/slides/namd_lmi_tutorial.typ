@@ -189,29 +189,37 @@ Options:
   columns: (65%, 30%),
   gutter: 5%,
   align: center+top,
-[
-  #[
-  #set raw(theme: "Monokai.tmTheme")
-  #set align(center)
-  #show raw: it => block(
-    fill: rgb("#1d2433"),
-    inset: 8pt,
-    radius: 5pt,
-    text(fill: rgb("#a2aabc"), size: 12pt, it)
-  )
-  ```Python
-  #!/usr/bin/env python3
-  from ase.io import read
-  from ase.build import make_supercell
-  M = [[4,2,0],
-       [0,3,0],
-       [0,0,1]]
-  primcell = read("POSCAR.prim")
-  supcell = make_supercell(primcell, P=M, order="atom-major")
-  supcell.write("POSCAR.sup", vasp5=True, direct=True)
-  ```
-  ]
-  #image("assets/supp-bz.png", width: 100%)
+  [
+    #[
+    #set raw(theme: "Monokai.tmTheme")
+    #set align(center)
+    #show raw: it => block(
+      fill: rgb("#1d2433"),
+      inset: 8pt,
+      radius: 5pt,
+      text(fill: rgb("#a2aabc"), size: 12pt, it)
+    )
+    ```Python
+    #!/usr/bin/env python3
+    from ase.io import read
+    from ase.build import make_supercell
+    M = [[4,2,0],
+         [0,3,0],
+         [0,0,1]]
+    primcell = read("POSCAR.prim")
+    supcell = make_supercell(primcell, P=M, order="atom-major")
+    supcell.write("POSCAR.sup", vasp5=True, direct=True)
+    ```
+    ]
+
+    #figure(
+      image("assets/supp-bz.png", width: 100%),
+      caption: text(size: 16pt)[
+        Atomic structure, primitive cell and supercell of MoSe#sub[2],
+        and corresponding Brillouin zines.
+      ],
+      supplement: none,
+    )
   ],
   [
   #show raw: set text(size: 10pt)
@@ -808,6 +816,7 @@ where the #textred([colors]) on band denote the time dependent #textred([populat
 - Post process scripts is hardcoded, you may need to modify it to make it run ;
 - NAMD-LMI also supports multiple electron dynamics (e.g. #textred(`iniband = "213..216"`) ),
   and make sure all #textred(`iniband`) is *IN* your #textred(`basis_list`) in #textred(`hamil_config.toml`).
+- NAMD-LMI supports *spin diabatics* representation, just open #textred(`spin_diabatics`) flag in configs.
 - You may need to *regenerate* `HAMIL.h5` when the basis or optical field are changed.
 - If you come across any problems, please open an issue at (click new issue) \
   #link("https://github.com/Ionizing/NAMD-LMI/issues") ;
@@ -818,14 +827,15 @@ where the #textred([colors]) on band denote the time dependent #textred([populat
 #myemph[This work cannot be made possible without the help of]
 - Prof. Jin Zhao ( #link("https://staff.ustc.edu.cn/~zhaojin") )
 - Prof. Qijing Zheng ( #link("https://staff.ustc.edu.cn/~zqj") )
-- Dr. Zhi Li ( #link("https://hefei-namd.org/author/li-zhi/") )
+- Prof. Qunxiang Li ( #link("https://staff.ustc.edu.cn/~liqun") )
+- Dr. Zhi Li ( #link("https://hefei-namd.org/author/li-zhi") )
 
 #myemph[NAMD-LMI related]
 - Paper: #link("https://doi.org/10.1002/adom.202403069")
 - Source code: #link("https://github.com/Ionizing/NAMD-LMI")
 - Documentation: #link("https://ionizing.github.io/NAMD-LMI")
 
-#myemph[Other useful links]
+#myemph[Other useful resources]
 - Prof. Jin Zhao's group page:\
   #link("https://staff.ustc.edu.cn/~zhaojin") / #link("https://hefei-namd.org")
 - Prof. Qijing Zheng's personal page:\
