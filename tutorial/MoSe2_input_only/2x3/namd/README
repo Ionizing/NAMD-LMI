@@ -1,0 +1,7 @@
+Please download NAMD-LMI binary from https://github.com/Ionizing/NAMD-LMI/releases to and then
+
+- Run `namd_lmi nac -c 01_nac_config.toml` to generate NAC.h5 ;
+- Run `namd_lmi hamil -c 02_hamil_config_xxx.toml` to generate HAMIL_xxx.h5 ;
+- Run `./hamil_plot HAMIL_xxx.h5` to plot NAC and transition dipole moments ;
+- Run `namd_lmi surfhop -c 03_surfhop_config_xxx.toml` to get excitation_xxx directory ;
+- Run `cd excitation_xxx` and then `../surfhop_plot.py` to get surfhop.png

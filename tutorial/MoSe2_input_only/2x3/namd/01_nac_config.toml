@@ -1,0 +1,11 @@
+               rundir = "../static_ncl/run"
+              ikpoint = 1
+               brange = [213, 220]
+                  nsw = 50
+       spin_diabatics = false
+               ndigit = 4
+                potim = 1
+          temperature = 100
+        normalization = false
+      phasecorrection = true
+             nacfname = "NAC.h5"

@@ -1,0 +1,86 @@
+#!/bin/bash
+#SBATCH -N 1
+#SBATCH -n 48
+#SBATCH --ntasks-per-node=48
+#SBATCH --partition=part2
+
+################################################################################
+ulimit -s unlimited
+
+module load intel/2020u4
+
+################################################################################
+
+echo "============================================================"
+module list
+env | grep "MKLROOT="
+echo "============================================================"
+echo "Job ID: $SLURM_JOB_NAME"
+echo "Job name: $SLURM_JOB_NAME"
+echo "Number of nodes: $SLURM_JOB_NUM_NODES"
+echo "Number of processors: $SLURM_NTASKS"
+echo "Task is running on the following nodes:"
+echo $SLURM_JOB_NODELIST
+echo "OMP_NUM_THREADS = $SLURM_CPUS_PER_TASK"
+echo "============================================================"
+echo
+
+################################################################################
+# Modified For LOOP
+################################################################################
+START=1
+END=50
+NDIGIT=4 #$(echo -n ${END} | wc -c)
+RUNDIR=${PWD}
+PREFIX="run"
+
+for i in `seq ${START} ${END}`
+do
+    (( j = i - 1 ))
+    ii=`printf "%0${NDIGIT}d" ${i}`
+    jj=`printf "%0${NDIGIT}d" ${j}`
+
+    if [[ -d "${PREFIX}/${ii}" ]]; then
+
+        # goto the working directory
+        cd ${PREFIX}/${ii}
+
+        ln -rsf ../../INCAR .
+        ln -rsf ../../KPOINTS .
+        ln -rsf ../../POTCAR .
+        # Skip this directory if job is running or has ended
+        if [[ -f RUNNING || -f ENDED ]]; then
+            # Do nothing, go back to the parent directory
+            cd ${RUNDIR}
+            continue
+        fi
+
+        # Mark the directory as RUNNING
+        touch RUNNING
+        echo "#### RUNNING in DIR: ${RUNDIR}/${PREFIX}/${ii}"
+        #sleep 1
+
+        # Copy the CHGCAR from the nearest finished job to accelerate current job
+        [[ -s ../${jj}/CHGCAR && -f ../${jj}/ENDED ]] && cp ../${jj}/CHGCAR .
+
+        ############################################################
+        # Run VASP
+        ############################################################
+        mpirun /data/app/Hefeitest/vasp.6.3.0_wan_soc_vtst_bin/bin/vasp_ncl | tee log
+        ############################################################
+
+        # Check if jobs ended correctly
+        if grep 'Total CPU' OUTCAR >& /dev/null; then
+            # If so, mark the job as ENDED
+            touch ENDED
+        else
+            rm ENDED 2> /dev/null
+        fi
+
+        # Delete redundant files
+        rm RUNNING CHG vasprun.xml >& /dev/null
+
+        # Go back to the parent directory
+        cd ${RUNDIR}
+    fi
+done

@@ -1,0 +1,30 @@
+General
+  SYSTEM = MoSe2
+  PREC   = Med
+  ISPIN  = 1
+  ISTART = 0
+  ICHARG = 1
+
+Electronic relaxation
+  NPAR   = 4
+  ISMEAR = 0
+  SIGMA  = 0.1
+  ALGO   = Fast
+  NELMIN = 4
+  NELM   = 120
+  EDIFF  = 1E-6
+
+Molecular Dynamics
+  ISYM   = 0      # turn off symmetry for MD
+  IBRION = 0      # turn on MD
+  NSW    = 500    # No. of ionic steps
+  POTIM  = 1      # time step 1.0 fs
+  SMASS  = -1     # Microcanonical
+  NBLOCK = 4      # XDATCAR contains positions of each step
+  TEBEG  = 100
+  TEEND  = 100
+
+Writing Flag
+  NWRITE = 1      # make OUTCAR small
+  LWAVE  = .FALSE.
+  LCHARG = .FALSE.

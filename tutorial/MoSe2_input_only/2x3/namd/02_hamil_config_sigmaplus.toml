@@ -1,0 +1,9 @@
+              ikpoint = 1
+           basis_list = "215 217..220"
+         basis_labels = ["vKu", "cKu cK'd cK'u cKd"]
+       spin_diabatics = false
+            nac_fname = "NAC.h5"
+         efield_fname = "efield_sigmaplus.rhai"
+          hamil_fname = "HAMIL_sigmaplus.h5"
+           propmethod = "Expm"
+              scissor = 1.71 # unit: eV

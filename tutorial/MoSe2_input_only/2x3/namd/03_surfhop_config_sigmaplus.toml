@@ -1,0 +1,25 @@
+####             NAMD-lmi config for surface-hopping calculation            ####
+#### YOUT NEED TO CHANGE THE PARAMETERS IN THE FOLLOWING TO FIT YOUR SYSTEM ####
+
+          hamil_fname = "HAMIL_sigmaplus.h5"
+             namdtime = 5000
+                 nelm = 10
+                ntraj = 10000
+             shmethod = "FSSH"
+
+               outdir = "excitation_sigmaplus"
+     detailed_balance = "DependsOnEField"
+      smearing_method = "LorentzianSmearing"
+       smearing_sigma = 0.01
+ smearing_npoints_per_eV = 500
+           ltdphonons = false
+           ltdphotons = false
+
+              iniband = "215"
+             inisteps = [
+        22 ,
+        23 ,
+        26 ,
+        31 ,
+        38
+]
