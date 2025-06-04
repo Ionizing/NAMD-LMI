@@ -17,7 +17,7 @@ Electronic relaxation
 Molecular Dynamics
   ISYM   = 0      # turn off symmetry for MD
   IBRION = 0      # turn on MD
-  NSW    = 5000   # No. of ionic steps
+  NSW    = 500    # No. of ionic steps
   POTIM  = 1      # time step 1.0 fs
   SMASS  = -3     # Microcanonical
   NBLOCK = 1      # XDATCAR contains positions of each step
