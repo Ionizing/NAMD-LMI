@@ -19,3 +19,8 @@ enable = true
 level = 1
 
 [output.markdown]
+
+[output.pdf]
+scale = 0.7
+margin-left = 0.5
+margin-right = 0.5
