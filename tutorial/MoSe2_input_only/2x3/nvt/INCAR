@@ -19,7 +19,7 @@ Molecular Dynamics
   IBRION = 0      # turn on MD
   NSW    = 500    # No. of ionic steps
   POTIM  = 1      # time step 1.0 fs
-  SMASS  = -1     # Microcanonical
+  SMASS  = -1     # Canonical
   NBLOCK = 4      # XDATCAR contains positions of each step
   TEBEG  = 100
   TEEND  = 100
