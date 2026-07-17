@@ -14,7 +14,7 @@
     title: text(size:50pt)[NAMD-LMI Tutorial],
     subtitle: [Hefei-NAMD with light-matter interaction support],
     author: text(size: 25pt)[Linjie Chen],
-    date: text(size: 20pt)[2025 June 6 \@ Qingdao],
+    date: text(size: 20pt)[2026 July 18 \@ Hefei],
     institution: text(size: 20pt)[University of Science and Technology of China],
   ),
 )
@@ -115,8 +115,8 @@ $
   grid(
     columns: (35%, 65%),
     gutter: 5%,
-    image("assets/vasp-workflow.svg", height: 80%),
-    image("assets/workflow.svg", height: 80%),
+    image("assets/vasp-workflow.pdf", height: 80%),
+    image("assets/workflow.pdf", height: 80%),
   ),
 )
 
@@ -452,7 +452,7 @@ Options:
 ]
 
 #let nac-process = figure(
-  image("assets/namd-lmi_nac-process.svg", width:100%)
+  image("assets/namd-lmi_nac-process.pdf", width:100%)
 )
 
 #let nac-run = figure(
@@ -513,7 +513,7 @@ Options:
 = Workflow-NAMD-LMI: Hamiltonian (Basis selection) <touying:hidden>
 
 #let hamil-process = figure(
-  image("assets/namd-lmi_hamil-process.svg", width:100%)
+  image("assets/namd-lmi_hamil-process.pdf", width:100%)
 )
 
 #let basis-band-index = figure(
@@ -691,7 +691,7 @@ Options:
 = Workflow-NAMD-LMI: Surface Hopping (Run) <touying:hidden>
 
 #let surfhop-process = figure(
-  image("assets/namd-lmi_surfhop-process.svg", width: 95%)
+  image("assets/namd-lmi_surfhop-process.pdf", width: 95%)
 )
 
 #let surfhop-run = figure(
@@ -755,13 +755,19 @@ Options:
 = Workflow-NAMD-LMI: Surface Hopping (Post Process) <touying:hidden>
 
 #let surfhop-result-sigmaplus = figure(
-  image("assets/namd-lmi_surfhop-sigmaplus.png", width: 90%),
+  [
+    #image("assets/namd-lmi_surfhop-sigmaplus.png", width: 60%)
+    #image("assets/namd-lmi_surfhop_pop-sigmaplus.png", width: 60%)
+  ],
   caption: [Using $sigma^+$ laser.],
   supplement: none,
 )
 
 #let surfhop-result-sigmaminus = figure(
-  image("assets/namd-lmi_surfhop-sigmaminus.png", width: 90%),
+  [
+    #image("assets/namd-lmi_surfhop-sigmaminus.png", width: 60%)
+    #image("assets/namd-lmi_surfhop_pop-sigmaminus.png", width: 60%)
+  ],
   caption: [Using $sigma^-$ laser.],
   supplement: none,
 )
@@ -780,20 +786,20 @@ we can get the evolution of electrons.
   ]
 )
 
-The #textred([blue line]) denotes the evolution of #textred([total energy]),
-where the #textred([colors]) on band denote the time dependent #textred([population]) of each band.
+The upper panel denote the energy evolution, while the lower panel stands for the valley population
+evolution.
 
 
 = Combined Workflow of NAMD-LMI <touying:hidden>
 
 #let fig-detailed-workflow = figure(
-  image("assets/supp-flowchart.svg", height: 90%),
+  image("assets/supp-flowchart.pdf", height: 90%),
   caption: [Combined workflow of NAMD-LMI.],
   supplement: none,
 )
 
 #let fig-overall-process = figure(
-  image("assets/namd-lmi_overall-process.svg", height: 90%),
+  image("assets/namd-lmi_overall-process.pdf", height: 90%),
   caption: [Overall process of NAMD-LMI.],
   supplement: none,
 )
